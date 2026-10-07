@@ -1,0 +1,376 @@
+{
+  "schemaVersion": 1,
+  "nodeModelVersion": 4,
+  "templateId": "tpl-srs-table-trial",
+  "docKey": "srs-table-trial",
+  "version": 1,
+  "name": "SRS table export trial",
+  "book": {
+    "page": {
+      "size": "A4",
+      "orientation": "portrait",
+      "margin": {
+        "top": {
+          "value": 20,
+          "unit": "mm"
+        },
+        "right": {
+          "value": 20,
+          "unit": "mm"
+        },
+        "bottom": {
+          "value": 20,
+          "unit": "mm"
+        },
+        "left": {
+          "value": 20,
+          "unit": "mm"
+        }
+      }
+    },
+    "contentSlot": "body"
+  },
+  "globalSchema": {
+    "type": "object",
+    "fields": {
+      "projectName": {
+        "type": "string",
+        "required": true,
+        "allowEmpty": false,
+        "label": "ชื่อโครงการ"
+      }
+    }
+  },
+  "styles": {
+    "body": {
+      "fontFamilyKey": "sarabun",
+      "fontWeight": "normal",
+      "fontSize": {
+        "value": 12,
+        "unit": "pt"
+      },
+      "lineHeightPt": 20
+    }
+  },
+  "formats": {
+    "section-note": {
+      "label": "ข้อความประกอบหัวข้อ",
+      "inputSchema": {
+        "type": "object",
+        "fields": {
+          "text": {
+            "type": "string",
+            "required": true
+          }
+        }
+      },
+      "fragment": {
+        "rootIds": [
+          "note"
+        ],
+        "nodes": {
+          "note": {
+            "id": "note",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body",
+              "sizing": {
+                "mode": "content"
+              }
+            },
+            "children": [
+              {
+                "id": "prefix",
+                "type": "text",
+                "text": "โครงการ "
+              },
+              {
+                "id": "project",
+                "type": "field-ref",
+                "scope": "global",
+                "key": "projectName"
+              },
+              {
+                "id": "separator",
+                "type": "text",
+                "text": ": "
+              },
+              {
+                "id": "note-value",
+                "type": "field-ref",
+                "scope": "local",
+                "key": "text"
+              }
+            ]
+          }
+        }
+      },
+      "repeats": []
+    },
+    "requirement-list": {
+      "label": "ตารางข้อกำหนด",
+      "inputSchema": {
+        "type": "object",
+        "fields": {
+          "items": {
+            "type": "array",
+            "required": true,
+            "items": {
+              "type": "object",
+              "fields": {
+                "code": {
+                  "type": "string",
+                  "required": true
+                },
+                "detail": {
+                  "type": "string",
+                  "required": true
+                },
+                "remark": {
+                  "type": "string",
+                  "required": false,
+                  "default": "ไม่ระบุ"
+                }
+              }
+            }
+          }
+        }
+      },
+      "fragment": {
+        "rootIds": [
+          "table"
+        ],
+        "nodes": {
+          "table": {
+            "id": "table",
+            "type": "table",
+            "props": {
+              "headerRowCount": 1,
+              "repeatHeaderRows": true
+            },
+            "columns": [
+              {
+                "width": {
+                  "value": 25,
+                  "unit": "mm"
+                }
+              },
+              {
+                "width": {
+                  "value": 110,
+                  "unit": "mm"
+                }
+              },
+              {
+                "width": {
+                  "value": 35,
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rowIds": [
+              "header",
+              "row"
+            ]
+          },
+          "header": {
+            "id": "header",
+            "type": "table-row",
+            "props": {
+              "allowBreak": false
+            },
+            "cellIds": [
+              "hc",
+              "hd",
+              "hr"
+            ]
+          },
+          "hc": {
+            "id": "hc",
+            "type": "table-cell",
+            "props": {},
+            "childIds": [
+              "htc"
+            ]
+          },
+          "hd": {
+            "id": "hd",
+            "type": "table-cell",
+            "props": {},
+            "childIds": [
+              "htd"
+            ]
+          },
+          "hr": {
+            "id": "hr",
+            "type": "table-cell",
+            "props": {},
+            "childIds": [
+              "htr"
+            ]
+          },
+          "htc": {
+            "id": "htc",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "hct",
+                "type": "text",
+                "text": "รหัส"
+              }
+            ]
+          },
+          "htd": {
+            "id": "htd",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "hdt",
+                "type": "text",
+                "text": "รายละเอียด"
+              }
+            ]
+          },
+          "htr": {
+            "id": "htr",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "hrt",
+                "type": "text",
+                "text": "หมายเหตุ"
+              }
+            ]
+          },
+          "row": {
+            "id": "row",
+            "type": "table-row",
+            "props": {
+              "allowBreak": true
+            },
+            "cellIds": [
+              "rc",
+              "rd",
+              "rr"
+            ]
+          },
+          "rc": {
+            "id": "rc",
+            "type": "table-cell",
+            "props": {},
+            "childIds": [
+              "rtc"
+            ]
+          },
+          "rd": {
+            "id": "rd",
+            "type": "table-cell",
+            "props": {},
+            "childIds": [
+              "rtd"
+            ]
+          },
+          "rr": {
+            "id": "rr",
+            "type": "table-cell",
+            "props": {},
+            "childIds": [
+              "rtr"
+            ]
+          },
+          "rtc": {
+            "id": "rtc",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "code",
+                "type": "field-ref",
+                "scope": "item",
+                "key": "code"
+              }
+            ]
+          },
+          "rtd": {
+            "id": "rtd",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "detail-prefix",
+                "type": "text",
+                "text": "ระบบต้อง "
+              },
+              {
+                "id": "detail",
+                "type": "field-ref",
+                "scope": "item",
+                "key": "detail"
+              }
+            ]
+          },
+          "rtr": {
+            "id": "rtr",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "remark",
+                "type": "field-ref",
+                "scope": "item",
+                "key": "remark"
+              }
+            ]
+          }
+        }
+      },
+      "repeats": [
+        {
+          "tableId": "table",
+          "rowTemplateId": "row",
+          "source": {
+            "scope": "local",
+            "key": "items"
+          }
+        }
+      ]
+    }
+  },
+  "examples": []
+}

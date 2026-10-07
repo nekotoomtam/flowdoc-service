@@ -1,0 +1,6 @@
+{
+ "name":"@flowdoc/core","version":"0.1.0-dev.4","file":"flowdoc-core-0.1.0-dev.4.tgz",
+ "sha256":"96be5988714e44a95f2aa67c84c1be86ec7ba1c6b2ab2a7fe54d02d361cb5878",
+ "sourceCommit":"a2fcce4","sourceArtifact":"flowdoc-core/artifacts/1791389246204",
+ "runtime":"linux-x64 glibc, Node24, Python3.11, fontTools4.58.2"
+}

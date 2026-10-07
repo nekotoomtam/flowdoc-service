@@ -1,0 +1,7 @@
+{
+ "name":"@flowdoc/service","version":"0.1.0-dev.1","private":true,"type":"module","license":"UNLICENSED",
+ "engines":{"node":">=24.15.0 <25"},
+ "scripts":{"build":"tsc -p tsconfig.json","test":"vitest run","check:database":"node scripts/checkDatabase.mjs","cli":"node dist/cli.js"},
+ "dependencies":{"@flowdoc/core":"file:vendor/flowdoc-core-0.1.0-dev.4.tgz","pg":"8.23.1"},
+ "devDependencies":{"@types/node":"24.10.0","@types/pg":"8.23.1","typescript":"6.0.3","vitest":"4.1.9"}
+}
