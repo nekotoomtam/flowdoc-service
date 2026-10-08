@@ -1,6 +1,6 @@
 import {beforeAll,afterAll,it,expect} from 'vitest';
 import {readFileSync} from 'node:fs';
-import {mkdtemp} from 'node:fs/promises';
+import {mkdtemp,mkdir,writeFile,stat} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {Readable} from 'node:stream';
@@ -44,11 +44,15 @@ it('rolls back insertion failure so a valid retry can claim the set',async()=>{
 });
 it('pins queued/running originals across expiry and restart, then cleans one hour after terminal',async()=>{
  const a=await set(),job=await claim(a);const item=(await db.pool.query('SELECT storage_key FROM upload_items WHERE id=$1',[a.resourceIds[0]])).rows[0];
+ const directory=files.jobDirectory(job.jobId);await mkdir(directory,{recursive:true});const derivative=join(directory,'prepared.jpg');await writeFile(derivative,'prepared');
  time+=7200000;await u.cleanup();await u.recover();expect(await files.exists(item.storage_key,3)).toBe(true);expect((await u.get(a.uploadId)).status).toBe('claimed');
+ expect((await stat(derivative)).size).toBe(8);
  await db.pool.query("UPDATE generation_jobs SET status='running' WHERE id=$1",[job.jobId]);await u.cleanup();expect(await files.exists(item.storage_key,3)).toBe(true);
+ expect((await stat(derivative)).size).toBe(8);
  await failInterruptedJobs(db.pool);await db.pool.query('UPDATE generation_jobs SET finished_at=$2 WHERE id=$1',[job.jobId,new Date(time)]);
  time+=3599999;await u.cleanup();expect(await files.exists(item.storage_key,3)).toBe(true);
  expect((await claim(a)).jobId).toBe(job.jobId);
  time+=1;await u.cleanup();expect(await files.exists(item.storage_key,3)).toBe(false);expect((await u.get(a.uploadId)).status).toBe('expired');
+ await expect(stat(directory)).rejects.toMatchObject({code:'ENOENT'});
  await expect(claim(a)).rejects.toMatchObject({code:'UPLOAD_GONE'});
 });

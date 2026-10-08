@@ -109,6 +109,7 @@ export function createUploads(deps:{pool:Pool;files:ResourceFiles;config:UploadC
    const ids=[];for(const s of eligible){const busy=(await c.query('SELECT attempt_id FROM upload_items WHERE upload_id=$1 AND attempt_id IS NOT NULL',[s.id])).rows.some(i=>active.has(i.attempt_id));if(busy)continue;await c.query("UPDATE upload_sessions SET status='expired',retired_at=coalesce(retired_at,$2) WHERE id=$1",[s.id,new Date(now())]);ids.push(s.id);}return ids;
   });
   for(const id of expired){const items=(await pool.query('SELECT storage_key,attempt_id FROM upload_items WHERE upload_id=$1',[id])).rows;for(const i of items){if(i.storage_key)await files.remove(i.storage_key);if(i.attempt_id){await files.remove(i.attempt_id+'.bin');await files.remove(i.attempt_id+'.bin.part');}}
+   const claim=(await pool.query('SELECT job_id FROM upload_job_claims WHERE upload_id=$1',[id])).rows[0];if(claim)await files.removeJob(claim.job_id);
    await transaction(pool,async c=>{await c.query("UPDATE upload_items SET storage_key=NULL,source_url=NULL,attempt_id=NULL,status='expired' WHERE upload_id=$1",[id]);await c.query('UPDATE upload_sessions SET deleted_at=$2,reserved_bytes=0 WHERE id=$1',[id,new Date(now())]);});
   }
   await pool.query('DELETE FROM upload_sessions WHERE deleted_at IS NOT NULL AND deleted_at<=$1',[new Date(now()-config.metadataMs)]);

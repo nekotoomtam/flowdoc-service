@@ -208,18 +208,47 @@ Migration 005 adds master 110004 (image), shared by current and version variable
 Model 5 image variables bind resource UUID strings in global/local scope; URL and
 file intake remain upload sources, not separate variable types. Image variables
 inside array items/table cells are not supported. The registry can publish these
-templates, but /jobs returns 422 IMAGE_JOBS_UNAVAILABLE for selected image formats
-until resource claiming and preparation are connected. This prevents silent blank
-image output; ordinary text/table jobs remain supported.
+templates. The configured server accepts image jobs with a finalized `uploadId`;
+image field values are resource IDs from that upload. Missing/wrong-set references
+are rejected before admission. Ordinary text/table jobs remain supported.
 
 Migration 006 adds the internal upload/job ownership boundary. `enqueueWithUpload`
 accepts already validated/pinned input and server-derived resource references;
 it locks the finalized upload and inserts the job and claim in one transaction.
 Identical retries return the existing job ID; different input/version conflicts.
-This function is not yet exposed through HTTP image admission.
+The configured HTTP admission calls this boundary for image resources.
 
 Claimed uploads report `claimed`, with `expiresAt: null` while queued/running.
 Original files are protected through queueing/recovery and for one hour after
 the job finishes. Cleanup then releases their bytes and later expires metadata.
-Prepared derivative ownership, URL retrieval and image rendering integration
-remain pending; this boundary alone does not enable API image exports.
+Migration 007 stores actual processing stages/counts and processing warnings
+separately from immutable accepted input. Poll `/jobs/:id` for `processing.stage`
+(`preparing-resources`, `rendering`, `complete`, `failed`), `completed`, `total`,
+and `warningCount`. Counts describe image slots, not estimated overall completion.
+
+Preparation uses 200 DPI, proportional fit and no pixel upscaling. JPEG and PNG
+alpha are supported; repeated source/target sizes reuse a prepared derivative.
+Bad images or blocked/unavailable URLs keep their frame blank with a warning.
+Resource/decoder/output budgets can also skip an image. Poll warnings before
+accepting the document. Shutdown or the five-minute preparation deadline fails
+the job; each decode/download is limited to 30 seconds.
+
+Originals live at the staging root; downloads and derivatives are owned by
+`jobs/<job-id>` below it, with shared quota reserved before writes. A single
+prepared image reserves up to 32 MiB while it is being produced; unused reservation
+is released. Original data plus prepared files may use up to the set byte budget
+plus 64 MiB, still bounded by shared staging capacity. PDF image resources are
+limited to 20 derivatives and 64 MiB per job. Low custom staging limits can skip
+images even when their compressed upload fits.
+
+Remote images require HTTPS with public unicast destinations, no credentials or
+forwarded authorization, at most three redirects, and at most 50 MiB per download.
+Every destination is checked and its address pinned. Compose adds `image-egress`
+to the API only; the DB remains on the internal network. Protected sources must
+be downloaded by the caller and sent through upload intake. Deployments without
+outbound access receive warnings for remote images.
+
+`tests/uat-image-trial.mjs` runs a synthetic UAT report through live local HTTP
+upload, finalize, job polling and PDF download. It requires an isolated database
+and writes the PDF and a result report to `FLOWDOC_UAT_OUTPUT`. It uses no customer
+data. These fixtures do not claim production capacity or all-image visual quality.

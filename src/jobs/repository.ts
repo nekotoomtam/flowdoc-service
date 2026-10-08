@@ -9,7 +9,9 @@ export async function getJob(pool:Queryable,id:string):Promise<Result<JobView>>{
  try{
   const r=await pool.query('SELECT j.id,j.status,j.warnings_json,j.skipped_indices,j.errors_json,v.version FROM generation_jobs j JOIN template_versions v ON v.id=j.template_version_id WHERE j.id=$1',[id]);
   const row=r.rows[0];if(!row)return failure(new OperationError('JOB_NOT_FOUND','jobId','Job not found'));
-  return {ok:true,value:{jobId:row.id,version:row.version,status:row.status,hasWarnings:row.warnings_json.length>0,warnings:row.warnings_json,skippedContentIndices:row.skipped_indices,errors:row.errors_json},warnings:row.warnings_json};
+  const progress=(await pool.query('SELECT stage,completed,total,warnings_json FROM job_processing WHERE job_id=$1',[id])).rows[0];
+  const warnings=[...row.warnings_json,...(progress?.warnings_json??[])];
+  return {ok:true,value:{jobId:row.id,version:row.version,status:row.status,hasWarnings:warnings.length>0,warnings,skippedContentIndices:row.skipped_indices,errors:row.errors_json,...(progress?{processing:{stage:progress.stage,completed:progress.completed,total:progress.total,warningCount:progress.warnings_json.length}}:{})},warnings};
  }catch(error){return failure(error);}
 }
 export async function claimNextJob(pool:Queryable):Promise<Job|null>{
@@ -17,8 +19,9 @@ export async function claimNextJob(pool:Queryable):Promise<Job|null>{
  const row=r.rows[0];return row?{id:row.id,versionId:row.template_version_id,preparedInput:row.prepared_input}:null;
 }
 export async function failJob(pool:Queryable,id:string,issues:Issue[]):Promise<boolean>{
- const r=await pool.query("UPDATE generation_jobs SET status='failed',finished_at=now(),errors_json=$2 WHERE id=$1 AND status='running'",[id,JSON.stringify(issues)]);return r.rowCount===1;
+ const r=await pool.query("UPDATE generation_jobs SET status='failed',finished_at=now(),errors_json=$2 WHERE id=$1 AND status='running'",[id,JSON.stringify(issues)]);if(r.rowCount===1)await pool.query("UPDATE job_processing SET stage='failed',updated_at=now() WHERE job_id=$1",[id]);return r.rowCount===1;
 }
 export async function failInterruptedJobs(pool:Queryable):Promise<void>{
  await pool.query("UPDATE generation_jobs SET status='failed',finished_at=now(),errors_json=$1 WHERE status='running'",[JSON.stringify([{code:'PROCESS_INTERRUPTED',path:'job',message:'Processing interrupted; submit a new job'}])]);
+ await pool.query("UPDATE job_processing SET stage='failed',updated_at=now() WHERE job_id IN (SELECT id FROM generation_jobs WHERE status='failed') AND stage<>'failed'");
 }

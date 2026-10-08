@@ -57,7 +57,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    networks: [private]
+    networks: [private, image-egress]
   verification:
     profiles: [verify]
     image: ${FLOWDOC_VERIFY_IMAGE:-flowdoc-service-tests:0.1.1}
@@ -75,5 +75,6 @@ volumes:
   outputs:
   staging:
 networks:
+  image-egress: {}
   private:
     internal: true

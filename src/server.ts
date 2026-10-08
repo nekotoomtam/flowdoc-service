@@ -29,8 +29,8 @@ async function main(){
  const stop=async()=>{if(closing)return;closing=true;if(timer)clearInterval(timer);await Promise.allSettled([uploads.stop(),app?.close(),processor?.stop(),cleanup]);await pool.end();};
  try{
   const files=await createPdfFiles(process.env.EXPORT_OUTPUT_DIR??'output'),outputs=createOutputs(pool,files,policy.tempHours);
-  processor=await startProcessor({pool,files,policy,initialize:async()=>{await cleanupRenderTemps(renderRoot);await outputs.cleanup();await uploads.recover();},render:(p,t,s)=>renderPinnedJob(p,t,s,deadline,maxBytes,renderRoot)});
-  app=createServer({pool,outputs,uploads,isReady:()=>!closing&&processor!.isReady(),bodyLimit});
+  processor=await startProcessor({pool,files,policy,resources:{files:resourceFiles,config:uploadConfig},initialize:async()=>{await cleanupRenderTemps(renderRoot);await outputs.cleanup();await uploads.recover();},render:(p,t,s,images)=>renderPinnedJob(p,t,s,deadline,maxBytes,renderRoot,images)});
+  app=createServer({pool,outputs,uploads,isReady:()=>!closing&&processor!.isReady(),bodyLimit,imagesEnabled:true});
   await app.listen({host,port});
   timer=setInterval(()=>{if(cleanup)return;cleanup=Promise.all([outputs.cleanup(),uploads.cleanup()]).then(()=>{}).catch(()=>{}).finally(()=>{cleanup=undefined;});},60000);
   process.once('SIGTERM',()=>{void stop();});process.once('SIGINT',()=>{void stop();});
