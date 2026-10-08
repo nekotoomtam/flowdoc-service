@@ -15,9 +15,10 @@ try{
  compose(['build','registry','verification'],'build');
  const runtimeImage=docker(['image','inspect',runtimeTag,'--format','{{.Id}}']).trim(),verificationImage=docker(['image','inspect',verifyTag,'--format','{{.Id}}']).trim();
  compose(['up','-d','--wait','db'],'database-start');
- const migration=cli(['migrate'],'migrate');assert.equal(migration.ok,true);assert.deepEqual(migration.value.applied,['001_initial.sql']);
+ const migration=cli(['migrate'],'migrate');assert.equal(migration.ok,true);assert.deepEqual(migration.value.applied,['001_initial.sql','002_current_version.sql']);
  const testText=compose(['run','--rm','-T','verification','--reporter=json'],'tests');const tests=JSON.parse(testText);assert.equal(tests.success,true);assert.equal(tests.numPendingTests,0);
  const registration=cli(['register','examples/srs-template.json'],'register');assert.equal(registration.ok,true);assert.equal(registration.value.created,true);
+ const cliCurrent=JSON.parse(compose(['run','--rm','-T','--entrypoint','node','verification','tests/checkCurrentCli.mjs'],'current-cli'));assert.equal(cliCurrent.status,'PASS');
  const before=cli(['show','srs-table-trial','1'],'show-before');assert.equal(before.ok,true);
  compose(['restart','db'],'restart');compose(['up','-d','--wait','db'],'database-ready');
  const replay=cli(['migrate'],'migrate-after');assert.equal(replay.ok,true);assert.deepEqual(replay.value.applied,[]);
@@ -26,6 +27,6 @@ try{
  assert.equal(docker(['image','inspect',runtimeTag,'--format','{{.Id}}']).trim(),runtimeImage);
  const postgresVersion=compose(['exec','-T','db','psql','-U','flowdoc','-d','flowdoc','-Atc','SELECT version();'],'postgres-version').trim();
  compose(['stop'],'stop');
- const report={status:'PASS',serviceVersion:JSON.parse(readFileSync(join(root,'package.json'),'utf8')).version,project,output,runtimeImage,verificationImage,postgresVersion,core:JSON.parse(readFileSync(join(root,'vendor/manifest.json'),'utf8')),tests:{passed:tests.numPassedTests,failed:tests.numFailedTests,skipped:tests.numPendingTests},registration,persisted,checks:['fresh isolated PostgreSQL volume','transactional migration/replay','real SQL constraints/concurrency tests','raw registration CLI','exact/latest load','restart persistence','same runtime image before/after'],resources:'containers stopped; project network and DB volume retained; no published ports or source mounts'};
+ const report={status:'PASS',serviceVersion:JSON.parse(readFileSync(join(root,'package.json'),'utf8')).version,project,output,runtimeImage,verificationImage,postgresVersion,core:JSON.parse(readFileSync(join(root,'vendor/manifest.json'),'utf8')),tests:{passed:tests.numPassedTests,failed:tests.numFailedTests,skipped:tests.numPendingTests},registration,cliCurrent,persisted,checks:['fresh isolated PostgreSQL volume','transactional migration/replay','real SQL constraints/concurrency tests','raw registration CLI','exact/latest load','restart persistence','same runtime image before/after'],resources:'containers stopped; project network and DB volume retained; no published ports or source mounts'};
  writeFileSync(join(output,'result.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report,null,2));
 }catch(error){writeFileSync(join(output,'failure.json'),JSON.stringify({status:'FAIL',project,output,message:error.message},null,2));console.error(JSON.stringify({status:'FAIL',project,output,message:error.message}));process.exitCode=1;}

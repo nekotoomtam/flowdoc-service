@@ -14,7 +14,7 @@ services:
       retries: 30
     networks: [private]
   registry:
-    image: ${FLOWDOC_REGISTRY_IMAGE:-flowdoc-service:0.1.0-dev.1}
+    image: ${FLOWDOC_REGISTRY_IMAGE:-flowdoc-service:0.1.0-dev.2}
     build:
       context: .
       target: runtime
@@ -26,7 +26,7 @@ services:
     networks: [private]
   verification:
     profiles: [verify]
-    image: ${FLOWDOC_VERIFY_IMAGE:-flowdoc-service-tests:0.1.0-dev.1}
+    image: ${FLOWDOC_VERIFY_IMAGE:-flowdoc-service-tests:0.1.0-dev.2}
     build:
       context: .
       target: verification

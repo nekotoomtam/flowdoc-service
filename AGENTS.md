@@ -5,7 +5,7 @@
 Owner: flowdoc-service. Scope: service code, PostgreSQL migrations, local CLI,
 container setup and repository tests. Shared MVP/roadmap/status belongs to
 flowdoc-project-control. Read ../flowdoc-project-control/AGENTS.md first.
-Current registry scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r3-registry-plan-2026-10-07.md.
+Current registry scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-current-version-plan-2026-10-08.md.
 This guide does not claim HTTP, worker or full MVP readiness.
 
 Import Core only from its versioned package root. Preserve its artifact checksum

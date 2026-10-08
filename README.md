@@ -2,97 +2,100 @@
 
 ## Authority Boundary
 
-Owner: flowdoc-service. This file describes local registry/database setup and
-repository-owned operations. Shared scope and acceptance are governed by
-`../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r3-registry-plan-2026-10-07.md`.
-Release `0.1.0-dev.1` supplies a registry CLI and DB foundation. HTTP routes,
-render jobs and downloads are subsequent R4 work; this is not full MVP readiness.
+Owner: flowdoc-service. Repository-owned commands, storage and local operation.
+Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-current-version-plan-2026-10-08.md.
+Version 0.1.0-dev.2 provides current-record editing and immutable publication.
+HTTP, worker execution, downloads, UI, permissions and media remain out of scope.
 
-## Isolated acceptance
+## Local setup and acceptance
 
-Install Node24 dependencies with `npm ci --ignore-scripts`, then `npm run build`.
-With Docker Desktop's Linux engine running, run:
+Install dependencies with `npm ci --ignore-scripts`; build with `npm run build`.
+With Docker Desktop's Linux engine ready, run `npm run check:database`.
+It uses a fresh isolated PostgreSQL18 volume/internal network, pinned images and
+Core dev.4 tarball, without published DB ports or host source mounts. It verifies
+fresh migration, populated R3 upgrade/rollback, constraints, publication concurrency,
+CLI editing, source-versus-snapshot PDF equality and restart persistence.
+Results are in `artifacts/<run>/result.json`. Success stops the environment but
+retains its volume/network/images. Failures leave inspection data. Generated
+`compose.env` contains a local password; never distribute it with reports.
+`npm test` requires a fresh dedicated DATABASE_URL after build. Tests create
+fixtures/isolated schemas and temporarily alter constraints; never use shared data.
 
-```text
-npm run check:database
-```
-
-The check builds the pinned runtime/verification images, starts a new PostgreSQL
-volume on its own internal network, migrates, runs real SQL tests, registers the
-example through the CLI and reloads records after restarting the same DB. It
-publishes no ports and mounts no host source. The same runtime image is used
-before/after restart. Core comes only from the checksum-verified vendored tarball.
-
-Results/logs/image identities are under `artifacts/<run>/`. On success the DB
-container is stopped; its volume/network and images are retained for inspection.
-On failure the isolated environment and logs remain. `compose.env` in this ignored
-directory holds a generated local DB password; do not share it with reports.
-No script deletes an existing DB or volume. A fresh project is used on each run.
-
-`npm test` runs CLI and database tests and requires DATABASE_URL to a dedicated,
-fresh test DB after building. These tests create fixtures and temporarily alter
-a constraint; do not point them at a user or shared database. The Docker check
-provides that isolation automatically. Tests never silently skip a missing DB.
-
-## Local registry commands
-
-Copy `.env.example` to `.env` and replace its value with a random URL-safe local
-password. Compose owns a named volume; do not use `down -v` if you want to retain
-registered templates and jobs.
+For a persistent local registry, copy .env.example to .env and choose a random
+URL-safe password. Run:
 
 ```text
 docker compose build registry
 docker compose up -d --wait db
 docker compose run --rm registry migrate
-docker compose run --rm registry register examples/srs-template.json
+docker compose run --rm registry draft-import examples/srs-template.json
+docker compose run --rm registry draft-show tpl-srs-table-trial
+docker compose run --rm registry publish tpl-srs-table-trial first-publication
 docker compose run --rm registry show srs-table-trial 1
-docker compose run --rm registry show srs-table-trial
 docker compose stop
 ```
 
-The example is included in the image. To register another file, mount only its
-input directory read-only, then pass the path inside the container. The registry
-reads raw JSON text before parsing, so duplicate keys are rejected by Core rather
-than silently overwritten. CLI results are JSON; failures use exit status 1 and
-never print SQL errors/connection strings. `show` is a developer registry command
-returning the full validated definition, not the future public contract API.
+CLI returns a Result JSON envelope. To edit, save the `value` returned by
+`draft-show` as a JSON file, retain its IDs and revision, edit payload/variables,
+then invoke `draft-save <file>`. Mount only the input folder read-only into the
+container when supplying a host file. Save returns the new revision; reload
+before editing again. A stale revision is rejected. Import creates current once;
+repeat import reports CURRENT_EXISTS so it cannot accidentally replace IDs.
+Raw template import/registration use Core duplicate-key-aware validation.
+ID-bearing draft-save currently uses JSON.parse; provide a serialized record
+with unique JSON keys, rather than hand-authored duplicate-key input.
 
-Registration is atomic: a failure leaves no partial version or new parent.
-Service versions are integers from 1 to 2147483647, matching the database column;
-registration and lookup reject out-of-range values before accessing storage.
-Repeating identical content at the same version returns `created:false` and its
-existing ID; changed content at that version returns TEMPLATE_VERSION_CONFLICT.
-Changing the templateId/docKey pairing returns TEMPLATE_IDENTITY_CONFLICT.
-Adding a new version leaves existing versions untouched. Omitted version in
-`show` selects the highest registered version once. A later job must store the
-returned versionId, never select latest again when it runs.
+Changing a variable key keeps its ID. The existing Core key/path references in
+fragments must also be updated by the author. Save allows unresolved content
+refs; publish rejects them. Delete owned child rows from the record together:
+removing a format also requires removing its schema/variables, and removing a
+parent requires removing its children. No hidden text/reference cleanup occurs.
+The SQL ownership FKs cascade, but draft-save does not infer missing rows for you.
+New child entries require distinct UUID IDs; imported children/publication IDs
+are allocated as v7 by DB. Existing IDs cannot move between owner schemas/kinds.
 
-## Database and migration boundaries
+Publication takes an explicit request ID. Retrying the same template/request ID
+returns the original version even after current changes. Use a new request ID for
+an intentional new publication. The request token is scoped to the template.
+A template lock serializes supported saves/publications/registration; callers
+must not bypass these operations with arbitrary SQL edits during publication.
+Examples are rebound to the selected publication version when assembling the
+Core envelope. Master codes remain string/object/array; object is only an envelope
+or array item under Core's existing limits, not arbitrary nested-field support.
 
-The four domain tables are templates, template_versions, generation_jobs and
-document_outputs. schema_migrations is checksum/ordering metadata. Foreign keys,
-version/output uniqueness and immutable template/job identities are enforced in
-SQL, alongside basic JSON/status/type checks. Full template/data semantics stay
-in Core. Job/output tables prepare R4 storage; no worker or state transition API
-is implemented yet, and metadata alone does not prove a PDF file exists.
+## Data and compatibility
 
-Migrations run in one transaction under an advisory lock. Re-running unchanged
-files is safe; changed/unknown applied migration history is rejected. Schema 001
-is the only compatible schema in this release. Do not edit an applied migration
-after release. There is no automatic down migration or rollback of persisted data.
+Master variable_types uses numeric IDs 110001=string, 110002=object, 110003=array.
+Current formats/schemas/variables are separately addressable. Each variable's
+schema/parent scopes its key. Snapshot tables contain new IDs and owned JSONB
+payloads. Snapshot relationships point to snapshot rows; master IDs stay the same.
+Every table has created_at; editable current records have updated_at. No user IDs.
 
-Pinned PostgreSQL18 stores data at `/var/lib/postgresql` in the official image.
-Keep the volume when stopping/restarting; migration replay does not rebuild data.
-Template versions cannot be updated/deleted through ordinary SQL; Core revalidates
-stored definitions/fingerprints on load. These constraints are not a defense
-against an administrator intentionally disabling triggers or changing the DB.
+Migration 002 leaves original template/version IDs, stored definitions/fingerprints
+and job pins unchanged. Legacy text template IDs remain compatible; they are not
+silently converted to UUID. New child and newly registered/published version IDs
+use v7. Historical source child identities did not exist: legacy imported/backfilled
+snapshots have NULL source_* IDs. Real current publication records source IDs,
+which remain provenance after current deletion and are not FK dependencies.
 
-## Artifact boundary
+The original full definition_json is an immutable compatibility witness, not a
+second editable template. Load validates it, assembles the snapshot rows and checks
+the assembled fingerprint. Historical snapshots never load current content.
+Migrations are checksummed and transactional with an advisory lock. Migration
+002's application backfill runs within that transaction. Use the matching release
+CLI to migrate, not an SQL file alone. Do not edit migrations after applying them
+outside isolated development tests. Never reset existing DBs to make tests pass.
 
-Core `0.1.0-dev.4` is in `vendor/`, with its version/hash/source in manifest.json.
-Run `node scripts/verifyVendor.mjs` to check it. `package-lock.json` also pins its
-tarball integrity and all npm dependencies. Updating Core requires replacing the
-artifact/manifest/dependency lock together and rerunning affected acceptance.
-Native/fonts/Python helpers remain owned by that package; do not copy its source.
-Runtime image includes Node24, Python3.11/fontTools4.58.2 and packaged resources,
-but R3 itself proves registry/database behavior, not an HTTP-to-PDF release.
+Legacy `register <raw-template.json>` retains explicit-version registration;
+it atomically writes snapshot rows too. It initializes current only if absent,
+and never replaces an edited current draft. `show <docKey> [version]` selects an
+exact version or latest once. Jobs must retain the returned versionId.
+No hard-delete command is exposed. Version rows cannot be updated/deleted through
+ordinary operations; admins disabling triggers are outside this guarantee.
+
+## Package boundary
+
+Core dev.4 is installed solely from vendor/flowdoc-core-0.1.0-dev.4.tgz. Its SHA256
+and source are in vendor/manifest.json; `node scripts/verifyVendor.mjs` verifies it.
+The lockfile pins dependencies. Linux runtime includes Node24, Python3.11/fontTools
+and the Core-owned resources. Do not copy or fork Core validation/rendering logic.

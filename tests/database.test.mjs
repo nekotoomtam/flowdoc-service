@@ -15,7 +15,7 @@ const register=t=>registerTemplate(pool,JSON.stringify(t));
 const unwrap=r=>{expect(r.ok,JSON.stringify(r)).toBe(true);return r.value;};
 beforeAll(async()=>{unwrap(await migrate(pool));});
 afterAll(()=>pool.end());
-it('replays checksummed migrations without duplicate domain tables',async()=>{expect(unwrap(await migrate(pool)).applied).toEqual([]);const r=await pool.query("SELECT tablename FROM pg_tables WHERE schemaname='public'");expect(r.rows.map(r=>r.tablename).sort()).toEqual(['document_outputs','generation_jobs','schema_migrations','template_versions','templates']);});
+it('replays checksummed migrations without duplicate domain tables',async()=>{expect(unwrap(await migrate(pool)).applied).toEqual([]);const r=await pool.query("SELECT tablename FROM pg_tables WHERE schemaname='public'");expect(r.rows.map(r=>r.tablename).sort()).toEqual(['document_outputs','formats','format_versions','generation_jobs','publication_receipts','schema_migrations','template_current','template_snapshots','template_versions','templates','variable_schema_versions','variable_schemas','variable_types','variable_versions','variables'].sort());});
 it('registers raw JSON, loads exact/latest and preserves previous definitions',async()=>{
  const t=make('versions');const v1=unwrap(await register(t));expect(v1.created).toBe(true);expect(unwrap(await register(t))).toMatchObject({created:false,versionId:v1.versionId});
  const second={...t,version:2,name:'New revision'};unwrap(await register(second));

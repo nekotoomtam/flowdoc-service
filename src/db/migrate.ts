@@ -6,6 +6,7 @@ import type {Pool} from 'pg';
 import type {Result} from '@flowdoc/core';
 import {transaction} from './connection.js';
 import {OperationError,failure} from '../errors.js';
+import {backfill} from '../templates/storage.js';
 const directory=fileURLToPath(new URL('../../migrations/',import.meta.url));
 export async function migrate(pool:Pool,location=directory):Promise<Result<{applied:string[]}>>{
  try{
@@ -18,7 +19,7 @@ export async function migrate(pool:Pool,location=directory):Promise<Result<{appl
    const previous=await client.query<{name:string;checksum:string}>('SELECT name,checksum FROM schema_migrations ORDER BY name');
    for(const [i,row] of previous.rows.entries())if(files[i]?.name!==row.name||files[i]?.checksum!==row.checksum)throw new OperationError('MIGRATION_MISMATCH','migrations','Applied migration history differs from this release');
    const done:string[]=[];
-   for(const file of files.slice(previous.rows.length)){await client.query(file.sql);await client.query('INSERT INTO schema_migrations(name,checksum) VALUES($1,$2)',[file.name,file.checksum]);done.push(file.name);}
+   for(const file of files.slice(previous.rows.length)){await client.query(file.sql);if(file.name==='002_current_version.sql')await backfill(client);await client.query('INSERT INTO schema_migrations(name,checksum) VALUES($1,$2)',[file.name,file.checksum]);done.push(file.name);}
    return done;
   });return {ok:true,value:{applied},warnings:[]};
  }catch(error){return failure(error);}
