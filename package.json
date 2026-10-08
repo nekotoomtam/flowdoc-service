@@ -1,6 +1,6 @@
 {
   "name": "@flowdoc/service",
-  "version": "0.1.0-dev.3",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "license": "UNLICENSED",
@@ -16,7 +16,7 @@
     "check:api": "node scripts/checkApi.mjs"
   },
   "dependencies": {
-    "@flowdoc/core": "file:vendor/flowdoc-core-0.1.0-dev.4.tgz",
+    "@flowdoc/core": "file:vendor/flowdoc-core-0.1.0.tgz",
     "fastify": "5.12.5",
     "pg": "8.23.1"
   },

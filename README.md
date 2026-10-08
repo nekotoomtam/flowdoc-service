@@ -4,7 +4,7 @@
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Version 0.1.0-dev.3 adds a local HTTP API, serial export processor and temporary PDF lifecycle.
+Version 0.1.0 provides a local HTTP API, serial export processor and temporary PDF lifecycle.
 UI, permissions, media and production scaling remain out of scope.
 
 ## Local setup and acceptance
@@ -12,7 +12,7 @@ UI, permissions, media and production scaling remain out of scope.
 Install dependencies with `npm ci --ignore-scripts`; build with `npm run build`.
 With Docker Desktop's Linux engine ready, run `npm run check:database`.
 It uses a fresh isolated PostgreSQL18 volume/internal network, pinned images and
-Core dev.4 tarball, without published DB ports or host source mounts. It verifies
+Core 0.1.0 tarball, without published DB ports or host source mounts. It verifies
 fresh migration, populated R3 upgrade/rollback, constraints, publication concurrency,
 CLI editing, source-versus-snapshot PDF equality and restart persistence.
 Results are in `artifacts/<run>/result.json`. Success stops the environment but
@@ -95,10 +95,23 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core dev.4 is installed solely from vendor/flowdoc-core-0.1.0-dev.4.tgz. Its SHA256
+Core 0.1.0 is installed solely from vendor/flowdoc-core-0.1.0.tgz. Its SHA256
 and source are in vendor/manifest.json; `node scripts/verifyVendor.mjs` verifies it.
 The lockfile pins dependencies. Linux runtime includes Node24, Python3.11/fontTools
 and the Core-owned resources. Do not copy or fork Core validation/rendering logic.
+
+## Release branches
+
+`release` contains one snapshot commit per accepted version, identified by an
+annotated `v<version>` tag. Never move released tags or replace published artifacts.
+Development branches retain their detailed history. The first release has its own
+root; subsequent snapshots must parent the previous release commit. Record the
+development source commit, verify candidate/release tree equality, and promote only
+reviewed changes; do not merge unrelated histories blindly. Changes start on the
+development branch and become a new release after affected checks pass.
+Service versions are independent of Core versions. Every Service release pins the
+exact Core artifact and checksum; changing Core requires verification of its Service
+consumer. Local release branches/tags do not publish images or deploy a public API.
 
 
 ## Local export API
