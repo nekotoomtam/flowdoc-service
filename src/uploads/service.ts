@@ -22,7 +22,9 @@ export function createUploads(deps:{pool:Pool;files:ResourceFiles;config:UploadC
   if(!validJobId(id))throw error('INVALID_UPLOAD','Invalid upload ID');
   const r=await pool.query('SELECT * FROM upload_sessions WHERE id=$1',[id]);if(!r.rowCount)throw error('UPLOAD_NOT_FOUND','Upload not found');
   const s=r.rows[0],items=(await pool.query('SELECT id,key,source_kind,status,expected_bytes,received_bytes,error_code FROM upload_items WHERE upload_id=$1 ORDER BY created_at,id',[id])).rows;
-  return {uploadId:id,status:s.status==='expired'||+new Date(s.expires_at)<=now()?'expired':s.status,expiresAt:s.expires_at,
+  const claim=(await pool.query('SELECT j.status,j.finished_at FROM upload_job_claims c JOIN generation_jobs j ON j.id=c.job_id WHERE c.upload_id=$1',[id])).rows[0];
+  const expiry=claim?claim.finished_at?new Date(+new Date(claim.finished_at)+3600000):null:s.expires_at;
+  return {uploadId:id,status:s.status==='expired'||(expiry&&+new Date(expiry)<=now())?'expired':claim?'claimed':s.status,expiresAt:expiry,
    items:items.map(i=>({resourceId:i.id,key:i.key,source:i.source_kind,status:i.status,expectedBytes:i.expected_bytes===null?null:Number(i.expected_bytes),receivedBytes:Number(i.received_bytes),errorCode:i.error_code})),
    received:items.filter(i=>i.status==='received').length,declared:items.filter(i=>i.status==='declared').length,total:items.length};
  }
@@ -95,8 +97,16 @@ export function createUploads(deps:{pool:Pool;files:ResourceFiles;config:UploadC
  }
  async function cleanup(){
   const expired=await transaction(pool,async c=>{
-   const rows=(await c.query('SELECT id FROM upload_sessions WHERE expires_at<=$1 AND deleted_at IS NULL FOR UPDATE',[new Date(now())])).rows;
-   const ids=[];for(const s of rows){const busy=(await c.query('SELECT attempt_id FROM upload_items WHERE upload_id=$1 AND attempt_id IS NOT NULL',[s.id])).rows.some(i=>active.has(i.attempt_id));if(busy)continue;await c.query("UPDATE upload_sessions SET status='expired',retired_at=coalesce(retired_at,$2) WHERE id=$1",[s.id,new Date(now())]);ids.push(s.id);}return ids;
+   // Lock the session before looking up claims: admission uses the same lock.
+   // A concurrent claim committed while this query waits must be visible below.
+   const rows=(await c.query(`SELECT id FROM upload_sessions WHERE deleted_at IS NULL AND
+    (expires_at<=$1 OR EXISTS(SELECT 1 FROM upload_job_claims u WHERE u.upload_id=upload_sessions.id)) FOR UPDATE`,[new Date(now())])).rows;
+   const eligible=[];for(const s of rows){
+    const job=(await c.query('SELECT j.status,j.finished_at FROM upload_job_claims u JOIN generation_jobs j ON j.id=u.job_id WHERE u.upload_id=$1',[s.id])).rows[0];
+    if(job&&(['queued','running'].includes(job.status)||!job.finished_at||+new Date(job.finished_at)+3600000>now()))continue;
+    eligible.push(s);
+   }
+   const ids=[];for(const s of eligible){const busy=(await c.query('SELECT attempt_id FROM upload_items WHERE upload_id=$1 AND attempt_id IS NOT NULL',[s.id])).rows.some(i=>active.has(i.attempt_id));if(busy)continue;await c.query("UPDATE upload_sessions SET status='expired',retired_at=coalesce(retired_at,$2) WHERE id=$1",[s.id,new Date(now())]);ids.push(s.id);}return ids;
   });
   for(const id of expired){const items=(await pool.query('SELECT storage_key,attempt_id FROM upload_items WHERE upload_id=$1',[id])).rows;for(const i of items){if(i.storage_key)await files.remove(i.storage_key);if(i.attempt_id){await files.remove(i.attempt_id+'.bin');await files.remove(i.attempt_id+'.bin.part');}}
    await transaction(pool,async c=>{await c.query("UPDATE upload_items SET storage_key=NULL,source_url=NULL,attempt_id=NULL,status='expired' WHERE upload_id=$1",[id]);await c.query('UPDATE upload_sessions SET deleted_at=$2,reserved_bytes=0 WHERE id=$1',[id,new Date(now())]);});
@@ -110,7 +120,7 @@ export function createUploads(deps:{pool:Pool;files:ResourceFiles;config:UploadC
   const referenced=new Set(rows.map(i=>i.storage_key));for(const name of await files.names())if(!referenced.has(name))await files.remove(name);
   for(const i of rows)if(!await files.exists(i.storage_key,Number(i.expected_bytes)))await transaction(pool,async c=>{
    await c.query("UPDATE upload_items SET status='incomplete',storage_key=NULL,checksum=NULL,received_bytes=0,error_code='RESOURCE_MISSING' WHERE id=$1",[i.id]);
-   await c.query("UPDATE upload_sessions SET status='expired',expires_at=$2 WHERE id=(SELECT upload_id FROM upload_items WHERE id=$1) AND status='ready'",[i.id,new Date(now())]);
+   await c.query("UPDATE upload_sessions SET status='expired',expires_at=$2 WHERE id=(SELECT upload_id FROM upload_items WHERE id=$1) AND status='ready' AND NOT EXISTS(SELECT 1 FROM upload_job_claims u WHERE u.upload_id=upload_sessions.id)",[i.id,new Date(now())]);
   });
   await cleanup();
  }

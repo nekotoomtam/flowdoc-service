@@ -211,3 +211,15 @@ inside array items/table cells are not supported. The registry can publish these
 templates, but /jobs returns 422 IMAGE_JOBS_UNAVAILABLE for selected image formats
 until resource claiming and preparation are connected. This prevents silent blank
 image output; ordinary text/table jobs remain supported.
+
+Migration 006 adds the internal upload/job ownership boundary. `enqueueWithUpload`
+accepts already validated/pinned input and server-derived resource references;
+it locks the finalized upload and inserts the job and claim in one transaction.
+Identical retries return the existing job ID; different input/version conflicts.
+This function is not yet exposed through HTTP image admission.
+
+Claimed uploads report `claimed`, with `expiresAt: null` while queued/running.
+Original files are protected through queueing/recovery and for one hour after
+the job finishes. Cleanup then releases their bytes and later expires metadata.
+Prepared derivative ownership, URL retrieval and image rendering integration
+remain pending; this boundary alone does not enable API image exports.
