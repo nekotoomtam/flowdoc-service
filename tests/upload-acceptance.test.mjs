@@ -1,0 +1,77 @@
+import {beforeAll,afterAll,it,expect} from 'vitest';
+import {mkdtemp,copyFile,readdir,readFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {randomUUID} from 'node:crypto';
+import {Readable} from 'node:stream';
+import {isolatedDatabase} from './isolatedDatabase.mjs';
+import {migrate} from '../dist/db/migrate.js';
+import {createUploads} from '../dist/uploads/service.js';
+import {createResourceFiles} from '../dist/storage/resource-files.js';
+import {readUploadConfig} from '../dist/uploads/config.js';
+import {registerTemplate,loadTemplate} from '../dist/templates/registry.js';
+import {prepareGeneration} from '@flowdoc/core';
+const db=isolatedDatabase();let files,time=Date.now();
+beforeAll(async()=>{await db.setup();expect((await migrate(db.pool)).ok).toBe(true);files=await createResourceFiles(await mkdtemp(join(tmpdir(),'upload-acceptance-')));});
+afterAll(()=>db.close());
+const manifest=()=>({requestKey:randomUUID(),items:[{key:'a',source:'upload',mediaType:'image/png',byteSize:3}]});
+const make=(extra={})=>createUploads({pool:db.pool,files,config:readUploadConfig({}),clock:()=>time,...extra});
+const bytes=()=>Readable.from([Buffer.from('abc')]);
+it('ENOSPC rejects the receipt and permits retry without releasing set reservation',async()=>{
+ const u=make({files:{...files,receive:async()=>{throw Object.assign(Error('disk full'),{code:'ENOSPC'});}}});
+ const s=await u.create(manifest());await expect(u.receive(s.uploadId,s.items[0].resourceId,bytes())).rejects.toMatchObject({code:'ENOSPC'});
+ expect((await u.get(s.uploadId)).items[0].status).toBe('incomplete');expect(await files.names()).toEqual([]);
+ expect(Number((await db.pool.query('SELECT reserved_bytes FROM upload_sessions WHERE id=$1',[s.uploadId])).rows[0].reserved_bytes)).toBe(3);
+ expect((await make().receive(s.uploadId,s.items[0].resourceId,bytes())).received).toBe(1);
+});
+for(const committed of [false,true])it('reconciles receipt transaction '+(committed?'committed but acknowledgement lost':'rolled back after file rename'),async()=>{
+ let armed=false;
+ const proxy={query:(...args)=>db.pool.query(...args),connect:async()=>{
+  const c=await db.pool.connect();let receipt=false;
+  return {release:(...args)=>c.release(...args),query:async(sql,args)=>{
+   if(String(sql).includes("SET status='received',storage_key="))receipt=true;
+   if(armed&&receipt&&sql==='COMMIT'){armed=false;if(committed)await c.query(sql);throw Error('lost commit acknowledgement');}
+   return c.query(sql,args);
+  }};
+ }};
+ const u=make({pool:proxy}),s=await u.create(manifest());armed=true;
+ await expect(u.receive(s.uploadId,s.items[0].resourceId,bytes())).rejects.toThrow('lost commit');
+ const item=(await db.pool.query('SELECT * FROM upload_items WHERE id=$1',[s.items[0].resourceId])).rows[0];
+ expect(item.attempt_id).toBeNull();expect(item.status).toBe(committed?'received':'incomplete');
+ if(committed)expect(await files.exists(item.storage_key,3)).toBe(true);
+ expect((await make().receive(s.uploadId,s.items[0].resourceId,bytes())).received).toBe(1);
+});
+it('restart removes a renamed orphan after a crash',async()=>{
+ const u=make(),s=await u.create(manifest()),attempt=randomUUID(),name=attempt+'.bin';
+ await db.pool.query("UPDATE upload_items SET attempt_id=$2,status='receiving' WHERE id=$1",[s.items[0].resourceId,attempt]);
+ await files.receive(name,bytes(),3,new AbortController().signal);expect(await files.exists(name,3)).toBe(true);
+ await u.recover();expect(await files.exists(name,3)).toBe(false);expect((await u.get(s.uploadId)).items[0].status).toBe('incomplete');
+});
+it('absolute cap, ready lifetime and tombstone retention have exact boundaries',async()=>{
+ const u=make({config:readUploadConfig({UPLOAD_IDLE_MS:'10000',UPLOAD_ABSOLUTE_MS:'1000',UPLOAD_READY_MS:'2000',UPLOAD_METADATA_MS:'3000'})});
+ const m=manifest(),s=await u.create(m);time+=1000;
+ await expect(u.receive(s.uploadId,s.items[0].resourceId,bytes())).rejects.toThrow('expired');
+ await u.cleanup();await expect(u.create(m)).rejects.toThrow('expired');
+ time+=2999;await u.cleanup();expect((await u.get(s.uploadId)).status).toBe('expired');
+ time++;await u.cleanup();await expect(u.get(s.uploadId)).rejects.toThrow('not found');expect((await u.create(m)).uploadId).not.toBe(s.uploadId);
+ const r=await u.create(manifest());await u.receive(r.uploadId,r.items[0].resourceId,bytes());await u.finalize(r.uploadId);
+ time+=1999;expect((await u.get(r.uploadId)).status).toBe('ready');time++;
+ const results=await Promise.allSettled([u.finalize(r.uploadId),u.cleanup()]);expect(results[0].status).toBe('rejected');expect((await u.get(r.uploadId)).status).toBe('expired');
+});
+it('migration 004 preserves a populated 0.1.0 database exactly',async()=>{
+ const old=isolatedDatabase();await old.setup();
+ try{
+  const dir=await mkdtemp(join(tmpdir(),'upload-upgrade-'));
+  for(const n of await readdir('migrations'))if(/^00[1-3]_/.test(n))await copyFile(join('migrations',n),join(dir,n));
+  expect((await migrate(old.pool,dir)).ok).toBe(true);
+  const template=JSON.parse(await readFile('examples/srs-template.json','utf8'));
+  const registered=await registerTemplate(old.pool,JSON.stringify(template));expect(registered.ok).toBe(true);
+  const selected=await loadTemplate(old.pool,template.docKey),input=JSON.parse(await readFile('examples/srs-request.json','utf8'));
+  const prepared=prepareGeneration(selected.value.template,input);expect(prepared.ok).toBe(true);
+  const job=randomUUID();await old.pool.query('INSERT INTO generation_jobs(id,template_version_id,original_input,prepared_input,warnings_json,skipped_indices) VALUES($1,$2,$3,$4,$5,$6)',[job,registered.value.versionId,JSON.stringify(input),JSON.stringify(prepared.value),JSON.stringify(prepared.value.warnings),JSON.stringify(prepared.value.skippedContentIndices)]);
+  const tables=(await old.pool.query("SELECT tablename FROM pg_tables WHERE schemaname=current_schema() AND tablename<>'schema_migrations' ORDER BY tablename")).rows.map(r=>r.tablename);
+  const snapshot=async()=>Object.fromEntries(await Promise.all(tables.map(async t=>[t,JSON.stringify((await old.pool.query('SELECT * FROM "'+t+'" ORDER BY 1')).rows)])));
+  const before=await snapshot();expect(await migrate(old.pool)).toMatchObject({ok:true,value:{applied:['004_upload_staging.sql']}});expect(await snapshot()).toEqual(before);
+  expect((await loadTemplate(old.pool,template.docKey)).ok).toBe(true);expect((await old.pool.query('SELECT id FROM generation_jobs WHERE id=$1',[job])).rowCount).toBe(1);
+ }finally{await old.close();}
+});

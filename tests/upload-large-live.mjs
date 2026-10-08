@@ -26,6 +26,7 @@ async function stop(){if(child&&child.exitCode===null){child.kill('SIGTERM');awa
 async function json(path,body){const r=await fetch(base+path,body?{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}:{});assert(r.ok,await r.clone().text());return (await r.json()).value;}
 const rss=async()=>Number((await readFile('/proc/'+child.pid+'/status','utf8')).match(/^VmHWM:\s+(\d+)/m)[1])*1024;
 try{
+ const memoryLimit=Number((await readFile('/sys/fs/cgroup/memory.max','utf8')).trim());assert.equal(memoryLimit,768*1048576,'Expected hard cgroup budget including fixture client and server');
  await start();const before=await rss();
  const s=await json('/uploads',{requestKey:'4k-live',items:[{key:'a',source:'upload',mediaType:'image/png',byteSize:png.length},{key:'b',source:'upload',mediaType:'image/png',byteSize:png.length}]});
  const result=await Promise.all(s.items.map(async i=>{const r=await fetch(base+'/uploads/'+s.uploadId+'/items/'+i.resourceId+'/content',{method:'PUT',headers:{'content-type':'image/png'},body:createReadStream(file),duplex:'half'});assert.equal(r.status,200);await r.arrayBuffer();}));
