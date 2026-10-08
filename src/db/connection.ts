@@ -1,7 +1,7 @@
 import {Pool} from 'pg';
 import type {PoolClient} from 'pg';
 export function createPool(connectionString:string):Pool {
- return new Pool({connectionString,max:5,connectionTimeoutMillis:5000,statement_timeout:15000});
+ return new Pool({connectionString,max:5,connectionTimeoutMillis:5000,statement_timeout:15000,query_timeout:15000});
 }
 export async function transaction<T>(pool:Pool,operation:(client:PoolClient)=>Promise<T>):Promise<T>{
  const client=await pool.connect();let discard=false;

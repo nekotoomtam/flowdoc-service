@@ -14,7 +14,7 @@ services:
       retries: 30
     networks: [private]
   registry:
-    image: ${FLOWDOC_REGISTRY_IMAGE:-flowdoc-service:0.1.0-dev.2}
+    image: ${FLOWDOC_REGISTRY_IMAGE:-flowdoc-service:0.1.0-dev.3}
     build:
       context: .
       target: runtime
@@ -24,9 +24,29 @@ services:
       db:
         condition: service_healthy
     networks: [private]
+  api:
+    image: ${FLOWDOC_REGISTRY_IMAGE:-flowdoc-service:0.1.0-dev.3}
+    build:
+      context: .
+      target: runtime
+    entrypoint: ["node", "dist/server.js"]
+    environment:
+      DATABASE_URL: postgresql://flowdoc:${FLOWDOC_DB_PASSWORD}@db:5432/flowdoc
+      HOST: 0.0.0.0
+      PORT: 3000
+      EXPORT_OUTPUT_DIR: /app/output
+      EXPORT_RETAIN_FILES: ${EXPORT_RETAIN_FILES:-false}
+      EXPORT_FILE_TTL_HOURS: ${EXPORT_FILE_TTL_HOURS:-24}
+      EXPORT_TEMP_FILE_TTL_HOURS: ${EXPORT_TEMP_FILE_TTL_HOURS:-24}
+    ports: ["127.0.0.1:${FLOWDOC_API_PORT:-3000}:3000"]
+    volumes: ["outputs:/app/output"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [private]
   verification:
     profiles: [verify]
-    image: ${FLOWDOC_VERIFY_IMAGE:-flowdoc-service-tests:0.1.0-dev.2}
+    image: ${FLOWDOC_VERIFY_IMAGE:-flowdoc-service-tests:0.1.0-dev.3}
     build:
       context: .
       target: verification
@@ -38,6 +58,7 @@ services:
     networks: [private]
 volumes:
   database:
+  outputs:
 networks:
   private:
     internal: true

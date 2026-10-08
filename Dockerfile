@@ -27,5 +27,5 @@ CMD ["--help"]
 FROM runtime AS verification
 COPY --from=build /app/node_modules ./node_modules
 COPY tests ./tests
-ENTRYPOINT ["./node_modules/.bin/vitest","run"]
+ENTRYPOINT ["./node_modules/.bin/vitest","run","--no-file-parallelism"]
 CMD []

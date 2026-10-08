@@ -3,9 +3,9 @@
 ## Authority Boundary
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
-Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-current-version-plan-2026-10-08.md.
-Version 0.1.0-dev.2 provides current-record editing and immutable publication.
-HTTP, worker execution, downloads, UI, permissions and media remain out of scope.
+Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
+Version 0.1.0-dev.3 adds a local HTTP API, serial export processor and temporary PDF lifecycle.
+UI, permissions, media and production scaling remain out of scope.
 
 ## Local setup and acceptance
 
@@ -99,3 +99,51 @@ Core dev.4 is installed solely from vendor/flowdoc-core-0.1.0-dev.4.tgz. Its SHA
 and source are in vendor/manifest.json; `node scripts/verifyVendor.mjs` verifies it.
 The lockfile pins dependencies. Linux runtime includes Node24, Python3.11/fontTools
 and the Core-owned resources. Do not copy or fork Core validation/rendering logic.
+
+
+## Local export API
+
+After migration and template publication/registration above, run `docker compose
+up -d api`. It listens at http://127.0.0.1:3000 (override FLOWDOC_API_PORT).
+No authentication is implemented in this localhost MVP; do not expose it publicly.
+
+- GET /health: readiness.
+- GET /templates/:docKey/contract?version=1: schemas and request examples.
+- POST /jobs: send examples/srs-request.json; returns 202 and jobId.
+- GET /jobs/:jobId: queued/running/succeeded/failed, warnings and available download URL.
+- GET /jobs/:jobId/pdf: PDF; 409 if not successful, 410 after consumption/expiry.
+
+Omitted request version selects latest once at admission; jobs keep that immutable
+version. Validation errors do not create jobs. Jobs render serially in a child
+process. One coordinator is supported; another fails startup. After interruption,
+queued jobs continue and running jobs fail with PROCESS_INTERRUPTED; resubmit them.
+
+`npm run check:api` builds an isolated deployment, exports three real PDFs, checks
+consumption and restart recovery, and stops its containers. `check:database` runs
+the full regression suite. Reports/PDFs remain in ignored artifacts directories.
+These reports do not prove large-load capacity or full MVP acceptance.
+
+### Output lifetime
+
+Set these in .env for Compose; recreate api after changing configuration:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| EXPORT_RETAIN_FILES | false | Delete output after successful HTTP transfer |
+| EXPORT_FILE_TTL_HOURS | 24 | Retained output lifetime when retention is true |
+| EXPORT_TEMP_FILE_TTL_HOURS | 24 | Unclaimed/default outputs and stale orphan lifetime |
+
+Lifetimes are positive numbers up to 8760 hours, measured from output creation.
+Policy is saved per output; changes apply to new outputs. Retained results permit
+repeat downloads until expiry. Aborted transfers permit retry until expiry.
+HTTP completion cannot prove that the client saved the file. Concurrent streams
+already open can finish; no new streams start after retirement. Cleanup runs at
+startup and every minute, excludes active streams and retries failed deletion.
+Consumed/expired jobs stay succeeded, but no longer advertise a download URL.
+The named output volume preserves pending results across restart, not permanently.
+
+Direct server environment also supports EXPORT_OUTPUT_DIR (output), EXPORT_TEMP_DIR
+(temp), EXPORT_BODY_LIMIT_BYTES (2097152), EXPORT_RENDER_TIMEOUT_MS (120000),
+EXPORT_MAX_PDF_BYTES (52428800), HOST and PORT. Bounds reject oversized requests
+or fail over-budget renders; they are not a large-document capacity guarantee.
+The current renderer/runtime requires packaged Linux x64 dependencies.
