@@ -12,7 +12,7 @@ UI, permissions, media and production scaling remain out of scope.
 Install dependencies with `npm ci --ignore-scripts`; build with `npm run build`.
 With Docker Desktop's Linux engine ready, run `npm run check:database`.
 It uses a fresh isolated PostgreSQL18 volume/internal network, pinned images and
-Core 0.1.1 tarball, without published DB ports or host source mounts. It verifies
+Core 0.1.2 tarball, without published DB ports or host source mounts. It verifies
 fresh migration, populated R3 upgrade/rollback, constraints, publication concurrency,
 CLI editing, source-versus-snapshot PDF equality and restart persistence.
 Results are in `artifacts/<run>/result.json`. Success stops the environment but
@@ -95,7 +95,7 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.1.1 is installed solely from vendor/flowdoc-core-0.1.1.tgz. Its SHA256
+Core 0.1.2 is installed solely from vendor/flowdoc-core-0.1.2.tgz. Its SHA256
 and source are in vendor/manifest.json; `node scripts/verifyVendor.mjs` verifies it.
 The lockfile pins dependencies. Linux runtime includes Node24, Python3.11/fontTools
 and the Core-owned resources. Do not copy or fork Core validation/rendering logic.
@@ -228,6 +228,9 @@ and `warningCount`. Counts describe image slots, not estimated overall completio
 
 Preparation uses 200 DPI, proportional fit and no pixel upscaling. JPEG and PNG
 alpha are supported; repeated source/target sizes reuse a prepared derivative.
+Image block props accept optional `align: "left" | "center" | "right"` for the
+frame within printable page width. Omission preserves left alignment. Images stay
+centered within their frame; this does not enable text wrapping around images.
 Bad images or blocked/unavailable URLs keep their frame blank with a warning.
 Resource/decoder/output budgets can also skip an image. Poll warnings before
 accepting the document. Shutdown or the five-minute preparation deadline fails

@@ -18,7 +18,7 @@ const db=isolatedDatabase();let app,processor,uploads,root,resources,pdfFiles;
 const ok=r=>{expect(r.ok,JSON.stringify(r)).toBe(true);return r.value;};
 export function imageTemplate(){const t=JSON.parse(readFileSync('examples/srs-template.json','utf8'));t.templateId='uat-images';t.docKey='uat-images';t.nodeModelVersion=5;t.examples=[];
  t.globalSchema={type:'object',fields:{}};t.formats={};
- for(const [name,w,h] of [['photo',450,240],['small',225,120]])t.formats[name]={inputSchema:{type:'object',fields:{photo:{type:'image',required:true}}},fragment:{rootIds:['image'],nodes:{image:{id:'image',type:'image',props:{width:{value:w,unit:'pt'},height:{value:h,unit:'pt'},source:{scope:'local',key:'photo'}}}}},repeats:[]};return t;}
+ for(const [name,w,h] of [['photo',450,240],['small',225,120]])t.formats[name]={inputSchema:{type:'object',fields:{photo:{type:'image',required:true}}},fragment:{rootIds:['image'],nodes:{image:{id:'image',type:'image',props:{width:{value:w,unit:'pt'},height:{value:h,unit:'pt'},align:name==='small'?'right':'center',source:{scope:'local',key:'photo'}}}}},repeats:[]};return t;}
 beforeAll(async()=>{await db.setup();ok(await migrate(db.pool));ok(await registerTemplate(db.pool,JSON.stringify(imageTemplate())));root=await mkdtemp(join(tmpdir(),'image-api-'));resources=await createResourceFiles(join(root,'staging'));uploads=createUploads({pool:db.pool,files:resources,config:readUploadConfig({})});const files=await createPdfFiles(join(root,'pdf'));pdfFiles=files;processor=await startProcessor({pool:db.pool,files,policy:{retain:true,ttlHours:24,tempHours:24},resources:{files:resources,config:readUploadConfig({})}});app=createServer({pool:db.pool,uploads,outputs:createOutputs(db.pool,files,24),isReady:()=>processor.isReady(),imagesEnabled:true});});
 afterAll(async()=>{await app?.close();await processor?.stop();await uploads?.stop();await db.close();});
 it('uploads JPEG/alpha PNG, exports repeated sizes with warnings/progress and immutable input',async()=>{
@@ -35,6 +35,9 @@ it('uploads JPEG/alpha PNG, exports repeated sizes with warnings/progress and im
  expect(view.status,JSON.stringify(view)).toBe('succeeded');expect(view.processing).toMatchObject({stage:'complete',completed:4,total:4});expect(view.warnings.some(w=>w.code==='IMAGE_UNUSABLE')).toBe(true);
  expect(ok((await app.inject({method:'POST',url:'/jobs',payload:request})).json()).status).toBe('succeeded');
  const pdf=await app.inject({method:'GET',url:`/jobs/${job.jobId}/pdf`});expect(pdf.statusCode).toBe(200);expect(pdf.rawPayload.toString('latin1')).toContain('/SMask');expect(pdf.rawPayload.toString('latin1')).toContain('/DCTDecode');
+ const placements=[...pdf.rawPayload.toString('latin1').matchAll(/q ([\d.]+) 0 0 ([\d.]+) ([\d.]+) ([\d.]+) cm \/Im/g)];expect(placements).toHaveLength(3);
+ // Prepared dimensions are rounded; placement still centers the image inside the right-aligned 225pt frame.
+ const smallWidth=Number(placements[1][1]);expect(Number(placements[1][3])).toBeCloseTo(190*72/25.4-225+(225-smallWidth)/2);
  const saved=(await db.pool.query('SELECT original_input,warnings_json FROM generation_jobs WHERE id=$1',[job.jobId])).rows[0];expect(saved.original_input).toEqual(request);expect(saved.warnings_json).toEqual([]);
  expect((await readdir(join(root,'staging','jobs',job.jobId))).length).toBeGreaterThan(0);
  if(process.env.FLOWDOC_IMAGE_ARTIFACT)await writeFile(process.env.FLOWDOC_IMAGE_ARTIFACT,pdf.rawPayload);
