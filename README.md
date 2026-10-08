@@ -116,6 +116,47 @@ consumer. Local release branches/tags do not publish images or deploy a public A
 
 ## Local export API
 
+### Development upload staging (next release)
+
+The development branch adds resource intake independently of `/jobs`. It does not
+yet draw images in PDFs. Migrate before starting this candidate; migration 004 adds
+upload sessions/items. Compose persists source bytes in its separate staging volume.
+Use `node examples/upload-client.mjs <local.png> image/png` against the running API.
+POST `/uploads` declares a requestKey and items (key, source=upload, mediaType,
+byteSize); URL items instead use source=url and url. Read the returned resourceId,
+PUT binary to `/uploads/:id/items/:resourceId/content`, GET `/uploads/:id` to poll,
+and POST `/uploads/:id/finalize` once every binary item has completed.
+For small images, PUT `{data:"<base64>"}` to the item's `/base64` endpoint.
+
+URL declarations are not fetched in this release. ready means intake is complete,
+not image decoding or rendering. HTTPS without credentials is accepted as a descriptor;
+outbound destination enforcement belongs to the future fetcher. Completed item retries
+must contain identical bytes; changed bytes conflict. Retry an interrupted item as a
+whole file; byte-offset resume is unsupported. requestKey is local-service scoped.
+Do not expose this unauthenticated localhost MVP publicly.
+
+Trial limits: 50 MiB/file, 200 MiB/set, 20 items, 1 GiB reserved staging, 100 active
+sets, two HTTP receive slots; small Base64 is at most 1 MiB decoded / 2 MiB JSON.
+`UPLOAD_FILE_BYTES`, `UPLOAD_SET_BYTES`, `UPLOAD_STAGING_BYTES`, `UPLOAD_MAX_ITEMS`,
+`UPLOAD_MAX_SESSIONS`, `UPLOAD_STREAMS`, `UPLOAD_BASE64_BYTES` configure these.
+Binary data streams to disk; the limits are not a promise of decode/load capacity.
+
+`UPLOAD_IDLE_MS` and `UPLOAD_READY_MS` default to one hour; `UPLOAD_ABSOLUTE_MS`
+caps an open session at four hours. Only accepted byte progress renews idle time,
+not polling. Request idle/total timeouts default to 60s/10min via
+`UPLOAD_REQUEST_IDLE_MS` / `UPLOAD_REQUEST_MS`. Expiry retires bytes, then retains
+minimal session/item metadata for 24h (`UPLOAD_METADATA_MS`) for bounded retry
+identity. A requestKey may create a new set after that tombstone is purged.
+`UPLOAD_STAGING_DIR` selects the owned root; never point it at unrelated files.
+Interrupted receives become incomplete after recovery; missing finalized bytes
+invalidate the set. Failed deletion retains quota until cleanup succeeds.
+No job claim is exposed yet: the one-hour-after-job policy is deferred to the
+actual resource consumer in the next image integration release. PDF TTL is unchanged.
+
+`npm run check:uploads` verifies actual large PNG intake and restart through a
+separate server process; `check:database` also covers upload DB/HTTP/lifetime tests.
+Artifacts retain experiment bytes/counts and server peak RSS, not a production SLA.
+
 After migration and template publication/registration above, run `docker compose
 up -d api`. It listens at http://127.0.0.1:3000 (override FLOWDOC_API_PORT).
 No authentication is implemented in this localhost MVP; do not expose it publicly.

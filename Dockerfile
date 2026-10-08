@@ -19,7 +19,7 @@ RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund && pip install --no-
 COPY --from=build /app/dist ./dist
 COPY migrations ./migrations
 COPY examples ./examples
-RUN mkdir /app/temp /app/output && chown -R 10001:10001 /app
+RUN mkdir /app/temp /app/output /app/staging && chown -R 10001:10001 /app
 USER 10001:10001
 ENTRYPOINT ["node","dist/cli.js"]
 CMD ["--help"]

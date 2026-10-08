@@ -5,9 +5,15 @@ import {submitJob} from '../jobs/admission.js';
 import {getJob} from '../jobs/repository.js';
 import type {Outputs} from '../storage/outputs.js';
 import {failure,OperationError} from '../errors.js';
+import type {Uploads} from '../uploads/service.js';
+import {registerUploads} from './uploads.js';
 const status=(code:string)=>({INVALID_JOB_ID:400,INVALID_DATA:422,TYPE_MISMATCH:422,MISSING_REQUIRED:422,EMPTY_CONTENT:422,TEMPLATE_NOT_FOUND:404,VERSION_NOT_FOUND:404,JOB_NOT_FOUND:404,OUTPUT_GONE:410}[code]??503);
-export function createServer(deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean;bodyLimit?:number}){
+export function createServer(deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean;bodyLimit?:number;uploads?:Uploads}){
  const app=Fastify({logger:false,forceCloseConnections:true,bodyLimit:deps.bodyLimit??2097152});
+ if(deps.uploads)app.register(async routes=>{
+  routes.addHook('onRequest',async(_req,reply)=>{if(!deps.isReady())return reply.code(503).send(failure(new OperationError('UNAVAILABLE','service','Service unavailable')));});
+  await registerUploads(routes,deps.uploads!);
+ });
  const pending=new Set<Promise<void>>();app.addHook('onClose',async()=>{await Promise.allSettled([...pending]);});
  app.setErrorHandler((error,request,reply)=>{const e=error as {statusCode?:number};const code=e.statusCode===413?413:e.statusCode&&e.statusCode>=400&&e.statusCode<500?400:503;reply.code(code).send(failure(new OperationError(code===413?'BODY_TOO_LARGE':code===400?'INVALID_REQUEST':'UNAVAILABLE','request',code===413?'Request exceeds size limit':code===400?'Invalid request':'Service unavailable')));});
  app.get('/health',async(_req,reply)=>{try{if(!deps.isReady())throw Error();await deps.pool.query('SELECT 1');return {ok:true,value:{ready:true},warnings:[]};}catch{reply.code(503);return failure(new OperationError('UNAVAILABLE','service','Service unavailable'));}});

@@ -1,0 +1,31 @@
+import {beforeAll,afterAll,it,expect} from 'vitest';
+import {mkdtemp} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {createServer} from '../dist/http/server.js';
+import {createUploads} from '../dist/uploads/service.js';
+import {createResourceFiles} from '../dist/storage/resource-files.js';
+import {readUploadConfig} from '../dist/uploads/config.js';
+import {isolatedDatabase} from './isolatedDatabase.mjs';
+import {migrate} from '../dist/db/migrate.js';
+const db=isolatedDatabase();let app,url,uploads;
+beforeAll(async()=>{await db.setup();expect((await migrate(db.pool)).ok).toBe(true);uploads=createUploads({pool:db.pool,files:await createResourceFiles(await mkdtemp(join(tmpdir(),'flowdoc-http-'))),config:readUploadConfig({})});app=createServer({pool:db.pool,isReady:()=>true,outputs:{},uploads});url=await app.listen({host:'127.0.0.1',port:0});});
+afterAll(async()=>{await app.close();uploads.stop();await db.close();});
+it('streams a large body over real HTTP and rejects changed retry',async()=>{
+ const bytes=12*1048576;
+ const s=await app.inject({method:'POST',url:'/uploads',payload:{requestKey:'large',items:[{key:'image',source:'upload',mediaType:'image/png',byteSize:bytes}]}});
+ expect(s.statusCode).toBe(201);const v=s.json().value;
+ const {Readable}=await import('node:stream');
+ const body=()=>Readable.from((async function*(){for(let n=0;n<bytes;n+=65536)yield Buffer.alloc(65536,7);})());
+ const target=url+'/uploads/'+v.uploadId+'/items/'+v.items[0].resourceId+'/content';
+ const r=await fetch(target,{method:'PUT',headers:{'content-type':'application/octet-stream'},body:body(),duplex:'half'});
+ expect(r.status).toBe(200);expect((await r.json()).value.received).toBe(1);
+ const retry=await fetch(target,{method:'PUT',headers:{'content-type':'application/octet-stream'},body:body(),duplex:'half'});expect(retry.status).toBe(200);await retry.arrayBuffer();
+ expect((await app.inject({method:'POST',url:'/uploads/'+v.uploadId+'/finalize'})).json().value.status).toBe('ready');
+},20000);
+it('accepts bounded Base64 and never creates an export job',async()=>{
+ const s=(await app.inject({method:'POST',url:'/uploads',payload:{requestKey:'base64',items:[{key:'a',source:'upload',mediaType:'image/jpeg',byteSize:2}]}})).json().value;
+ const target='/uploads/'+s.uploadId+'/items/'+s.items[0].resourceId+'/base64';
+ expect((await app.inject({method:'PUT',url:target,payload:{data:'aGk='}})).statusCode).toBe(200);
+ expect(Number((await db.pool.query('SELECT count(*) FROM generation_jobs')).rows[0].count)).toBe(0);
+});
