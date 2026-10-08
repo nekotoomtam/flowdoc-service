@@ -4,8 +4,9 @@
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Version 0.1.0 provides a local HTTP API, serial export processor and temporary PDF lifecycle.
-UI, permissions, media and production scaling remain out of scope.
+Development version 0.1.2 provides a local HTTP API, serial export processor,
+temporary PDF lifecycle and JPEG/PNG resource preparation. Release/tag promotion
+is separate. UI, permissions and production scaling remain out of scope.
 
 ## Local setup and acceptance
 
@@ -255,3 +256,10 @@ outbound access receive warnings for remote images.
 upload, finalize, job polling and PDF download. It requires an isolated database
 and writes the PDF and a result report to `FLOWDOC_UAT_OUTPUT`. It uses no customer
 data. These fixtures do not claim production capacity or all-image visual quality.
+
+`tests/image-limits-trial.mjs` checks 40 MP JPEG/alpha PNG preparation, rejection
+above the input/target pixel budgets and partial-file cleanup. Run with the packaged
+verification image, `--network none --memory 512m --memory-swap 512m`, an output
+mount at `FLOWDOC_LIMIT_OUTPUT`, and `--entrypoint node` followed by the script path.
+It records cgroup peak memory including fixture generation, not decoder-only RSS.
+This bounded serial probe is separate from the regular database suite.
