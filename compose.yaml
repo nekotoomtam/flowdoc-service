@@ -1,0 +1,64 @@
+services:
+  db:
+    image: postgres@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
+    environment:
+      POSTGRES_USER: flowdoc
+      POSTGRES_DB: flowdoc
+      POSTGRES_PASSWORD: ${FLOWDOC_DB_PASSWORD:?Set FLOWDOC_DB_PASSWORD in .env}
+    volumes:
+      - database:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flowdoc -d flowdoc"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks: [private]
+  registry:
+    image: ${FLOWDOC_REGISTRY_IMAGE:-flowdoc-service:0.1.0}
+    build:
+      context: .
+      target: runtime
+    environment:
+      DATABASE_URL: postgresql://flowdoc:${FLOWDOC_DB_PASSWORD}@db:5432/flowdoc
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [private]
+  api:
+    image: ${FLOWDOC_REGISTRY_IMAGE:-flowdoc-service:0.1.0}
+    build:
+      context: .
+      target: runtime
+    entrypoint: ["node", "dist/server.js"]
+    environment:
+      DATABASE_URL: postgresql://flowdoc:${FLOWDOC_DB_PASSWORD}@db:5432/flowdoc
+      HOST: 0.0.0.0
+      PORT: 3000
+      EXPORT_OUTPUT_DIR: /app/output
+      EXPORT_RETAIN_FILES: ${EXPORT_RETAIN_FILES:-false}
+      EXPORT_FILE_TTL_HOURS: ${EXPORT_FILE_TTL_HOURS:-24}
+      EXPORT_TEMP_FILE_TTL_HOURS: ${EXPORT_TEMP_FILE_TTL_HOURS:-24}
+    ports: ["127.0.0.1:${FLOWDOC_API_PORT:-3000}:3000"]
+    volumes: ["outputs:/app/output"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [private]
+  verification:
+    profiles: [verify]
+    image: ${FLOWDOC_VERIFY_IMAGE:-flowdoc-service-tests:0.1.0}
+    build:
+      context: .
+      target: verification
+    environment:
+      DATABASE_URL: postgresql://flowdoc:${FLOWDOC_DB_PASSWORD}@db:5432/flowdoc
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [private]
+volumes:
+  database:
+  outputs:
+networks:
+  private:
+    internal: true

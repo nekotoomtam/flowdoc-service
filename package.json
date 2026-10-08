@@ -1,0 +1,29 @@
+{
+  "name": "@flowdoc/service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=24.15.0 <25"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --no-file-parallelism",
+    "check:database": "node scripts/checkDatabase.mjs",
+    "cli": "node dist/cli.js",
+    "start": "node dist/server.js",
+    "check:api": "node scripts/checkApi.mjs"
+  },
+  "dependencies": {
+    "@flowdoc/core": "file:vendor/flowdoc-core-0.1.0.tgz",
+    "fastify": "5.12.5",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.0",
+    "@types/pg": "8.23.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.9"
+  }
+}
