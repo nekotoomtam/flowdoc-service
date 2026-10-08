@@ -12,7 +12,7 @@ UI, permissions, media and production scaling remain out of scope.
 Install dependencies with `npm ci --ignore-scripts`; build with `npm run build`.
 With Docker Desktop's Linux engine ready, run `npm run check:database`.
 It uses a fresh isolated PostgreSQL18 volume/internal network, pinned images and
-Core 0.1.0 tarball, without published DB ports or host source mounts. It verifies
+Core 0.1.1 tarball, without published DB ports or host source mounts. It verifies
 fresh migration, populated R3 upgrade/rollback, constraints, publication concurrency,
 CLI editing, source-versus-snapshot PDF equality and restart persistence.
 Results are in `artifacts/<run>/result.json`. Success stops the environment but
@@ -60,7 +60,7 @@ an intentional new publication. The request token is scoped to the template.
 A template lock serializes supported saves/publications/registration; callers
 must not bypass these operations with arbitrary SQL edits during publication.
 Examples are rebound to the selected publication version when assembling the
-Core envelope. Master codes remain string/object/array; object is only an envelope
+Core envelope. Master codes are string/object/array/image; object is only an envelope
 or array item under Core's existing limits, not arbitrary nested-field support.
 
 ## Data and compatibility
@@ -95,7 +95,7 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.1.0 is installed solely from vendor/flowdoc-core-0.1.0.tgz. Its SHA256
+Core 0.1.1 is installed solely from vendor/flowdoc-core-0.1.1.tgz. Its SHA256
 and source are in vendor/manifest.json; `node scripts/verifyVendor.mjs` verifies it.
 The lockfile pins dependencies. Linux runtime includes Node24, Python3.11/fontTools
 and the Core-owned resources. Do not copy or fork Core validation/rendering logic.
@@ -201,3 +201,13 @@ Direct server environment also supports EXPORT_OUTPUT_DIR (output), EXPORT_TEMP_
 EXPORT_MAX_PDF_BYTES (52428800), HOST and PORT. Bounds reject oversized requests
 or fail over-budget renders; they are not a large-document capacity guarantee.
 The current renderer/runtime requires packaged Linux x64 dependencies.
+
+### Image variable master (development)
+
+Migration 005 adds master 110004 (image), shared by current and version variables.
+Model 5 image variables bind resource UUID strings in global/local scope; URL and
+file intake remain upload sources, not separate variable types. Image variables
+inside array items/table cells are not supported. The registry can publish these
+templates, but /jobs returns 422 IMAGE_JOBS_UNAVAILABLE for selected image formats
+until resource claiming and preparation are connected. This prevents silent blank
+image output; ordinary text/table jobs remain supported.

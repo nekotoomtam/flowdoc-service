@@ -7,7 +7,7 @@ import type {Outputs} from '../storage/outputs.js';
 import {failure,OperationError} from '../errors.js';
 import type {Uploads} from '../uploads/service.js';
 import {registerUploads} from './uploads.js';
-const status=(code:string)=>({INVALID_JOB_ID:400,INVALID_DATA:422,TYPE_MISMATCH:422,MISSING_REQUIRED:422,EMPTY_CONTENT:422,TEMPLATE_NOT_FOUND:404,VERSION_NOT_FOUND:404,JOB_NOT_FOUND:404,OUTPUT_GONE:410}[code]??503);
+const status=(code:string)=>({INVALID_JOB_ID:400,INVALID_DATA:422,TYPE_MISMATCH:422,MISSING_REQUIRED:422,EMPTY_CONTENT:422,IMAGE_JOBS_UNAVAILABLE:422,TEMPLATE_NOT_FOUND:404,VERSION_NOT_FOUND:404,JOB_NOT_FOUND:404,OUTPUT_GONE:410}[code]??503);
 export function createServer(deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean;bodyLimit?:number;uploads?:Uploads}){
  const app=Fastify({logger:false,forceCloseConnections:true,bodyLimit:deps.bodyLimit??2097152});
  if(deps.uploads)app.register(async routes=>{

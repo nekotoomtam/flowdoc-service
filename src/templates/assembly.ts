@@ -5,13 +5,14 @@ export interface FormatRow {id:string;key:string;position:number;payload:Json}
 export interface SchemaRow {id:string;formatId:string|null}
 export interface VariableRow {id:string;schemaId:string;parentId:string|null;key:string;typeId:number;position:number;payload:Json}
 export interface CurrentRecord {templateId:string;revision:number;payload:Json;formats:FormatRow[];schemas:SchemaRow[];variables:VariableRow[]}
-const codes:Record<number,string>={110001:'string',110002:'object',110003:'array'};
+const codes:Record<number,string>={110001:'string',110002:'object',110003:'array',110004:'image'};
+const typeIds:Record<string,number>={string:110001,array:110003,image:110004};
 const invalid=(path:string):never=>{throw new OperationError('INVALID_DATA',path,'Invalid current record structure');};
 export function decompose(input:TemplateDefinition,id:()=>string):CurrentRecord {
  const t=structuredClone(input),{formats,globalSchema,version,...payload}=t;
  const record:CurrentRecord={templateId:t.templateId,revision:0,payload,formats:[],schemas:[],variables:[]};
  function schema(s:any,formatId:string|null){const sid=id();record.schemas.push({id:sid,formatId});
-  function fields(fields:Json,parentId:string|null){Object.entries(fields).forEach(([key,f],position)=>{const vid=id(),{type,items,...rest}=f;record.variables.push({id:vid,schemaId:sid,parentId,key,typeId:type==='string'?110001:110003,position,payload:rest});if(type==='array')fieldsChild(items.fields,vid);});}
+  function fields(fields:Json,parentId:string|null){Object.entries(fields).forEach(([key,f],position)=>{const vid=id(),{type,items,...rest}=f;if(!Object.hasOwn(typeIds,type))invalid('type');record.variables.push({id:vid,schemaId:sid,parentId,key,typeId:typeIds[type]!,position,payload:rest});if(type==='array')fieldsChild(items.fields,vid);});}
   const fieldsChild=(f:Json,p:string)=>fields(f,p);fields(s.fields,null);
  }
  schema(globalSchema,null);Object.entries(formats).forEach(([key,f],position)=>{const fid=id(),{inputSchema,...rest}=f;record.formats.push({id:fid,key,position,payload:rest});schema(inputSchema,fid);});return record;

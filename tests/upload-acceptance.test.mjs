@@ -71,7 +71,8 @@ it('migration 004 preserves a populated 0.1.0 database exactly',async()=>{
   const job=randomUUID();await old.pool.query('INSERT INTO generation_jobs(id,template_version_id,original_input,prepared_input,warnings_json,skipped_indices) VALUES($1,$2,$3,$4,$5,$6)',[job,registered.value.versionId,JSON.stringify(input),JSON.stringify(prepared.value),JSON.stringify(prepared.value.warnings),JSON.stringify(prepared.value.skippedContentIndices)]);
   const tables=(await old.pool.query("SELECT tablename FROM pg_tables WHERE schemaname=current_schema() AND tablename<>'schema_migrations' ORDER BY tablename")).rows.map(r=>r.tablename);
   const snapshot=async()=>Object.fromEntries(await Promise.all(tables.map(async t=>[t,JSON.stringify((await old.pool.query('SELECT * FROM "'+t+'" ORDER BY 1')).rows)])));
-  const before=await snapshot();expect(await migrate(old.pool)).toMatchObject({ok:true,value:{applied:['004_upload_staging.sql']}});expect(await snapshot()).toEqual(before);
+  const before=await snapshot();const uploadDir=await mkdtemp(join(tmpdir(),'upload-only-'));for(const n of await readdir('migrations'))if(/^00[1-4]_/.test(n))await copyFile(join('migrations',n),join(uploadDir,n));expect(await migrate(old.pool,uploadDir)).toMatchObject({ok:true,value:{applied:['004_upload_staging.sql']}});expect(await snapshot()).toEqual(before);
+  expect(await migrate(old.pool)).toMatchObject({ok:true,value:{applied:['005_image_variable_type.sql']}});const upgraded=await snapshot();const types=JSON.parse(upgraded.variable_types);expect(types.find(x=>x.id===110004).code).toBe('image');upgraded.variable_types=JSON.stringify(types.filter(x=>x.id!==110004));expect(upgraded).toEqual(before);
   expect((await loadTemplate(old.pool,template.docKey)).ok).toBe(true);expect((await old.pool.query('SELECT id FROM generation_jobs WHERE id=$1',[job])).rowCount).toBe(1);
  }finally{await old.close();}
 });
