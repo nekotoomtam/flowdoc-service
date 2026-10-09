@@ -1,5 +1,6 @@
 import type {Pool} from 'pg';
-import {validateTemplate,composeDocument} from '@flowdoc/core';
+import {validateTemplate,composeDocument,prepareGeneration} from '@flowdoc/core';
+import {isDeepStrictEqual} from 'node:util';
 import type {PdfArtifact,Result,PreparedInput,TemplateDefinition} from '@flowdoc/core';
 import {transaction} from '../db/connection.js';
 import {claimNextJob,failJob,failInterruptedJobs} from './repository.js';
@@ -20,6 +21,15 @@ export async function startProcessor(deps:Dependencies){
    try{
     const row=(await pool.query('SELECT definition_json,fingerprint FROM template_versions WHERE id=$1',[job.versionId])).rows[0];
     const valid=validateTemplate(row?.definition_json);if(!valid.ok||valid.value.fingerprint!==row.fingerprint)throw Error('Invalid pinned template');
+    if(valid.value.definition.nodeModelVersion>=11){
+     if(!job.originalInput||typeof job.originalInput!=='object'||Array.isArray(job.originalInput))throw Error('Invalid original input');
+     const {uploadId,...original}=job.originalInput as Record<string,unknown>;
+     const fresh=prepareGeneration(valid.value,original);if(!fresh.ok)throw Error('Invalid original input');
+     // JSONB may reorder object keys and hence diagnostic order, but not entries.
+     const warningKey=(w:PreparedInput['warnings'][number])=>JSON.stringify([w.code,w.path,w.message,w.action,w.contentIndex,w.format,w.expectedType,w.actualType]);
+     const comparable=(p:PreparedInput)=>({...p,warnings:[...p.warnings].sort((a,b)=>warningKey(a).localeCompare(warningKey(b)))});
+     if(!isDeepStrictEqual(comparable(JSON.parse(JSON.stringify(fresh.value))),comparable(job.preparedInput)))throw Error('Prepared input differs from admission input');
+    }
     const composed=composeDocument(valid.value,job.preparedInput);if(!composed.ok)throw Error('Composition failed');
     const hasImages=Object.values(composed.value.nodes).some(n=>n.type==='image');
     if(hasImages&&!deps.resources)throw Error('Image preparation unavailable');
