@@ -25,7 +25,7 @@ export function checkRecord(r:CurrentRecord):void {
  const owners=new Set();for(const s of r.schemas){if((s.formatId!==null&&!fmt.has(s.formatId))||owners.has(s.formatId))invalid('schemas');owners.add(s.formatId);}if(!owners.has(null)||r.schemas.length!==r.formats.length+1)invalid('schemas');
  const names=new Set();for(const v of r.variables){if(!schemas.has(v.schemaId)||typeof v.key!=='string'||!v.key||v.key.includes('.')||!codes[v.typeId]||!Number.isInteger(v.position)||v.position<0||!v.payload)invalid('variables');const name=JSON.stringify([v.schemaId,v.parentId,v.key]);if(names.has(name))invalid('key');names.add(name);
   if(v.typeId===110002)invalid('type'); // Object is an envelope/item, not a supported arbitrary field.
-  if(v.parentId!==null){const p=vars.get(v.parentId);if(!p||p.schemaId!==v.schemaId||p.typeId!==110003||p.parentId!==null||![110001,110005].includes(v.typeId))invalid('parent');}
+  if(v.parentId!==null){const p=vars.get(v.parentId);if(!p||p.schemaId!==v.schemaId||p.typeId!==110003||p.parentId!==null||![110001,110005,...(r.payload.nodeModelVersion>=10?[110004]:[])].includes(v.typeId))invalid('parent');}
   const seen=new Set([v.id]);let p=v.parentId;while(p!==null){if(seen.has(p))invalid('cycle');seen.add(p);p=vars.get(p)?.parentId??null;}
   for(const reserved of ['id','key','type','items','fields','schemaId','parentId'])if(Object.hasOwn(v.payload,reserved))invalid('payload');
  }
