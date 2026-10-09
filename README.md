@@ -277,3 +277,13 @@ migration 008 registers master 110005/link; current and published schemas retain
 link object defaults, including one-level array item fields. PDF generation and
 validation remain in the pinned Core package. See examples/links-template.json.
 No automatic table of contents or DOCX behavior is added in this slice.
+
+## Contents example (development 0.1.5)
+
+`examples/contents-template.json` uses Core model 8: explicit TextBlock contents
+levels 1–3, unique anchor IDs, and one root contents node. Import/publish it using
+the existing template workflow, then submit a `contents` format followed by
+`section`, `section2` or `section3` items through `/jobs`. Titles and physical page
+numbers link to actual headings. Core handles layout and temporary footer numbers;
+no new variable master or database migration is needed. See the Core package
+README for limits. Current drafts and published versions remain independent.
