@@ -14,7 +14,7 @@ services:
       retries: 30
     networks: [private]
   registry:
-    image: ${FLOWDOC_REGISTRY_IMAGE:-flowdoc-service:0.1.0}
+    image: ${FLOWDOC_REGISTRY_IMAGE:-flowdoc-service:0.1.1}
     build:
       context: .
       target: runtime
@@ -25,7 +25,7 @@ services:
         condition: service_healthy
     networks: [private]
   api:
-    image: ${FLOWDOC_REGISTRY_IMAGE:-flowdoc-service:0.1.0}
+    image: ${FLOWDOC_REGISTRY_IMAGE:-flowdoc-service:0.1.1}
     build:
       context: .
       target: runtime
@@ -35,18 +35,32 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
       EXPORT_OUTPUT_DIR: /app/output
+      UPLOAD_STAGING_DIR: /app/staging
+      UPLOAD_FILE_BYTES: ${UPLOAD_FILE_BYTES:-52428800}
+      UPLOAD_SET_BYTES: ${UPLOAD_SET_BYTES:-209715200}
+      UPLOAD_STAGING_BYTES: ${UPLOAD_STAGING_BYTES:-1073741824}
+      UPLOAD_MAX_ITEMS: ${UPLOAD_MAX_ITEMS:-20}
+      UPLOAD_MAX_SESSIONS: ${UPLOAD_MAX_SESSIONS:-100}
+      UPLOAD_STREAMS: ${UPLOAD_STREAMS:-2}
+      UPLOAD_BASE64_BYTES: ${UPLOAD_BASE64_BYTES:-1048576}
+      UPLOAD_IDLE_MS: ${UPLOAD_IDLE_MS:-3600000}
+      UPLOAD_READY_MS: ${UPLOAD_READY_MS:-3600000}
+      UPLOAD_ABSOLUTE_MS: ${UPLOAD_ABSOLUTE_MS:-14400000}
+      UPLOAD_REQUEST_IDLE_MS: ${UPLOAD_REQUEST_IDLE_MS:-60000}
+      UPLOAD_REQUEST_MS: ${UPLOAD_REQUEST_MS:-600000}
+      UPLOAD_METADATA_MS: ${UPLOAD_METADATA_MS:-86400000}
       EXPORT_RETAIN_FILES: ${EXPORT_RETAIN_FILES:-false}
       EXPORT_FILE_TTL_HOURS: ${EXPORT_FILE_TTL_HOURS:-24}
       EXPORT_TEMP_FILE_TTL_HOURS: ${EXPORT_TEMP_FILE_TTL_HOURS:-24}
     ports: ["127.0.0.1:${FLOWDOC_API_PORT:-3000}:3000"]
-    volumes: ["outputs:/app/output"]
+    volumes: ["outputs:/app/output", "staging:/app/staging"]
     depends_on:
       db:
         condition: service_healthy
-    networks: [private]
+    networks: [private, image-egress]
   verification:
     profiles: [verify]
-    image: ${FLOWDOC_VERIFY_IMAGE:-flowdoc-service-tests:0.1.0}
+    image: ${FLOWDOC_VERIFY_IMAGE:-flowdoc-service-tests:0.1.1}
     build:
       context: .
       target: verification
@@ -59,6 +73,8 @@ services:
 volumes:
   database:
   outputs:
+  staging:
 networks:
+  image-egress: {}
   private:
     internal: true

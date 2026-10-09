@@ -1,0 +1,30 @@
+import {beforeAll,afterAll,it,expect} from 'vitest';
+import {readFileSync} from 'node:fs';
+import {mkdtemp} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {isolatedDatabase} from './isolatedDatabase.mjs';
+import {migrate} from '../dist/db/migrate.js';
+import {importCurrent,saveCurrent,loadCurrent} from '../dist/templates/current.js';
+import {publishCurrent} from '../dist/templates/publish.js';
+import {loadTemplate,registerTemplate} from '../dist/templates/registry.js';
+import {createPdfFiles} from '../dist/storage/pdf-files.js';
+import {createOutputs} from '../dist/storage/outputs.js';
+import {startProcessor} from '../dist/jobs/processor.js';
+import {createServer} from '../dist/http/server.js';
+const db=isolatedDatabase(),ok=r=>{expect(r.ok,JSON.stringify(r)).toBe(true);return r.value;};let app,processor;
+const template=JSON.parse(readFileSync('examples/contents-template.json','utf8'));
+beforeAll(async()=>{await db.setup();ok(await migrate(db.pool));const files=await createPdfFiles(await mkdtemp(join(tmpdir(),'contents-api-')));processor=await startProcessor({pool:db.pool,files,policy:{retain:true,ttlHours:24,tempHours:24}});app=createServer({pool:db.pool,outputs:createOutputs(db.pool,files,24),isReady:processor.isReady});});
+afterAll(async()=>{await app?.close();await processor?.stop();await db.close();});
+it('roundtrips model 8 metadata independently of its published version and exports contents',async()=>{
+ const current=ok(await importCurrent(db.pool,JSON.stringify(template)));expect(ok(await loadCurrent(db.pool,template.templateId))).toEqual(current);
+ const version=ok(await publishCurrent(db.pool,{templateId:template.templateId,requestId:'contents-1'}));
+ current.formats.find(f=>f.key==='section').payload.fragment.nodes.heading.props.toc.level=2;ok(await saveCurrent(db.pool,current,current.revision));
+ const published=ok(await loadTemplate(db.pool,template.docKey,version.version)).template.definition;expect(published.nodeModelVersion).toBe(8);expect(published.formats.section.fragment.nodes.heading.props.toc.level).toBe(1);
+ const payload={docKey:template.docKey,version:version.version,data:{},content:[{format:'contents',data:{}},{format:'section',data:{anchor:'a',heading:'FIRST',body:'line\n'.repeat(60)}},{format:'section2',data:{anchor:'b',heading:'LAST'}}]};
+ const response=await app.inject({method:'POST',url:'/jobs',payload});expect(response.statusCode).toBe(202);const id=ok(response.json()).jobId;let view;
+ for(let n=0;n<1000;n++){view=ok((await app.inject('/jobs/'+id)).json());if(['failed','succeeded'].includes(view.status))break;await new Promise(r=>setTimeout(r,20));}
+ expect(view.status,JSON.stringify(view)).toBe('succeeded');const pdf=await app.inject('/jobs/'+id+'/pdf');expect(pdf.statusCode).toBe(200);const text=pdf.rawPayload.toString('latin1');expect((text.match(/\/Dest \[/g)??[]).length).toBeGreaterThanOrEqual(4);
+ ok(await registerTemplate(db.pool,readFileSync('examples/srs-template.json','utf8')));expect(ok(await loadTemplate(db.pool,'srs-table-trial',1)).template.definition.nodeModelVersion).toBe(4);
+},45000);
+it('rejects unsupported contents metadata before creating a current record',async()=>{const bad=structuredClone(template);bad.templateId=bad.docKey='bad-contents';bad.formats.section.fragment.nodes.heading.props.toc.level=7;expect((await importCurrent(db.pool,JSON.stringify(bad))).ok).toBe(false);expect((await db.pool.query("SELECT 1 FROM templates WHERE doc_key='bad-contents'")).rowCount).toBe(0);});

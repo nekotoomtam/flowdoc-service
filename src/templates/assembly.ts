@@ -5,13 +5,14 @@ export interface FormatRow {id:string;key:string;position:number;payload:Json}
 export interface SchemaRow {id:string;formatId:string|null}
 export interface VariableRow {id:string;schemaId:string;parentId:string|null;key:string;typeId:number;position:number;payload:Json}
 export interface CurrentRecord {templateId:string;revision:number;payload:Json;formats:FormatRow[];schemas:SchemaRow[];variables:VariableRow[]}
-const codes:Record<number,string>={110001:'string',110002:'object',110003:'array'};
+const codes:Record<number,string>={110001:'string',110002:'object',110003:'array',110004:'image',110005:'link'};
+const typeIds:Record<string,number>={string:110001,array:110003,image:110004,link:110005};
 const invalid=(path:string):never=>{throw new OperationError('INVALID_DATA',path,'Invalid current record structure');};
 export function decompose(input:TemplateDefinition,id:()=>string):CurrentRecord {
  const t=structuredClone(input),{formats,globalSchema,version,...payload}=t;
  const record:CurrentRecord={templateId:t.templateId,revision:0,payload,formats:[],schemas:[],variables:[]};
  function schema(s:any,formatId:string|null){const sid=id();record.schemas.push({id:sid,formatId});
-  function fields(fields:Json,parentId:string|null){Object.entries(fields).forEach(([key,f],position)=>{const vid=id(),{type,items,...rest}=f;record.variables.push({id:vid,schemaId:sid,parentId,key,typeId:type==='string'?110001:110003,position,payload:rest});if(type==='array')fieldsChild(items.fields,vid);});}
+  function fields(fields:Json,parentId:string|null){Object.entries(fields).forEach(([key,f],position)=>{const vid=id(),{type,items,...rest}=f;if(!Object.hasOwn(typeIds,type))invalid('type');record.variables.push({id:vid,schemaId:sid,parentId,key,typeId:typeIds[type]!,position,payload:rest});if(type==='array')fieldsChild(items.fields,vid);});}
   const fieldsChild=(f:Json,p:string)=>fields(f,p);fields(s.fields,null);
  }
  schema(globalSchema,null);Object.entries(formats).forEach(([key,f],position)=>{const fid=id(),{inputSchema,...rest}=f;record.formats.push({id:fid,key,position,payload:rest});schema(inputSchema,fid);});return record;
@@ -24,7 +25,7 @@ export function checkRecord(r:CurrentRecord):void {
  const owners=new Set();for(const s of r.schemas){if((s.formatId!==null&&!fmt.has(s.formatId))||owners.has(s.formatId))invalid('schemas');owners.add(s.formatId);}if(!owners.has(null)||r.schemas.length!==r.formats.length+1)invalid('schemas');
  const names=new Set();for(const v of r.variables){if(!schemas.has(v.schemaId)||typeof v.key!=='string'||!v.key||v.key.includes('.')||!codes[v.typeId]||!Number.isInteger(v.position)||v.position<0||!v.payload)invalid('variables');const name=JSON.stringify([v.schemaId,v.parentId,v.key]);if(names.has(name))invalid('key');names.add(name);
   if(v.typeId===110002)invalid('type'); // Object is an envelope/item, not a supported arbitrary field.
-  if(v.parentId!==null){const p=vars.get(v.parentId);if(!p||p.schemaId!==v.schemaId||p.typeId!==110003||p.parentId!==null||v.typeId!==110001)invalid('parent');}
+  if(v.parentId!==null){const p=vars.get(v.parentId);if(!p||p.schemaId!==v.schemaId||p.typeId!==110003||p.parentId!==null||![110001,110005].includes(v.typeId))invalid('parent');}
   const seen=new Set([v.id]);let p=v.parentId;while(p!==null){if(seen.has(p))invalid('cycle');seen.add(p);p=vars.get(p)?.parentId??null;}
   for(const reserved of ['id','key','type','items','fields','schemaId','parentId'])if(Object.hasOwn(v.payload,reserved))invalid('payload');
  }

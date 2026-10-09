@@ -1,0 +1,300 @@
+{
+  "schemaVersion": 1,
+  "nodeModelVersion": 8,
+  "templateId": "tpl-contents",
+  "docKey": "contents-trial",
+  "version": 1,
+  "name": "Contents trial",
+  "book": {
+    "page": {
+      "size": "A4",
+      "orientation": "portrait",
+      "margin": {
+        "top": {
+          "value": 20,
+          "unit": "mm"
+        },
+        "right": {
+          "value": 20,
+          "unit": "mm"
+        },
+        "bottom": {
+          "value": 20,
+          "unit": "mm"
+        },
+        "left": {
+          "value": 20,
+          "unit": "mm"
+        }
+      }
+    },
+    "contentSlot": "body"
+  },
+  "globalSchema": {
+    "type": "object",
+    "fields": {}
+  },
+  "styles": {
+    "body": {
+      "fontFamilyKey": "sarabun",
+      "fontWeight": "normal",
+      "fontSize": {
+        "value": 12,
+        "unit": "pt"
+      },
+      "lineHeightPt": 18
+    }
+  },
+  "formats": {
+    "section": {
+      "inputSchema": {
+        "type": "object",
+        "fields": {
+          "anchor": {
+            "type": "string",
+            "required": true
+          },
+          "heading": {
+            "type": "string",
+            "required": true
+          },
+          "body": {
+            "type": "string"
+          }
+        }
+      },
+      "repeats": [],
+      "fragment": {
+        "rootIds": [
+          "heading",
+          "body"
+        ],
+        "nodes": {
+          "heading": {
+            "id": "heading",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body",
+              "anchorId": {
+                "scope": "local",
+                "key": "anchor"
+              },
+              "toc": {
+                "level": 1
+              }
+            },
+            "children": [
+              {
+                "id": "title",
+                "type": "field-ref",
+                "scope": "local",
+                "key": "heading"
+              }
+            ]
+          },
+          "body": {
+            "id": "body",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "bodyvalue",
+                "type": "field-ref",
+                "scope": "local",
+                "key": "body"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "section2": {
+      "inputSchema": {
+        "type": "object",
+        "fields": {
+          "anchor": {
+            "type": "string",
+            "required": true
+          },
+          "heading": {
+            "type": "string",
+            "required": true
+          },
+          "body": {
+            "type": "string"
+          }
+        }
+      },
+      "repeats": [],
+      "fragment": {
+        "rootIds": [
+          "heading",
+          "body"
+        ],
+        "nodes": {
+          "heading": {
+            "id": "heading",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body",
+              "anchorId": {
+                "scope": "local",
+                "key": "anchor"
+              },
+              "toc": {
+                "level": 2
+              }
+            },
+            "children": [
+              {
+                "id": "title",
+                "type": "field-ref",
+                "scope": "local",
+                "key": "heading"
+              }
+            ]
+          },
+          "body": {
+            "id": "body",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "bodyvalue",
+                "type": "field-ref",
+                "scope": "local",
+                "key": "body"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "section3": {
+      "inputSchema": {
+        "type": "object",
+        "fields": {
+          "anchor": {
+            "type": "string",
+            "required": true
+          },
+          "heading": {
+            "type": "string",
+            "required": true
+          },
+          "body": {
+            "type": "string"
+          }
+        }
+      },
+      "repeats": [],
+      "fragment": {
+        "rootIds": [
+          "heading",
+          "body"
+        ],
+        "nodes": {
+          "heading": {
+            "id": "heading",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body",
+              "anchorId": {
+                "scope": "local",
+                "key": "anchor"
+              },
+              "toc": {
+                "level": 3
+              }
+            },
+            "children": [
+              {
+                "id": "title",
+                "type": "field-ref",
+                "scope": "local",
+                "key": "heading"
+              }
+            ]
+          },
+          "body": {
+            "id": "body",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "bodyvalue",
+                "type": "field-ref",
+                "scope": "local",
+                "key": "body"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "contents": {
+      "inputSchema": {
+        "type": "object",
+        "fields": {}
+      },
+      "repeats": [],
+      "fragment": {
+        "rootIds": [
+          "label",
+          "toc"
+        ],
+        "nodes": {
+          "label": {
+            "id": "label",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "title",
+                "type": "text",
+                "text": "สารบัญ / Contents"
+              }
+            ]
+          },
+          "toc": {
+            "id": "toc",
+            "type": "table-of-contents",
+            "props": {
+              "textStyleId": "body"
+            }
+          }
+        }
+      }
+    }
+  },
+  "examples": []
+}

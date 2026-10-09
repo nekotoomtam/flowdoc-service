@@ -27,7 +27,7 @@ it('edits current, clones independently, retries and preserves old versions',asy
 it('creates current and master rows with timestamps, not a published version',async()=>{
  const t={...source,templateId:'tpl-draftonly',docKey:'draftonly'};const r=ok(await importCurrent(pool,JSON.stringify(t)));
  expect(ok(await loadCurrent(pool,t.templateId))).toEqual(r);expect((await loadTemplate(pool,t.docKey)).ok).toBe(false);
- expect((await pool.query('SELECT id,code,created_at FROM variable_types ORDER BY id')).rows.map(r=>[r.id,r.code,!!r.created_at])).toEqual([[110001,'string',true],[110002,'object',true],[110003,'array',true]]);
+ expect((await pool.query('SELECT id,code,created_at FROM variable_types ORDER BY id')).rows.map(r=>[r.id,r.code,!!r.created_at])).toEqual([[110001,'string',true],[110002,'object',true],[110003,'array',true],[110004,'image',true],[110005,'link',true]]);
 });
 it('rolls back all clone rows on failure and retries the same token',async()=>{
  const t={...source,templateId:'tpl-failclone',docKey:'failclone'};ok(await importCurrent(pool,JSON.stringify(t)));

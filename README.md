@@ -4,15 +4,16 @@
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Version 0.1.0 provides a local HTTP API, serial export processor and temporary PDF lifecycle.
-UI, permissions, media and production scaling remain out of scope.
+Development version 0.1.3 provides a local HTTP API, serial export processor,
+temporary PDF lifecycle and JPEG/PNG resource preparation. Release/tag promotion
+is separate. UI, permissions and production scaling remain out of scope.
 
 ## Local setup and acceptance
 
 Install dependencies with `npm ci --ignore-scripts`; build with `npm run build`.
 With Docker Desktop's Linux engine ready, run `npm run check:database`.
 It uses a fresh isolated PostgreSQL18 volume/internal network, pinned images and
-Core 0.1.0 tarball, without published DB ports or host source mounts. It verifies
+Core 0.1.3 tarball, without published DB ports or host source mounts. It verifies
 fresh migration, populated R3 upgrade/rollback, constraints, publication concurrency,
 CLI editing, source-versus-snapshot PDF equality and restart persistence.
 Results are in `artifacts/<run>/result.json`. Success stops the environment but
@@ -60,7 +61,7 @@ an intentional new publication. The request token is scoped to the template.
 A template lock serializes supported saves/publications/registration; callers
 must not bypass these operations with arbitrary SQL edits during publication.
 Examples are rebound to the selected publication version when assembling the
-Core envelope. Master codes remain string/object/array; object is only an envelope
+Core envelope. Master codes are string/object/array/image; object is only an envelope
 or array item under Core's existing limits, not arbitrary nested-field support.
 
 ## Data and compatibility
@@ -95,7 +96,7 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.1.0 is installed solely from vendor/flowdoc-core-0.1.0.tgz. Its SHA256
+Core 0.1.3 is installed solely from vendor/flowdoc-core-0.1.3.tgz. Its SHA256
 and source are in vendor/manifest.json; `node scripts/verifyVendor.mjs` verifies it.
 The lockfile pins dependencies. Linux runtime includes Node24, Python3.11/fontTools
 and the Core-owned resources. Do not copy or fork Core validation/rendering logic.
@@ -115,6 +116,47 @@ consumer. Local release branches/tags do not publish images or deploy a public A
 
 
 ## Local export API
+
+### Development upload staging (next release)
+
+The development branch adds resource intake independently of `/jobs`. It does not
+yet draw images in PDFs. Migrate before starting this candidate; migration 004 adds
+upload sessions/items. Compose persists source bytes in its separate staging volume.
+Use `node examples/upload-client.mjs <local.png> image/png` against the running API.
+POST `/uploads` declares a requestKey and items (key, source=upload, mediaType,
+byteSize); URL items instead use source=url and url. Read the returned resourceId,
+PUT binary to `/uploads/:id/items/:resourceId/content`, GET `/uploads/:id` to poll,
+and POST `/uploads/:id/finalize` once every binary item has completed.
+For small images, PUT `{data:"<base64>"}` to the item's `/base64` endpoint.
+
+URL declarations are not fetched in this release. ready means intake is complete,
+not image decoding or rendering. HTTPS without credentials is accepted as a descriptor;
+outbound destination enforcement belongs to the future fetcher. Completed item retries
+must contain identical bytes; changed bytes conflict. Retry an interrupted item as a
+whole file; byte-offset resume is unsupported. requestKey is local-service scoped.
+Do not expose this unauthenticated localhost MVP publicly.
+
+Trial limits: 50 MiB/file, 200 MiB/set, 20 items, 1 GiB reserved staging, 100 active
+sets, two HTTP receive slots; small Base64 is at most 1 MiB decoded / 2 MiB JSON.
+`UPLOAD_FILE_BYTES`, `UPLOAD_SET_BYTES`, `UPLOAD_STAGING_BYTES`, `UPLOAD_MAX_ITEMS`,
+`UPLOAD_MAX_SESSIONS`, `UPLOAD_STREAMS`, `UPLOAD_BASE64_BYTES` configure these.
+Binary data streams to disk; the limits are not a promise of decode/load capacity.
+
+`UPLOAD_IDLE_MS` and `UPLOAD_READY_MS` default to one hour; `UPLOAD_ABSOLUTE_MS`
+caps an open session at four hours. Only accepted byte progress renews idle time,
+not polling. Request idle/total timeouts default to 60s/10min via
+`UPLOAD_REQUEST_IDLE_MS` / `UPLOAD_REQUEST_MS`. Expiry retires bytes, then retains
+minimal session/item metadata for 24h (`UPLOAD_METADATA_MS`) for bounded retry
+identity. A requestKey may create a new set after that tombstone is purged.
+`UPLOAD_STAGING_DIR` selects the owned root; never point it at unrelated files.
+Interrupted receives become incomplete after recovery; missing finalized bytes
+invalidate the set. Failed deletion retains quota until cleanup succeeds.
+No job claim is exposed yet: the one-hour-after-job policy is deferred to the
+actual resource consumer in the next image integration release. PDF TTL is unchanged.
+
+`npm run check:uploads` verifies actual large PNG intake and restart through a
+separate server process; `check:database` also covers upload DB/HTTP/lifetime tests.
+Artifacts retain experiment bytes/counts and server peak RSS, not a production SLA.
 
 After migration and template publication/registration above, run `docker compose
 up -d api`. It listens at http://127.0.0.1:3000 (override FLOWDOC_API_PORT).
@@ -160,3 +202,88 @@ Direct server environment also supports EXPORT_OUTPUT_DIR (output), EXPORT_TEMP_
 EXPORT_MAX_PDF_BYTES (52428800), HOST and PORT. Bounds reject oversized requests
 or fail over-budget renders; they are not a large-document capacity guarantee.
 The current renderer/runtime requires packaged Linux x64 dependencies.
+
+### Image variable master (development)
+
+Migration 005 adds master 110004 (image), shared by current and version variables.
+Model 5 image variables bind resource UUID strings in global/local scope; URL and
+file intake remain upload sources, not separate variable types. Image variables
+inside array items/table cells are not supported. The registry can publish these
+templates. The configured server accepts image jobs with a finalized `uploadId`;
+image field values are resource IDs from that upload. Missing/wrong-set references
+are rejected before admission. Ordinary text/table jobs remain supported.
+
+Migration 006 adds the internal upload/job ownership boundary. `enqueueWithUpload`
+accepts already validated/pinned input and server-derived resource references;
+it locks the finalized upload and inserts the job and claim in one transaction.
+Identical retries return the existing job ID; different input/version conflicts.
+The configured HTTP admission calls this boundary for image resources.
+
+Claimed uploads report `claimed`, with `expiresAt: null` while queued/running.
+Original files are protected through queueing/recovery and for one hour after
+the job finishes. Cleanup then releases their bytes and later expires metadata.
+Migration 007 stores actual processing stages/counts and processing warnings
+separately from immutable accepted input. Poll `/jobs/:id` for `processing.stage`
+(`preparing-resources`, `rendering`, `complete`, `failed`), `completed`, `total`,
+and `warningCount`. Counts describe image slots, not estimated overall completion.
+
+Preparation uses 200 DPI, proportional fit and no pixel upscaling. JPEG and PNG
+alpha are supported; repeated source/target sizes reuse a prepared derivative.
+Image block props accept optional `align: "left" | "center" | "right"` for the
+frame within printable page width. Omission preserves left alignment. Images stay
+centered within their frame; this does not enable text wrapping around images.
+Bad images or blocked/unavailable URLs keep their frame blank with a warning.
+Resource/decoder/output budgets can also skip an image. Poll warnings before
+accepting the document. Shutdown or the five-minute preparation deadline fails
+the job; each decode/download is limited to 30 seconds.
+
+Originals live at the staging root; downloads and derivatives are owned by
+`jobs/<job-id>` below it, with shared quota reserved before writes. A single
+prepared image reserves up to 32 MiB while it is being produced; unused reservation
+is released. Original data plus prepared files may use up to the set byte budget
+plus 64 MiB, still bounded by shared staging capacity. PDF image resources are
+limited to 20 derivatives and 64 MiB per job. Low custom staging limits can skip
+images even when their compressed upload fits.
+
+Remote images require HTTPS with public unicast destinations, no credentials or
+forwarded authorization, at most three redirects, and at most 50 MiB per download.
+Every destination is checked and its address pinned. Compose adds `image-egress`
+to the API only; the DB remains on the internal network. Protected sources must
+be downloaded by the caller and sent through upload intake. Deployments without
+outbound access receive warnings for remote images.
+
+`tests/uat-image-trial.mjs` runs a synthetic UAT report through live local HTTP
+upload, finalize, job polling and PDF download. It requires an isolated database
+and writes the PDF and a result report to `FLOWDOC_UAT_OUTPUT`. It uses no customer
+data. These fixtures do not claim production capacity or all-image visual quality.
+
+`tests/image-limits-trial.mjs` checks 40 MP JPEG/alpha PNG preparation, rejection
+above the input/target pixel budgets and partial-file cleanup. Run with the packaged
+verification image, `--network none --memory 512m --memory-swap 512m`, an output
+mount at `FLOWDOC_LIMIT_OUTPUT`, and `--entrypoint node` followed by the script path.
+It records cgroup peak memory including fixture generation, not decoder-only RSS.
+This bounded serial probe is separate from the regular database suite.
+
+Model 6 templates support explicit table cells with zero-based columnIndex and
+rowSpan/colSpan (default 1). Registration and publication validate coverage and
+reject overlaps, holes and spans crossing headers or repeated rows. Cell content
+remains TextBlocks. See examples/merged-template.json for the graph shape; the
+Core package owns merged layout and continuation behavior.
+
+## Model 7 links
+
+Core 0.1.4 adds url/link/reference inlines and TextBlock anchorId. Forward-only
+migration 008 registers master 110005/link; current and published schemas retain
+link object defaults, including one-level array item fields. PDF generation and
+validation remain in the pinned Core package. See examples/links-template.json.
+No automatic table of contents or DOCX behavior is added in this slice.
+
+## Contents example (development 0.1.5)
+
+`examples/contents-template.json` uses Core model 8: explicit TextBlock contents
+levels 1–3, unique anchor IDs, and one root contents node. Import/publish it using
+the existing template workflow, then submit a `contents` format followed by
+`section`, `section2` or `section3` items through `/jobs`. Titles and physical page
+numbers link to actual headings. Core handles layout and temporary footer numbers;
+no new variable master or database migration is needed. See the Core package
+README for limits. Current drafts and published versions remain independent.
