@@ -4,7 +4,7 @@
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Development version 0.1.2 provides a local HTTP API, serial export processor,
+Development version 0.1.3 provides a local HTTP API, serial export processor,
 temporary PDF lifecycle and JPEG/PNG resource preparation. Release/tag promotion
 is separate. UI, permissions and production scaling remain out of scope.
 
@@ -13,7 +13,7 @@ is separate. UI, permissions and production scaling remain out of scope.
 Install dependencies with `npm ci --ignore-scripts`; build with `npm run build`.
 With Docker Desktop's Linux engine ready, run `npm run check:database`.
 It uses a fresh isolated PostgreSQL18 volume/internal network, pinned images and
-Core 0.1.2 tarball, without published DB ports or host source mounts. It verifies
+Core 0.1.3 tarball, without published DB ports or host source mounts. It verifies
 fresh migration, populated R3 upgrade/rollback, constraints, publication concurrency,
 CLI editing, source-versus-snapshot PDF equality and restart persistence.
 Results are in `artifacts/<run>/result.json`. Success stops the environment but
@@ -96,7 +96,7 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.1.2 is installed solely from vendor/flowdoc-core-0.1.2.tgz. Its SHA256
+Core 0.1.3 is installed solely from vendor/flowdoc-core-0.1.3.tgz. Its SHA256
 and source are in vendor/manifest.json; `node scripts/verifyVendor.mjs` verifies it.
 The lockfile pins dependencies. Linux runtime includes Node24, Python3.11/fontTools
 and the Core-owned resources. Do not copy or fork Core validation/rendering logic.
@@ -263,3 +263,9 @@ verification image, `--network none --memory 512m --memory-swap 512m`, an output
 mount at `FLOWDOC_LIMIT_OUTPUT`, and `--entrypoint node` followed by the script path.
 It records cgroup peak memory including fixture generation, not decoder-only RSS.
 This bounded serial probe is separate from the regular database suite.
+
+Model 6 templates support explicit table cells with zero-based columnIndex and
+rowSpan/colSpan (default 1). Registration and publication validate coverage and
+reject overlaps, holes and spans crossing headers or repeated rows. Cell content
+remains TextBlocks. See examples/merged-template.json for the graph shape; the
+Core package owns merged layout and continuation behavior.

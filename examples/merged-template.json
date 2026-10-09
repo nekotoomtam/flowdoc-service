@@ -1,0 +1,281 @@
+{
+  "schemaVersion": 1,
+  "nodeModelVersion": 6,
+  "templateId": "merged-trial",
+  "docKey": "merged-trial",
+  "version": 1,
+  "name": "Merged trial",
+  "book": {
+    "page": {
+      "size": "A4",
+      "orientation": "portrait",
+      "margin": {
+        "top": {
+          "value": 20,
+          "unit": "mm"
+        },
+        "right": {
+          "value": 20,
+          "unit": "mm"
+        },
+        "bottom": {
+          "value": 20,
+          "unit": "mm"
+        },
+        "left": {
+          "value": 20,
+          "unit": "mm"
+        }
+      }
+    },
+    "contentSlot": "body"
+  },
+  "globalSchema": {
+    "type": "object",
+    "fields": {
+      "text": {
+        "type": "string",
+        "required": true
+      }
+    }
+  },
+  "styles": {
+    "body": {
+      "fontFamilyKey": "sarabun",
+      "fontWeight": "normal",
+      "fontSize": {
+        "value": 12,
+        "unit": "pt"
+      },
+      "lineHeightPt": 18
+    }
+  },
+  "formats": {
+    "merged": {
+      "inputSchema": {
+        "type": "object",
+        "fields": {}
+      },
+      "fragment": {
+        "rootIds": [
+          "table"
+        ],
+        "nodes": {
+          "header": {
+            "id": "header",
+            "type": "table-row",
+            "props": {
+              "allowBreak": true
+            },
+            "cellIds": [
+              "h"
+            ]
+          },
+          "r1": {
+            "id": "r1",
+            "type": "table-row",
+            "props": {
+              "allowBreak": true
+            },
+            "cellIds": [
+              "a",
+              "b"
+            ]
+          },
+          "r2": {
+            "id": "r2",
+            "type": "table-row",
+            "props": {
+              "allowBreak": true
+            },
+            "cellIds": [
+              "c",
+              "e"
+            ]
+          },
+          "h": {
+            "id": "h",
+            "type": "table-cell",
+            "props": {
+              "columnIndex": 0,
+              "rowSpan": 1,
+              "colSpan": 3
+            },
+            "childIds": [
+              "ht"
+            ]
+          },
+          "ht": {
+            "id": "ht",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "hleaf",
+                "type": "text",
+                "text": "MERGED TABLE / ตารางทดสอบ"
+              }
+            ]
+          },
+          "a": {
+            "id": "a",
+            "type": "table-cell",
+            "props": {
+              "columnIndex": 0,
+              "rowSpan": 2,
+              "colSpan": 1
+            },
+            "childIds": [
+              "at"
+            ]
+          },
+          "at": {
+            "id": "at",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "aleaf",
+                "type": "field-ref",
+                "scope": "global",
+                "key": "text"
+              }
+            ]
+          },
+          "b": {
+            "id": "b",
+            "type": "table-cell",
+            "props": {
+              "columnIndex": 1,
+              "rowSpan": 1,
+              "colSpan": 2
+            },
+            "childIds": [
+              "bt"
+            ]
+          },
+          "bt": {
+            "id": "bt",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "bleaf",
+                "type": "text",
+                "text": "B: รวมสองคอลัมน์ — ข้อความต้องใช้ความกว้างรวม"
+              }
+            ]
+          },
+          "c": {
+            "id": "c",
+            "type": "table-cell",
+            "props": {
+              "columnIndex": 1,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            "childIds": [
+              "ct"
+            ]
+          },
+          "ct": {
+            "id": "ct",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "cleaf",
+                "type": "text",
+                "text": "C: แถวล่าง"
+              }
+            ]
+          },
+          "e": {
+            "id": "e",
+            "type": "table-cell",
+            "props": {
+              "columnIndex": 2,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            "childIds": [
+              "et"
+            ]
+          },
+          "et": {
+            "id": "et",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "eleaf",
+                "type": "text",
+                "text": "E: จบรายการ"
+              }
+            ]
+          },
+          "table": {
+            "id": "table",
+            "type": "table",
+            "props": {
+              "headerRowCount": 1,
+              "repeatHeaderRows": true
+            },
+            "columns": [
+              {
+                "width": {
+                  "value": 150,
+                  "unit": "pt"
+                }
+              },
+              {
+                "width": {
+                  "value": 150,
+                  "unit": "pt"
+                }
+              },
+              {
+                "width": {
+                  "value": 150,
+                  "unit": "pt"
+                }
+              }
+            ],
+            "rowIds": [
+              "header",
+              "r1",
+              "r2"
+            ]
+          }
+        }
+      },
+      "repeats": []
+    }
+  },
+  "examples": []
+}
