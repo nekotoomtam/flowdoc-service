@@ -17,7 +17,7 @@
     "check:uploads": "node scripts/checkUploads.mjs"
   },
   "dependencies": {
-    "@flowdoc/core": "file:vendor/flowdoc-core-0.1.5.tgz",
+    "@flowdoc/core": "file:vendor/flowdoc-core-0.1.5-cell-content-candidate.tgz",
     "fastify": "5.12.5",
     "ipaddr.js": "2.5.0",
     "pg": "8.23.1",
