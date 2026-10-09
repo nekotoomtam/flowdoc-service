@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "nodeModelVersion": 7,
+  "templateId": "tpl-links",
+  "docKey": "links-trial",
+  "version": 1,
+  "name": "Links trial",
+  "book": {
+    "page": {
+      "size": "A4",
+      "orientation": "portrait",
+      "margin": {
+        "top": {
+          "value": 20,
+          "unit": "mm"
+        },
+        "right": {
+          "value": 20,
+          "unit": "mm"
+        },
+        "bottom": {
+          "value": 20,
+          "unit": "mm"
+        },
+        "left": {
+          "value": 20,
+          "unit": "mm"
+        }
+      }
+    },
+    "contentSlot": "body"
+  },
+  "globalSchema": {
+    "type": "object",
+    "fields": {
+      "website": {
+        "type": "link",
+        "default": {
+          "type": "url",
+          "value": "https://example.com"
+        }
+      }
+    }
+  },
+  "styles": {
+    "body": {
+      "fontFamilyKey": "sarabun",
+      "fontWeight": "normal",
+      "fontSize": {
+        "value": 12,
+        "unit": "pt"
+      },
+      "lineHeightPt": 18
+    }
+  },
+  "formats": {
+    "section": {
+      "inputSchema": {
+        "type": "object",
+        "fields": {
+          "anchor": {
+            "type": "string",
+            "required": true
+          },
+          "target": {
+            "type": "string",
+            "required": true
+          },
+          "heading": {
+            "type": "string",
+            "required": true
+          },
+          "body": {
+            "type": "string"
+          }
+        }
+      },
+      "repeats": [],
+      "fragment": {
+        "rootIds": [
+          "heading",
+          "links",
+          "body"
+        ],
+        "nodes": {
+          "heading": {
+            "id": "heading",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body",
+              "anchorId": {
+                "scope": "local",
+                "key": "anchor"
+              }
+            },
+            "children": [
+              {
+                "id": "title",
+                "type": "field-ref",
+                "scope": "local",
+                "key": "heading"
+              }
+            ]
+          },
+          "links": {
+            "id": "links",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "web",
+                "type": "field-ref",
+                "scope": "global",
+                "key": "website"
+              },
+              {
+                "id": "space",
+                "type": "text",
+                "text": " — "
+              },
+              {
+                "id": "label",
+                "type": "link",
+                "text": "เปิดเว็บไซต์ตัวอย่าง (example.com)",
+                "url": "https://example.com"
+              },
+              {
+                "id": "space2",
+                "type": "text",
+                "text": " — "
+              },
+              {
+                "id": "jump",
+                "type": "reference",
+                "text": "ไปยังอีกหัวข้อ / Jump to other section",
+                "target": {
+                  "scope": "local",
+                  "key": "target"
+                }
+              }
+            ]
+          },
+          "body": {
+            "id": "body",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "bodyvalue",
+                "type": "field-ref",
+                "scope": "local",
+                "key": "body"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "examples": []
+}

@@ -269,3 +269,11 @@ rowSpan/colSpan (default 1). Registration and publication validate coverage and
 reject overlaps, holes and spans crossing headers or repeated rows. Cell content
 remains TextBlocks. See examples/merged-template.json for the graph shape; the
 Core package owns merged layout and continuation behavior.
+
+## Model 7 links
+
+Core 0.1.4 adds url/link/reference inlines and TextBlock anchorId. Forward-only
+migration 008 registers master 110005/link; current and published schemas retain
+link object defaults, including one-level array item fields. PDF generation and
+validation remain in the pinned Core package. See examples/links-template.json.
+No automatic table of contents or DOCX behavior is added in this slice.

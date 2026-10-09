@@ -15,7 +15,7 @@ try{
  compose(['build','registry','verification'],'build');
  const runtimeImage=docker(['image','inspect',runtimeTag,'--format','{{.Id}}']).trim(),verificationImage=docker(['image','inspect',verifyTag,'--format','{{.Id}}']).trim();
  compose(['up','-d','--wait','db'],'database-start');
- const migration=cli(['migrate'],'migrate');assert.equal(migration.ok,true);assert.deepEqual(migration.value.applied,['001_initial.sql','002_current_version.sql','003_output_lifetime.sql','004_upload_staging.sql','005_image_variable_type.sql','006_upload_job_claims.sql','007_job_processing.sql']);
+ const migration=cli(['migrate'],'migrate');assert.equal(migration.ok,true);assert.deepEqual(migration.value.applied,['001_initial.sql','002_current_version.sql','003_output_lifetime.sql','004_upload_staging.sql','005_image_variable_type.sql','006_upload_job_claims.sql','007_job_processing.sql','008_link_variable_type.sql']);
  const testText=compose(['run','--rm','-T','verification','--reporter=json'],'tests');const tests=JSON.parse(testText);assert.equal(tests.success,true);assert.equal(tests.numPendingTests,0);
  const registration=cli(['register','examples/srs-template.json'],'register');assert.equal(registration.ok,true);assert.equal(registration.value.created,true);
  const cliCurrent=JSON.parse(compose(['run','--rm','-T','--entrypoint','node','verification','tests/checkCurrentCli.mjs'],'current-cli'));assert.equal(cliCurrent.status,'PASS');
