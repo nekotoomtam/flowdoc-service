@@ -1,9 +1,9 @@
-# คู่มือใช้งาน FlowDoc Service 0.1.8
+# คู่มือใช้งาน FlowDoc Service 0.1.9
 
 ## Authority Boundary
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-รุ่นพัฒนา 0.1.8 ไม่ใช่การประกาศขึ้น release หรือรับรอง production capacity
+รุ่นพัฒนา 0.1.9 ไม่ใช่การประกาศขึ้น release หรือรับรอง production capacity
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-cell-content-handoff-2026-10-09.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
@@ -11,7 +11,7 @@ Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP 
 ## 1. เริ่มต้นและออก PDF แรก
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.1.8
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.1.9
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
@@ -22,7 +22,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.1.8'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.1.9'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -217,3 +217,23 @@ PDF ใช้นโยบายแยก: `EXPORT_RETAIN_FILES=false` ลบห�
 หลัง restart งาน queued ทำต่อ แต่งาน running ที่ถูกตัดจบเป็น PROCESS_INTERRUPTED
 รายละเอียด configuration และการทดสอบอยู่ใน [README](../README.md)
 ยังไม่รวม DOCX, หน้าแก้ไขเอกสาร, ระบบหน้าปก/หัวท้ายเต็มรูปแบบ หรือ SLA งานพร้อมกันจำนวนมาก
+
+
+## แม่แบบหลายส่วน (รุ่นพัฒนา0.1.9 / Core model12)
+
+ใช้ [page-sections-template.json](../examples/page-sections-template.json) กับ
+[page-sections-request.json](../examples/page-sections-request.json) ผ่าน current
+import → publish → POST /jobs ตามขั้นตอนเดิม ข้อมูลตัวอย่างมี resource UUID จำลอง
+ต้องอัปโหลดรูปจริงแล้วแทน data.photo และ photo ในรายการด้วย resourceId ของชุดนั้น
+พร้อมส่ง uploadId ก่อนเรียก /jobs
+
+ส่ง content: [] ได้เมื่อมีเนื้อหา authored จากแม่แบบ ตัวแปรรูปในส่วน authored
+ยังต้องส่งและอยู่ใน upload ที่ claim ได้; ไม่ส่ง sections/pageLayouts จากผู้เรียก
+GET contract ยังคงแสดง schema/formats/areaFormats/examples ไม่เปิดกราฟจัดหน้า
+รูปแบบหน้าและส่วนเก็บใน payload/snapshot เดิม ไม่เพิ่มตารางหรือ migration
+แก้ label โดยคง id ได้ การลบ global Area เก็บกวาดจุดวางใน authored section
+และข้อมูลลูกของ current; เวอร์ชันที่ publish แล้วไม่เปลี่ยนตาม
+
+ตัวอย่างนี้เป็นส่วนทั่วไปแนวตั้ง/แนวนอน ยังไม่ใช่ปกพิเศษหรือหัวท้าย
+สถานะและลำดับงานอยู่ใน Project Control
+`docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`

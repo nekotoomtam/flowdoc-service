@@ -1,6 +1,6 @@
 {
   "name": "@flowdoc/service",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "private": true,
   "type": "module",
   "license": "UNLICENSED",
@@ -17,7 +17,7 @@
     "check:uploads": "node scripts/checkUploads.mjs"
   },
   "dependencies": {
-    "@flowdoc/core": "file:vendor/flowdoc-core-0.1.8.tgz",
+    "@flowdoc/core": "file:vendor/flowdoc-core-0.1.9.tgz",
     "fastify": "5.12.5",
     "ipaddr.js": "2.5.0",
     "pg": "8.23.1",

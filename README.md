@@ -4,20 +4,20 @@
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Development version 0.1.8 provides a local HTTP API, serial export processor,
+Development version 0.1.9 provides a local HTTP API, serial export processor,
 temporary PDF lifecycle and JPEG/PNG resource preparation. Release/tag promotion
 is separate. UI, permissions and production scaling remain out of scope.
 
 Start with the Thai [usage guide](docs/usage.md): first PDF, draft publication,
 API requests, uploads, Area examples and file lifetime. It covers development
-0.1.8; release promotion is separate.
+0.1.9; release promotion is separate.
 
 ## Local setup and acceptance
 
 Install dependencies with `npm ci --ignore-scripts`; build with `npm run build`.
 With Docker Desktop's Linux engine ready, run `npm run check:database`.
 It uses a fresh isolated PostgreSQL18 volume/internal network, pinned images and
-Core 0.1.8 tarball, without published DB ports or host source mounts. It verifies
+Core 0.1.9 tarball, without published DB ports or host source mounts. It verifies
 fresh migration, populated R3 upgrade/rollback, constraints, publication concurrency,
 CLI editing, source-versus-snapshot PDF equality and restart persistence.
 Results are in `artifacts/<run>/result.json`. Success stops the environment but
@@ -27,7 +27,7 @@ retains its volume/network/images. Failures leave inspection data. Generated
 fixtures/isolated schemas and temporarily alter constraints; never use shared data.
 
 For a persistent local registry, copy .env.example to .env and choose a random
-URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.1.8` explicitly
+URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.1.9` explicitly
 to label the image with the current code version. Run:
 
 ```text
@@ -103,7 +103,7 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.1.8 is installed solely from vendor/flowdoc-core-0.1.8.tgz. Its SHA256
+Core 0.1.9 is installed solely from vendor/flowdoc-core-0.1.9.tgz. Its SHA256
 and source are in vendor/manifest.json; `node scripts/verifyVendor.mjs` verifies it.
 The lockfile pins dependencies. Linux runtime includes Node24, Python3.11/fontTools
 and the Core-owned resources. Do not copy or fork Core validation/rendering logic.
