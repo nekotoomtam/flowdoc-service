@@ -1,17 +1,17 @@
-# คู่มือใช้งาน FlowDoc Service 0.1.12
+# คู่มือใช้งาน FlowDoc Service 0.2.0
 
 ## Authority Boundary
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-รุ่นพัฒนา 0.1.12 ไม่ใช่การประกาศขึ้น release หรือรับรอง production capacity
+รุ่นพัฒนา 0.2.0 ไม่ใช่การประกาศขึ้น release หรือรับรอง production capacity
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
-`docs/domains/flowdoc-cell-content-handoff-2026-10-09.md`
+`docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
 
 ## 1. เริ่มต้นและออก PDF แรก
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.1.12
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.2.0
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
@@ -22,7 +22,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.1.12'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.2.0'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -216,10 +216,10 @@ PDF ใช้นโยบายแยก: `EXPORT_RETAIN_FILES=false` ลบห�
 รุ่นนี้เป็น localhost ไม่มีสิทธิ์รายคน และมี coordinator เดียว ประมวลผลเอกสารเรียงกัน
 หลัง restart งาน queued ทำต่อ แต่งาน running ที่ถูกตัดจบเป็น PROCESS_INTERRUPTED
 รายละเอียด configuration และการทดสอบอยู่ใน [README](../README.md)
-ยังไม่รวม DOCX, หน้าแก้ไขเอกสาร, ระบบหน้าปก/หัวท้ายเต็มรูปแบบ หรือ SLA งานพร้อมกันจำนวนมาก
+ยังไม่รวม DOCX, หน้าแก้ไขเอกสาร หรือ SLA งานพร้อมกันจำนวนมาก; ระบบหน้าและหัวท้ายดู model16 ด้านล่าง
 
 
-## แม่แบบหลายส่วน (รุ่นพัฒนา0.1.12 / Core model12)
+## แม่แบบหลายส่วน (รุ่นพัฒนา0.2.0 / Core model12)
 
 ใช้ [page-sections-template.json](../examples/page-sections-template.json) กับ
 [page-sections-request.json](../examples/page-sections-request.json) ผ่าน current
@@ -326,3 +326,42 @@ Migration012 ขยาย owner guards ให้รับ model15/16 โดย�
 แต่เว้นช่องเลขว่าง; ปกไม่เข้าสารบัญ. ตัวเลขที่เริ่มใหม่ไม่เปลี่ยนปลายทางลิงก์.
 API ไม่ต้องส่งข้อมูลเพิ่ม. ดู examples/contents-sections-template.json และ
 contents-sections-request.json; ไม่ต้องมี migration ใหม่สำหรับพฤติกรรมนี้.
+
+## ทดลองทั้งเล่มและอัปเกรดเป็น 0.2.0
+
+แม่แบบตัวอย่างครบอยู่ที่ `examples/page-system-template.json`:
+ปก → สารบัญ → ตารางเซลล์รวม/ภาพ/Area → หน้าเปล่า → ส่วนซ่อน/ไม่นับเลข → ปิดท้าย.
+`page-system-short.json` และ `page-system-long.json` เป็น request ของ version1.
+ภาพสีเล็กใน page-system-image.png ใช้ตรวจตำแหน่ง ไม่ใช่ตัวอย่างคุณภาพภาพพิมพ์.
+UUID ใน request เป็น placeholder ต้องแทนด้วย resourceId จาก upload ของตน.
+ชุดนี้จงใจไม่ส่งโลโก้หัวกระดาษ และใช้ภาพสีขนาด2×1px เพื่อเทียบกับผลรับเดิม
+จึงคาด IMAGE_LOW_RESOLUTION สองรายการและ IMAGE_UNAVAILABLE ของโลโก้เจ็ดรายการ.
+สคริปต์ตรวจ warnings ชุดนี้ตรง ๆ; ไม่ใช่ข้อกำหนดว่าภาพจริงต้องมี warnings.
+
+บน Docker project ทดลองใหม่ที่ตั้งตามขั้นตอนแรกของคู่มือ:
+
+```powershell
+docker @dc run --rm registry migrate
+docker @dc run --rm registry draft-import examples/page-system-template.json
+docker @dc run --rm registry publish page-system-release page-system-v1
+docker @dc up -d api
+$env:FLOWDOC_TEST_API_URL = 'http://127.0.0.1:4318'
+node scripts/checkPageSystem.mjs
+```
+
+คำสั่งตรวจนี้ใช้ Node24 บนเครื่องผู้เรียกและ HTTP API เท่านั้น จะ upload รูป,
+finalize, ส่งคำขอที่ตรึง version1, รอ job, ดาวน์โหลด PDFสั้น/ยาว และตรวจว่าดาวน์โหลด
+ซ้ำไม่ได้ตามค่าเริ่มต้น EXPORT_RETAIN_FILES=false. ไฟล์อยู่ artifacts/page-system.
+อย่ารัน fixture นี้กับข้อมูลใช้งานจริงหรือ import ซ้ำบน project เดิมโดยไม่ตรวจ.
+ผู้ใช้ API ปกติทำขั้นตอนเดียวกันได้ด้วย HTTP client ของตน ไม่จำเป็นต้องติดตั้ง Node.
+
+ก่อนอัปเกรดฐานข้อมูลที่มีข้อมูลจริง ให้สำรอง DB และพื้นที่ไฟล์ตามนโยบายผู้ดูแล,
+หยุด API/worker เดิม แล้วรัน migrate ด้วย imageใหม่ก่อนเริ่ม APIใหม่.
+รุ่นนี้มี migrations001–012; คำสั่งใช้ checksum ตรวจประวัติและทำ transaction.
+ห้ามแก้ SQLเก่า หรือเปิด workerเก่ากับ schemaใหม่พร้อมกัน. ไม่รองรับ SQL downgrade.
+ถ้าต้องย้อนกลับ ให้คืนทั้ง backupและ imageที่ตรงกัน ไม่แก้ snapshotที่ publishแล้ว.
+
+Model4–14ยังใช้ envelopeของเดิม; model15–16ใช้ dataร่วมและ sectionsแยกชุด.
+การอัปเกรด software ไม่แปลงแม่แบบหรือเปลี่ยน versionที่เคย publish.
+GET contract?version=... และ POST /jobs ที่ส่ง versionชัดเจนใช้แม่แบบชุดเดียวกัน.
+การทดสอบ local Docker ไม่ใช่การรับรองเครื่องสะอาด, production load หรือ SLA.
