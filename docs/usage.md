@@ -318,3 +318,11 @@ Hide ซ่อนทั้ง TextBlock ที่มีเลขโดยคง�
 
 ดู examples/page-numbering-template.json และ page-numbering-request.json.
 Migration012 ขยาย owner guards ให้รับ model15/16 โดยไม่เปลี่ยนข้อมูลเดิม.
+
+## สารบัญตาม Section (Core0.1.14)
+
+หัวข้อที่ผู้สร้างเลือกเข้าสารบัญยังใช้ระดับ1–3และ anchorId ตามเดิม.
+หน้าที่ซ่อนเลขยังแสดงเลขนับในสารบัญ. หน้าที่ไม่นับเลขแสดงชื่อที่กดได้
+แต่เว้นช่องเลขว่าง; ปกไม่เข้าสารบัญ. ตัวเลขที่เริ่มใหม่ไม่เปลี่ยนปลายทางลิงก์.
+API ไม่ต้องส่งข้อมูลเพิ่ม. ดู examples/contents-sections-template.json และ
+contents-sections-request.json; ไม่ต้องมี migration ใหม่สำหรับพฤติกรรมนี้.
