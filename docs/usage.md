@@ -1,9 +1,9 @@
-# คู่มือใช้งาน FlowDoc Service 0.1.11
+# คู่มือใช้งาน FlowDoc Service 0.1.12
 
 ## Authority Boundary
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-รุ่นพัฒนา 0.1.11 ไม่ใช่การประกาศขึ้น release หรือรับรอง production capacity
+รุ่นพัฒนา 0.1.12 ไม่ใช่การประกาศขึ้น release หรือรับรอง production capacity
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-cell-content-handoff-2026-10-09.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
@@ -11,7 +11,7 @@ Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP 
 ## 1. เริ่มต้นและออก PDF แรก
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.1.11
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.1.12
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
@@ -22,7 +22,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.1.11'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.1.12'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -219,7 +219,7 @@ PDF ใช้นโยบายแยก: `EXPORT_RETAIN_FILES=false` ลบห�
 ยังไม่รวม DOCX, หน้าแก้ไขเอกสาร, ระบบหน้าปก/หัวท้ายเต็มรูปแบบ หรือ SLA งานพร้อมกันจำนวนมาก
 
 
-## แม่แบบหลายส่วน (รุ่นพัฒนา0.1.11 / Core model12)
+## แม่แบบหลายส่วน (รุ่นพัฒนา0.1.12 / Core model12)
 
 ใช้ [page-sections-template.json](../examples/page-sections-template.json) กับ
 [page-sections-request.json](../examples/page-sections-request.json) ผ่าน current
@@ -268,3 +268,39 @@ Migration010 เพิ่ม scope ใน variable_schemas และ variable_sc
 ชุดข้อมูลเก่าคง ID เดิมและถูกจัดเป็น global/format; ข้อมูลใหม่แยก header/footer.
 การ publish clone ID ชุดใหม่เหมือนเดิม; เปลี่ยน current ไม่เปลี่ยน snapshot.
 ใช้ขั้นตอน migration เดิมก่อนเริ่ม API ของรุ่นใหม่. อย่าแก้ migration ที่เผยแพร่แล้ว.
+
+
+## ข้อมูลแยกตาม Section (model15)
+
+ใช้ `examples/section-ownership-template.json` และ `section-ownership-request.json`.
+ขั้นตอน import → publish → POST /jobs เหมือนเดิม แต่ผู้เรียกเลือกข้อมูลตาม key
+ที่ผู้สร้างแม่แบบกำหนด; ไม่ส่งกราฟหรือการจัดหน้ามาทาง API.
+
+```json
+{
+  "docKey": "section-ownership",
+  "data": {"projectName": "โครงการตัวอย่าง"},
+  "sections": {
+    "intro": {"data": {"title": "บทนำ"}, "header": {"name": "ส่วนแรก"}},
+    "details": {"data": {"title": "รายละเอียด"}},
+    "closing": {"data": {"title": "สรุป"}}
+  }
+}
+```
+
+`data` ระดับบนคือข้อมูลร่วม; ภายใน section มี `data`, `header`, `footer`
+และ `content` สำหรับส่วนที่ประกาศ source เป็น content. แม่แบบกำหนดลำดับส่วน
+การเรียง key ในคำขอไม่เปลี่ยนลำดับหน้า. ชื่อซ้ำข้ามชุดได้และไม่ fallback.
+ถ้าไม่ส่ง section ระบบใช้ค่าว่างแล้วตรวจ required/default ของส่วนนั้น.
+ชื่อ section ผิดจะตอบ `UNKNOWN_SECTION` พร้อม path และชื่อที่รับได้ โดยไม่สร้าง job.
+
+GET contract คืน `sections.<key>` พร้อม id/label และ schemas/formats ที่รับได้
+ไม่เปิดกราฟจัดหน้า. รูปใช้ resourceId จาก upload ที่ finalize แล้วเหมือนเดิม
+พร้อม `uploadId` ระดับบน แม้ภาพอยู่ในหัวท้ายของ section.
+
+Migration011 เพิ่ม sections/section_versions และเจ้าของ section บน formats กับ
+variable schemas. ตัวแปรแต่ละตัวอ้างผ่าน schema เช่นเดิม. ID แถวฐานข้อมูลแยกจาก
+sourceDefinitionId ของ Core; publish clone ID ใหม่และเชื่อมกันภายในเวอร์ชัน.
+การแก้ current ไม่เปลี่ยน published version. ไม่แปลงแม่แบบ model4–14 อัตโนมัติ;
+การเปลี่ยนเป็น model15 ต้องส่ง draft-save ที่มี mapping ครบและ revision ที่ตรง.
+รูปแบบตัวอย่างเดิม model12–14 ด้านบนยังใช้สัญญาเดิมของแต่ละ model.

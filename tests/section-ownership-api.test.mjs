@@ -21,7 +21,7 @@ const db=isolatedDatabase(),ok=r=>{expect(r.ok,JSON.stringify(r)).toBe(true);ret
 const fixture=()=>JSON.parse(readFileSync('examples/section-ownership-template.json','utf8'));
 let app,processor,uploads,root;
 beforeAll(async()=>{
- await db.setup();ok(await migrate(db.pool));const t=fixture();for(const section of t.sections){section.header.inputSchema.fields.photo={type:'image'};section.header.fragment.rootIds.push('image');section.header.fragment.nodes.image={id:'image',type:'image',props:{width:{value:40,unit:'pt'},height:{value:30,unit:'pt'},source:{scope:'header',key:'photo'}}};}ok(await importCurrent(db.pool,JSON.stringify(t)));ok(await publishCurrent(db.pool,{templateId:t.templateId,requestId:'v1'}));
+ await db.setup();ok(await migrate(db.pool));const t=fixture();t.sections[1].inputSchema.fields.title={type:'string',required:true};for(const section of t.sections){section.header.inputSchema.fields.photo={type:'image'};section.header.fragment.rootIds.push('image');section.header.fragment.nodes.image={id:'image',type:'image',props:{width:{value:40,unit:'pt'},height:{value:30,unit:'pt'},source:{scope:'header',key:'photo'}}};}ok(await importCurrent(db.pool,JSON.stringify(t)));ok(await publishCurrent(db.pool,{templateId:t.templateId,requestId:'v1'}));
  root=await mkdtemp(join(tmpdir(),'sections-api-'));const resources=await createResourceFiles(join(root,'staging')),files=await createPdfFiles(join(root,'pdf')),config=readUploadConfig({});
  uploads=createUploads({pool:db.pool,files:resources,config});processor=await startProcessor({pool:db.pool,files,policy:{retain:true,ttlHours:24,tempHours:24},resources:{files:resources,config}});
  app=createServer({pool:db.pool,uploads,outputs:createOutputs(db.pool,files,24),isReady:()=>true,imagesEnabled:true});
@@ -43,6 +43,7 @@ it('returns scoped contracts without graphs and retains old published labels',as
 it('rejects mixed and sole unknown sections with no new jobs and precise required paths',async()=>{
  const before=(await db.pool.query('SELECT count(*) FROM generation_jobs')).rows[0].count;
  for(const sections of [{typo:{}},{intro:{},typo:{}}]){const r=request();r.sections=sections;const res=await app.inject({method:'POST',url:'/jobs',payload:r});expect(res.statusCode,res.body).toBe(422);expect(res.json().issues.some(i=>i.code==='UNKNOWN_SECTION'&&i.path==='sections.typo')).toBe(true);}
+ const missing=request();missing.sections.details={data:{}};const response=await app.inject({method:'POST',url:'/jobs',payload:missing});expect(response.statusCode).toBe(422);expect(response.json().issues.some(i=>i.path==='sections.details.data.title')).toBe(true);
  expect((await db.pool.query('SELECT count(*) FROM generation_jobs')).rows[0].count).toBe(before);
 });
 it('reloads direct and staged scoped requests, claims each section image and leaves originals unchanged',async()=>{
