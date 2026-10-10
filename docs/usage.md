@@ -1,9 +1,9 @@
-# คู่มือใช้งาน FlowDoc Service 0.1.9
+# คู่มือใช้งาน FlowDoc Service 0.1.10
 
 ## Authority Boundary
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-รุ่นพัฒนา 0.1.9 ไม่ใช่การประกาศขึ้น release หรือรับรอง production capacity
+รุ่นพัฒนา 0.1.10 ไม่ใช่การประกาศขึ้น release หรือรับรอง production capacity
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-cell-content-handoff-2026-10-09.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
@@ -11,7 +11,7 @@ Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP 
 ## 1. เริ่มต้นและออก PDF แรก
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.1.9
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.1.10
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
@@ -22,7 +22,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.1.9'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.1.10'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -219,7 +219,7 @@ PDF ใช้นโยบายแยก: `EXPORT_RETAIN_FILES=false` ลบห�
 ยังไม่รวม DOCX, หน้าแก้ไขเอกสาร, ระบบหน้าปก/หัวท้ายเต็มรูปแบบ หรือ SLA งานพร้อมกันจำนวนมาก
 
 
-## แม่แบบหลายส่วน (รุ่นพัฒนา0.1.9 / Core model12)
+## แม่แบบหลายส่วน (รุ่นพัฒนา0.1.10 / Core model12)
 
 ใช้ [page-sections-template.json](../examples/page-sections-template.json) กับ
 [page-sections-request.json](../examples/page-sections-request.json) ผ่าน current
@@ -237,3 +237,15 @@ GET contract ยังคงแสดง schema/formats/areaFormats/examples ไ
 ตัวอย่างนี้เป็นส่วนทั่วไปแนวตั้ง/แนวนอน ยังไม่ใช่ปกพิเศษหรือหัวท้าย
 สถานะและลำดับงานอยู่ใน Project Control
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
+
+## ปกและหน้าเปล่า (model13)
+
+ตัวอย่างแม่แบบ: examples/cover-pages-template.json และ cover-pages-request.json
+import/publish เหมือนแม่แบบเดิม ผู้เรียกยังส่ง data/content และ uploadId ถ้ามีภาพ
+ปกหน้าแรกหนึ่งหน้า กล่องชื่อที่จองไว้ไม่ขยับข้อความด้านล่างเมื่อชื่อยาวขึ้นภายในกรอบ
+ข้อมูลปกไม่เข้าสารบัญอัตโนมัติ ปกไม่นับเลข; หน้าเปล่าที่ประกาศนับแต่ไม่แสดงเลข
+ถ้าข้อมูลจริงเกินกรอบหรือเกินปก job จะ failed และไม่มี PDF ให้ดาวน์โหลด
+errors มี LAYOUT_FAILED พร้อม nodeId/sectionId เมื่อ Core ระบุต้นทางได้
+ความผิดพลาดระบบ/หมดเวลา/ถูกยกเลิกยังใช้ RENDER_FAILED ไม่เปิดเผยรายละเอียดภายใน
+อ่าน props และขอบเขต fixed-height ในคู่มือ Core; ไม่เปิดตัวเลือกเลขหน้าเต็มรูปแบบ
+หรือหัวท้ายกระดาษในพาร์ตนี้ สถานะร่วมอยู่ Project Control page-system roadmap

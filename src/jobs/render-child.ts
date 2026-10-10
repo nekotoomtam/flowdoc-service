@@ -23,7 +23,7 @@ try{
  }
  const resources=await loadBundledResources({pythonExecutable:process.env.PYTHON_EXECUTABLE??'python',tempRoot:temporary});if(!resources.ok)throw Error('resources');
  const engine=await createPdfEngine(resources.value);if(!engine.ok)throw Error('engine');
- const pdf=await engine.value.generatePdf(doc.value,images);if(!pdf.ok)throw Error('render');
+ const pdf=await engine.value.generatePdf(doc.value,images);if(!pdf.ok){await writeFile(join(temporary,'issues.json'),JSON.stringify(pdf.issues.filter(i=>i.code==='LAYOUT_FAILED').slice(0,16)));throw Error('render');}
  await writeFile(join(temporary,'warnings.json'),JSON.stringify(pdf.warnings));
  process.stdout.write(pdf.value.bytes);
 }catch{process.exitCode=1;}finally{}

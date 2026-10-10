@@ -55,7 +55,7 @@ export function normalizeAreaDeletions(existing:CurrentRecord,incoming:CurrentRe
  const schemas=new Set(existing.schemas.filter(s=>s.formatId&&formats.has(s.formatId)).map(s=>s.id));
  out.formats=out.formats.filter(f=>!formats.has(f.id));out.schemas=out.schemas.filter(s=>!schemas.has(s.id));out.variables=out.variables.filter(v=>!schemas.has(v.schemaId));
  const fragments=out.formats.map(f=>f.payload.fragment);
- if(out.payload.nodeModelVersion===12&&Array.isArray(out.payload.sections))for(const s of out.payload.sections)if(s?.source?.kind==='authored')fragments.push(s.source.fragment);
+ if([12,13].includes(out.payload.nodeModelVersion)&&Array.isArray(out.payload.sections))for(const s of out.payload.sections)if(s?.source?.kind==='authored')fragments.push(s.source.fragment);
  for(const fragment of fragments){if(!fragment||!fragment.nodes)continue;const deleted=new Set<string>();for(const [id,n] of Object.entries(fragment.nodes) as [string,any][])if(n?.type==='area'&&authored.has(n.props?.areaId)){delete fragment.nodes[id];deleted.add(id);}if(Array.isArray(fragment.rootIds))fragment.rootIds=fragment.rootIds.filter((id:string)=>!deleted.has(id));for(const n of Object.values(fragment.nodes) as any[])if(Array.isArray(n.childIds))n.childIds=n.childIds.filter((id:string)=>!deleted.has(id));}
  return out;
 }
