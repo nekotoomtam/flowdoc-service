@@ -1,3 +1,4 @@
+import {imageNodes as collectImageNodes} from '../images/nodes.js';
 import type {Pool} from 'pg';
 import {validateTemplate,composeDocument,prepareGeneration} from '@flowdoc/core';
 import {isDeepStrictEqual} from 'node:util';
@@ -27,11 +28,12 @@ export async function startProcessor(deps:Dependencies){
      const fresh=prepareGeneration(valid.value,original);if(!fresh.ok)throw Error('Invalid original input');
      // JSONB may reorder object keys and hence diagnostic order, but not entries.
      const warningKey=(w:PreparedInput['warnings'][number])=>JSON.stringify([w.code,w.path,w.message,w.action,w.contentIndex,w.format,w.expectedType,w.actualType]);
-     const comparable=(p:PreparedInput)=>({...p,warnings:[...p.warnings].sort((a,b)=>warningKey(a).localeCompare(warningKey(b)))});
+     const sortWarnings=(w:PreparedInput['warnings'])=>[...w].sort((a,b)=>warningKey(a).localeCompare(warningKey(b)));
+     const comparable=(p:PreparedInput)=>({...p,warnings:sortWarnings(p.warnings),...(p.sections?{sections:Object.fromEntries(Object.entries(p.sections).map(([id,s])=>[id,{...s,warnings:sortWarnings(s.warnings)}]))}:{})});
      if(!isDeepStrictEqual(comparable(JSON.parse(JSON.stringify(fresh.value))),comparable(job.preparedInput)))throw Error('Prepared input differs from admission input');
     }
     const composed=composeDocument(valid.value,job.preparedInput);if(!composed.ok)throw Error('Composition failed');
-    const hasImages=Object.values(composed.value.nodes).some(n=>n.type==='image');
+    const hasImages=collectImageNodes(composed.value).length>0;
     if(hasImages&&!deps.resources)throw Error('Image preparation unavailable');
     const imageInput=hasImages?await prepareJobImages(pool,job.id,composed.value,deps.resources!,abort.signal):{document:composed.value,images:{}};
     if(!hasImages)await processing(pool,job.id,'rendering',0,0,[]);

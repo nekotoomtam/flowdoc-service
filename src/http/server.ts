@@ -1,3 +1,4 @@
+import {templateContract} from '../templates/contract.js';
 import {readGenerationJson} from '@flowdoc/core';
 import {buildAreaContract} from '../templates/areaContract.js';
 import Fastify from 'fastify';
@@ -9,7 +10,7 @@ import type {Outputs} from '../storage/outputs.js';
 import {failure,OperationError} from '../errors.js';
 import type {Uploads} from '../uploads/service.js';
 import {registerUploads} from './uploads.js';
-const status=(code:string)=>({INVALID_JOB_ID:400,INVALID_DATA:422,TYPE_MISMATCH:422,MISSING_REQUIRED:422,EMPTY_CONTENT:422,IMAGE_JOBS_UNAVAILABLE:422,INVALID_UPLOAD:422,INVALID_RESOURCE:422,UPLOAD_NOT_FOUND:404,UPLOAD_GONE:410,UPLOAD_CONFLICT:409,UPLOAD_INCOMPLETE:409,TEMPLATE_NOT_FOUND:404,VERSION_NOT_FOUND:404,JOB_NOT_FOUND:404,OUTPUT_GONE:410}[code]??503);
+const status=(code:string)=>({UNKNOWN_SECTION:422,INVALID_JOB_ID:400,INVALID_DATA:422,TYPE_MISMATCH:422,MISSING_REQUIRED:422,EMPTY_CONTENT:422,IMAGE_JOBS_UNAVAILABLE:422,INVALID_UPLOAD:422,INVALID_RESOURCE:422,UPLOAD_NOT_FOUND:404,UPLOAD_GONE:410,UPLOAD_CONFLICT:409,UPLOAD_INCOMPLETE:409,TEMPLATE_NOT_FOUND:404,VERSION_NOT_FOUND:404,JOB_NOT_FOUND:404,OUTPUT_GONE:410}[code]??503);
 export function createServer(deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean;bodyLimit?:number;uploads?:Uploads;imagesEnabled?:boolean}){
  const app=Fastify({logger:false,forceCloseConnections:true,bodyLimit:deps.bodyLimit??2097152});
  app.addContentTypeParser('application/json',{parseAs:'string'},(_req,body,done)=>{
@@ -30,7 +31,7 @@ export function createServer(deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean
   const raw=req.query.version;let version:number|undefined;
   if(raw!==undefined){if(typeof raw!=='string'||!/^\d+$/.test(raw)||!Number.isSafeInteger(Number(raw))||Number(raw)<1||Number(raw)>2147483647){reply.code(400);return failure(new OperationError('INVALID_VERSION','version','Invalid version'));}version=Number(raw);}
   const r=await loadTemplate(deps.pool,req.params.docKey,version);if(!r.ok){reply.code(status(r.issues[0]!.code));return r;}
-  const t=r.value.template.definition;return {ok:true,value:{docKey:t.docKey,version:t.version,globalSchema:t.globalSchema,formats:Object.fromEntries(Object.entries(t.formats).map(([key,f])=>[key,{label:f.label,description:f.description,inputSchema:f.inputSchema}])),examples:t.examples,...(t.nodeModelVersion>=11?{areaFormats:buildAreaContract(t)}:{})},warnings:[]};
+  const t=r.value.template.definition;return {ok:true,value:templateContract(t),warnings:[]};
  });
  app.post('/jobs',async(req,reply)=>{
   if(!deps.isReady()){reply.code(503);return failure(new OperationError('UNAVAILABLE','service','Service unavailable'));}

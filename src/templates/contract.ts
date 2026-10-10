@@ -1,0 +1,4 @@
+import type {TemplateDefinition,Format} from '@flowdoc/core';
+import {buildAreaContract} from './areaContract.js';
+const formats=(values:Record<string,Format>)=>Object.fromEntries(Object.entries(values).map(([key,f])=>[key,{label:f.label,description:f.description,inputSchema:f.inputSchema}]));
+export function templateContract(t:TemplateDefinition){return {docKey:t.docKey,version:t.version,globalSchema:t.globalSchema,...((t.nodeModelVersion===15||t.nodeModelVersion===16)?{sections:Object.fromEntries(t.sections.map(s=>[s.key,{id:s.id,label:s.label,inputSchema:s.inputSchema,...(s.header?{header:s.header.inputSchema}:{}),...(s.footer?{footer:s.footer.inputSchema}:{}),formats:formats(s.formats)}]))}:{...(t.nodeModelVersion===14?{...(t.header?{header:t.header.inputSchema}:{}),...(t.footer?{footer:t.footer.inputSchema}:{})}:{}),formats:formats(t.formats)}),examples:t.examples,...(t.nodeModelVersion>=11?{areaFormats:buildAreaContract(t)}:{})};}

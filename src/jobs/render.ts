@@ -3,7 +3,7 @@ import {join,resolve as resolvePath} from 'node:path';
 import {tmpdir} from 'node:os';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import type {PreparedInput,TemplateDefinition,Result,PdfArtifact} from '@flowdoc/core';
+import type {PreparedInput,TemplateDefinition,Result,PdfArtifact,Issue} from '@flowdoc/core';
 import type {JobImageInput} from '../images/job.js';
 export async function renderPinnedJob(prepared:PreparedInput,template:TemplateDefinition,signal?:AbortSignal,deadlineMs=120000,maxBytes=52428800,tempRoot=join(tmpdir(),'flowdoc-job-renders'),imageInput?:JobImageInput):Promise<Result<Pick<PdfArtifact,"bytes"|"mediaType">>>{
  const root=resolvePath(tempRoot);await mkdir(root,{recursive:true});const temporary=await mkdtemp(join(root,'render-'));
@@ -13,7 +13,29 @@ export async function renderPinnedJob(prepared:PreparedInput,template:TemplateDe
   const kill=()=>{failed=true;try{if(process.platform!=='win32'&&child.pid)process.kill(-child.pid,'SIGKILL');else child.kill('SIGKILL');}catch{}};
   const timer=setTimeout(kill,deadlineMs);signal?.addEventListener('abort',kill,{once:true});if(signal?.aborted)kill();
   child.stdout.on('data',(chunk:Buffer)=>{size+=chunk.length;if(size>maxBytes)kill();else chunks.push(chunk);});
-  const finish=async(code:number|null)=>{if(done)return;done=true;clearTimeout(timer);signal?.removeEventListener('abort',kill);const bytes=Buffer.concat(chunks);let warnings=[];try{warnings=JSON.parse(await readFile(join(temporary,'warnings.json'),'utf8'));}catch{}resolve(code===0&&!failed&&bytes.subarray(0,5).toString()==='%PDF-'?{ok:true,value:{bytes,mediaType:'application/pdf'},warnings}:{ok:false,issues:[{code:'RENDER_FAILED',path:'job',message:'Document rendering failed or exceeded execution limits'}],warnings:[]});};
+  const finish=async(code:number|null)=>{
+   if(done)return;done=true;clearTimeout(timer);signal?.removeEventListener('abort',kill);
+   const bytes=Buffer.concat(chunks);let warnings=[];
+   try{warnings=JSON.parse(await readFile(join(temporary,'warnings.json'),'utf8'));}catch{}
+   if(code===0&&!failed&&bytes.subarray(0,5).toString()==='%PDF-'){resolve({ok:true,value:{bytes,mediaType:'application/pdf'},warnings});return;}
+   const issues:Issue[]=[];
+   // Preserve bounded Core layout diagnostics only after normal child failure.
+   // Timeouts, aborts, transport/runtime failures never masquerade as layout errors.
+   if(code===1&&!failed)try{
+    const raw=await readFile(join(temporary,'issues.json'),'utf8');
+    if(raw.length<=65536){const parsed:unknown=JSON.parse(raw);
+     if(Array.isArray(parsed))for(const value of parsed.slice(0,16)){
+      if(!value||typeof value!=='object'||value.code!=='LAYOUT_FAILED')continue;
+      const bounded=(v:unknown):v is string=>typeof v==='string'&&v.length>0&&v.length<=2048&&!/[\x00-\x1f\x7f]/.test(v);
+      if(!bounded(value.nodeId))continue;
+      issues.push({code:'LAYOUT_FAILED',path:'nodes.'+value.nodeId,nodeId:value.nodeId,message:'Document content does not fit the configured layout',
+       ...(bounded(value.sectionId)?{sectionId:value.sectionId}:{}),...(bounded(value.format)?{format:value.format}:{}),
+       ...(Number.isSafeInteger(value.contentIndex)&&value.contentIndex>=0?{contentIndex:value.contentIndex}:{})});
+     }
+    }
+   }catch{}
+   resolve({ok:false,issues:issues.length?issues:[{code:'RENDER_FAILED',path:'job',message:'Document rendering failed or exceeded execution limits'}],warnings:[]});
+  };
   child.on('error',()=>void finish(1));child.on('close',code=>void finish(code));child.stdin.on('error',()=>{});child.stdin.end(JSON.stringify({template,prepared,imageInput}));
  });}finally{await rm(temporary,{recursive:true,force:true});}
 }

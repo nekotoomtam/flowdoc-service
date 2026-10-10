@@ -1,0 +1,377 @@
+{
+  "schemaVersion": 1,
+  "templateId": "tpl-page-numbering",
+  "docKey": "page-numbering",
+  "version": 1,
+  "name": "Cover and reserved text trial",
+  "book": {
+    "contentSlot": "body",
+    "defaultPageLayoutId": "portrait"
+  },
+  "pageLayouts": {
+    "portrait": {
+      "page": {
+        "size": "A4",
+        "orientation": "portrait",
+        "margin": {
+          "top": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "right": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "bottom": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "left": {
+            "value": 20,
+            "unit": "mm"
+          }
+        }
+      }
+    },
+    "landscape": {
+      "page": {
+        "size": "A4",
+        "orientation": "landscape",
+        "margin": {
+          "top": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "right": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "bottom": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "left": {
+            "value": 20,
+            "unit": "mm"
+          }
+        }
+      }
+    }
+  },
+  "styles": {
+    "body": {
+      "fontFamilyKey": "sarabun",
+      "fontWeight": "normal",
+      "fontSize": {
+        "value": 12,
+        "unit": "pt"
+      },
+      "lineHeightPt": 22
+    }
+  },
+  "nodeModelVersion": 16,
+  "globalSchema": {
+    "type": "object",
+    "fields": {
+      "projectName": {
+        "type": "string",
+        "required": true
+      }
+    }
+  },
+  "sections": [
+    {
+      "id": "section-intro",
+      "key": "intro",
+      "pageLayoutId": "portrait",
+      "inputSchema": {
+        "type": "object",
+        "fields": {
+          "title": {
+            "type": "string",
+            "default": "intro"
+          }
+        }
+      },
+      "source": {
+        "kind": "authored",
+        "fragment": {
+          "rootIds": [
+            "text"
+          ],
+          "nodes": {
+            "text": {
+              "id": "text",
+              "type": "text-block",
+              "role": {
+                "role": "paragraph"
+              },
+              "props": {
+                "textStyleId": "body"
+              },
+              "children": [
+                {
+                  "id": "text-value",
+                  "type": "field-ref",
+                  "scope": "section",
+                  "key": "title"
+                },
+                {
+                  "id": "shared",
+                  "type": "field-ref",
+                  "scope": "global",
+                  "key": "projectName"
+                }
+              ]
+            }
+          }
+        },
+        "repeats": []
+      },
+      "formats": {},
+      "header": {
+        "inputSchema": {
+          "type": "object",
+          "fields": {
+            "name": {
+              "type": "string",
+              "default": "HEADER intro"
+            }
+          }
+        },
+        "baseTextStyleId": "body",
+        "fragment": {
+          "rootIds": [
+            "head"
+          ],
+          "nodes": {
+            "head": {
+              "id": "head",
+              "type": "text-block",
+              "role": {
+                "role": "paragraph"
+              },
+              "props": {
+                "textStyleId": "body"
+              },
+              "children": [
+                {
+                  "id": "head-value",
+                  "type": "field-ref",
+                  "scope": "header",
+                  "key": "name"
+                },
+                {
+                  "id": "page",
+                  "type": "system-page-field",
+                  "field": "current",
+                  "width": {
+                    "value": 24,
+                    "unit": "pt"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "section-details",
+      "key": "details",
+      "pageLayoutId": "landscape",
+      "inputSchema": {
+        "type": "object",
+        "fields": {
+          "title": {
+            "type": "string",
+            "default": "details"
+          }
+        }
+      },
+      "source": {
+        "kind": "authored",
+        "fragment": {
+          "rootIds": [
+            "text"
+          ],
+          "nodes": {
+            "text": {
+              "id": "text",
+              "type": "text-block",
+              "role": {
+                "role": "paragraph"
+              },
+              "props": {
+                "textStyleId": "body"
+              },
+              "children": [
+                {
+                  "id": "text-value",
+                  "type": "field-ref",
+                  "scope": "section",
+                  "key": "title"
+                },
+                {
+                  "id": "shared",
+                  "type": "field-ref",
+                  "scope": "global",
+                  "key": "projectName"
+                }
+              ]
+            }
+          }
+        },
+        "repeats": []
+      },
+      "formats": {},
+      "header": {
+        "inputSchema": {
+          "type": "object",
+          "fields": {
+            "name": {
+              "type": "string",
+              "default": "HEADER details"
+            }
+          }
+        },
+        "baseTextStyleId": "body",
+        "fragment": {
+          "rootIds": [
+            "head"
+          ],
+          "nodes": {
+            "head": {
+              "id": "head",
+              "type": "text-block",
+              "role": {
+                "role": "paragraph"
+              },
+              "props": {
+                "textStyleId": "body"
+              },
+              "children": [
+                {
+                  "id": "head-value",
+                  "type": "field-ref",
+                  "scope": "header",
+                  "key": "name"
+                },
+                {
+                  "id": "page",
+                  "type": "system-page-field",
+                  "field": "current",
+                  "width": {
+                    "value": 24,
+                    "unit": "pt"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "numbering": {
+        "mode": "restart",
+        "startAt": 10
+      }
+    },
+    {
+      "id": "section-closing",
+      "key": "closing",
+      "pageLayoutId": "portrait",
+      "inputSchema": {
+        "type": "object",
+        "fields": {
+          "title": {
+            "type": "string",
+            "default": "closing"
+          }
+        }
+      },
+      "source": {
+        "kind": "authored",
+        "fragment": {
+          "rootIds": [
+            "text"
+          ],
+          "nodes": {
+            "text": {
+              "id": "text",
+              "type": "text-block",
+              "role": {
+                "role": "paragraph"
+              },
+              "props": {
+                "textStyleId": "body"
+              },
+              "children": [
+                {
+                  "id": "text-value",
+                  "type": "field-ref",
+                  "scope": "section",
+                  "key": "title"
+                },
+                {
+                  "id": "shared",
+                  "type": "field-ref",
+                  "scope": "global",
+                  "key": "projectName"
+                }
+              ]
+            }
+          }
+        },
+        "repeats": []
+      },
+      "formats": {},
+      "header": {
+        "inputSchema": {
+          "type": "object",
+          "fields": {
+            "name": {
+              "type": "string",
+              "default": "HEADER closing"
+            }
+          }
+        },
+        "baseTextStyleId": "body",
+        "fragment": {
+          "rootIds": [
+            "head"
+          ],
+          "nodes": {
+            "head": {
+              "id": "head",
+              "type": "text-block",
+              "role": {
+                "role": "paragraph"
+              },
+              "props": {
+                "textStyleId": "body"
+              },
+              "children": [
+                {
+                  "id": "head-value",
+                  "type": "field-ref",
+                  "scope": "header",
+                  "key": "name"
+                },
+                {
+                  "id": "page",
+                  "type": "system-page-field",
+                  "field": "current",
+                  "width": {
+                    "value": 24,
+                    "unit": "pt"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ],
+  "examples": []
+}

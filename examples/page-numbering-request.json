@@ -1,0 +1,23 @@
+{
+  "docKey": "page-numbering",
+  "data": {
+    "projectName": "Shared project"
+  },
+  "sections": {
+    "intro": {
+      "data": {
+        "title": "Introduction"
+      }
+    },
+    "details": {
+      "data": {
+        "title": "Details"
+      }
+    },
+    "closing": {
+      "data": {
+        "title": "Closing"
+      }
+    }
+  }
+}
