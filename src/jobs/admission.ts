@@ -1,3 +1,4 @@
+import {imageNodes as collectImageNodes} from '../images/nodes.js';
 import type {Pool} from 'pg';
 import {prepareGeneration,composeDocument} from '@flowdoc/core';
 import type {Result} from '@flowdoc/core';
@@ -14,7 +15,7 @@ export async function submitJob(pool:Pool,input:unknown,imagesEnabled=false):Pro
  const {uploadId,...coreInput}=request;
  const prepared=prepareGeneration(selected.value.template,coreInput);if(!prepared.ok)return prepared;
  const document=composeDocument(selected.value.template,prepared.value);if(!document.ok)return document;
- const imageNodes=[...Object.values(document.value.nodes),...Object.values(document.value.header?.nodes??{}),...Object.values(document.value.footer?.nodes??{})].filter(node=>node.type==='image');
+ const imageNodes=collectImageNodes(document.value);
  if(imageNodes.length&&!imagesEnabled)
   return failure(new OperationError('IMAGE_JOBS_UNAVAILABLE','content','Image resource claiming is not connected yet'));
  try{

@@ -1,3 +1,4 @@
+import {imageNodes as collectImageNodes} from '../images/nodes.js';
 import {mkdir,unlink} from 'node:fs/promises';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
@@ -16,7 +17,7 @@ export async function processing(pool:Pool,id:string,stage:string,completed:numb
  ON CONFLICT(job_id) DO UPDATE SET stage=$2,completed=$3,total=$4,warnings_json=$5,updated_at=now()`,[id,stage,completed,total,JSON.stringify(warnings)]);
 }
 export async function prepareJobImages(pool:Pool,jobId:string,doc:ResolvedDocument,deps:ImageJobDependencies,signal:AbortSignal):Promise<JobImageInput>{
- const document=structuredClone(doc),nodes=[...Object.values(document.nodes),...Object.values(document.header?.nodes??{}),...Object.values(document.footer?.nodes??{})].filter(n=>n.type==='image');
+ const document=structuredClone(doc),nodes=collectImageNodes(document);
  const images:Record<string,RenderImage>={},warnings:Issue[]=[],sources=new Map<string,string|null>(),derivatives=new Map<string,string|null>();
  let completed=0,aggregate=0;await processing(pool,jobId,'preparing-resources',0,nodes.length,warnings);
  const abort=AbortSignal.any([signal,AbortSignal.timeout(300000)]),directory=deps.files.jobDirectory(jobId);if(nodes.some(n=>n.props.resourceId))await mkdir(directory,{recursive:true});
