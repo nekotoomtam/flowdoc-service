@@ -25,7 +25,7 @@ export async function saveCurrent(pool:Pool,record:CurrentRecord,expectedRevisio
  try{return {ok:true,value:await transaction(pool,async c=>{
  const t=await lockTemplate(c,record.templateId);if(t.doc_key!==record.payload.docKey)throw new OperationError('TEMPLATE_IDENTITY_CONFLICT','docKey','Identity cannot change');
  const existing=await readRecord(c,record.templateId);if(existing.revision!==expectedRevision)throw new OperationError('STALE_CURRENT','revision','Reload current before saving');
- record=normalizeAreaDeletions(existing,normalizeSectionDeletions(existing,record));checkRecord(record);if(record.payload.nodeModelVersion===15){const checked=validateTemplate(assemble(record,1));if(!checked.ok)throw new OperationError('INVALID_DATA','record','Invalid section document');}
+ record=normalizeAreaDeletions(existing,normalizeSectionDeletions(existing,record));checkRecord(record);if((record.payload.nodeModelVersion===15||record.payload.nodeModelVersion===16)){const checked=validateTemplate(assemble(record,1));if(!checked.ok)throw new OperationError('INVALID_DATA','record','Invalid section document');}
  if(existing.revision>=2147483647)throw new OperationError('REVISION_LIMIT','revision','Revision limit reached');
  // Existing IDs may not be moved between entity kinds or owners.
  const owned=new Map<string,string>();for(const s of existing.sections??[])owned.set(s.id,'section:'+s.sourceDefinitionId);for(const f of existing.formats)owned.set(f.id,'format:'+(f.sectionId??'')+':'+(f.ownerAreaVariableId??''));for(const s of existing.schemas)owned.set(s.id,'schema:'+(s.sectionId??'')+':'+schemaScope(s)+':'+s.formatId);for(const v of existing.variables)owned.set(v.id,'variable:'+v.schemaId);

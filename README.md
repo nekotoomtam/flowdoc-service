@@ -299,3 +299,5 @@ README for limits. Current drafts and published versions remain independent.
 Model14 adds scoped header/footer inputs, repeated text/images/Columns and migration010. See docs/usage.md and examples/page-bands-template.json.
 
 Model15 adds per-section data/header/footer/content, relational section owners and migration011. See docs/usage.md and examples/section-ownership-template.json. Legacy models remain unchanged; there is no automatic template conversion.
+
+Model16 adds creator-authored current/total page fields and section counting policies. Callers do not supply system numbers. Migration012 extends section owner guards for model16; see docs/usage.md and examples/page-numbering-template.json.

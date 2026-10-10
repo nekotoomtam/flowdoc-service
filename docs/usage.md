@@ -304,3 +304,17 @@ sourceDefinitionId ของ Core; publish clone ID ใหม่และเช�
 การแก้ current ไม่เปลี่ยน published version. ไม่แปลงแม่แบบ model4–14 อัตโนมัติ;
 การเปลี่ยนเป็น model15 ต้องส่ง draft-save ที่มี mapping ครบและ revision ที่ตรง.
 รูปแบบตัวอย่างเดิม model12–14 ด้านบนยังใช้สัญญาเดิมของแต่ละ model.
+
+## เลขหน้าจากระบบ (model16)
+
+ผู้สร้างแม่แบบใส่ inline `system-page-field` ใน TextBlock ของ header/footer
+เลือก `field: current` หรือ `total` และกำหนด `width` เป็น mm/pt.
+ผู้เรียก `/jobs` ไม่ต้องส่ง current/total; ค่าใน data ไม่สามารถแทนเลขระบบได้.
+แต่ละ section เลือก numbering.mode เป็น continue, restart หรือ exclude
+และ visibility เป็น show/hide. Total คือจำนวนหน้าที่ร่วมการนับทั้งเล่ม.
+Cover ไม่นับและไม่แสดง; blank นับแต่ไม่แสดงโดยพื้นฐาน.
+Hide ซ่อนทั้ง TextBlock ที่มีเลขโดยคงพื้นที่เดิม. ไม่มี field ก็ไม่มีเลขอัตโนมัติ.
+ช่องเลขแคบเกินไปทำให้ job ล้มเหลวโดยไม่มี PDF ให้ดาวน์โหลด.
+
+ดู examples/page-numbering-template.json และ page-numbering-request.json.
+Migration012 ขยาย owner guards ให้รับ model15/16 โดยไม่เปลี่ยนข้อมูลเดิม.
