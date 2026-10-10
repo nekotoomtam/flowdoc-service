@@ -31,7 +31,7 @@ export async function startProcessor(deps:Dependencies){
      if(!isDeepStrictEqual(comparable(JSON.parse(JSON.stringify(fresh.value))),comparable(job.preparedInput)))throw Error('Prepared input differs from admission input');
     }
     const composed=composeDocument(valid.value,job.preparedInput);if(!composed.ok)throw Error('Composition failed');
-    const hasImages=Object.values(composed.value.nodes).some(n=>n.type==='image');
+    const hasImages=[...Object.values(composed.value.nodes),...Object.values(composed.value.header?.nodes??{}),...Object.values(composed.value.footer?.nodes??{})].some(n=>n.type==='image');
     if(hasImages&&!deps.resources)throw Error('Image preparation unavailable');
     const imageInput=hasImages?await prepareJobImages(pool,job.id,composed.value,deps.resources!,abort.signal):{document:composed.value,images:{}};
     if(!hasImages)await processing(pool,job.id,'rendering',0,0,[]);

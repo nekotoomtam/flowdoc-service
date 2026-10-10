@@ -30,7 +30,7 @@ export function createServer(deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean
   const raw=req.query.version;let version:number|undefined;
   if(raw!==undefined){if(typeof raw!=='string'||!/^\d+$/.test(raw)||!Number.isSafeInteger(Number(raw))||Number(raw)<1||Number(raw)>2147483647){reply.code(400);return failure(new OperationError('INVALID_VERSION','version','Invalid version'));}version=Number(raw);}
   const r=await loadTemplate(deps.pool,req.params.docKey,version);if(!r.ok){reply.code(status(r.issues[0]!.code));return r;}
-  const t=r.value.template.definition;return {ok:true,value:{docKey:t.docKey,version:t.version,globalSchema:t.globalSchema,formats:Object.fromEntries(Object.entries(t.formats).map(([key,f])=>[key,{label:f.label,description:f.description,inputSchema:f.inputSchema}])),examples:t.examples,...(t.nodeModelVersion>=11?{areaFormats:buildAreaContract(t)}:{})},warnings:[]};
+  const t=r.value.template.definition;return {ok:true,value:{docKey:t.docKey,version:t.version,globalSchema:t.globalSchema,...(t.nodeModelVersion===14?{...(t.header?{header:t.header.inputSchema}:{}),...(t.footer?{footer:t.footer.inputSchema}:{})}:{}),formats:Object.fromEntries(Object.entries(t.formats).map(([key,f])=>[key,{label:f.label,description:f.description,inputSchema:f.inputSchema}])),examples:t.examples,...(t.nodeModelVersion>=11?{areaFormats:buildAreaContract(t)}:{})},warnings:[]};
  });
  app.post('/jobs',async(req,reply)=>{
   if(!deps.isReady()){reply.code(503);return failure(new OperationError('UNAVAILABLE','service','Service unavailable'));}

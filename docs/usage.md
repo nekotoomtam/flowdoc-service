@@ -1,9 +1,9 @@
-# คู่มือใช้งาน FlowDoc Service 0.1.10
+# คู่มือใช้งาน FlowDoc Service 0.1.11
 
 ## Authority Boundary
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-รุ่นพัฒนา 0.1.10 ไม่ใช่การประกาศขึ้น release หรือรับรอง production capacity
+รุ่นพัฒนา 0.1.11 ไม่ใช่การประกาศขึ้น release หรือรับรอง production capacity
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-cell-content-handoff-2026-10-09.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
@@ -11,7 +11,7 @@ Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP 
 ## 1. เริ่มต้นและออก PDF แรก
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.1.10
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.1.11
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
@@ -22,7 +22,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.1.10'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.1.11'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -219,7 +219,7 @@ PDF ใช้นโยบายแยก: `EXPORT_RETAIN_FILES=false` ลบห�
 ยังไม่รวม DOCX, หน้าแก้ไขเอกสาร, ระบบหน้าปก/หัวท้ายเต็มรูปแบบ หรือ SLA งานพร้อมกันจำนวนมาก
 
 
-## แม่แบบหลายส่วน (รุ่นพัฒนา0.1.10 / Core model12)
+## แม่แบบหลายส่วน (รุ่นพัฒนา0.1.11 / Core model12)
 
 ใช้ [page-sections-template.json](../examples/page-sections-template.json) กับ
 [page-sections-request.json](../examples/page-sections-request.json) ผ่าน current
@@ -249,3 +249,22 @@ errors มี LAYOUT_FAILED พร้อม nodeId/sectionId เมื่อ Cor
 ความผิดพลาดระบบ/หมดเวลา/ถูกยกเลิกยังใช้ RENDER_FAILED ไม่เปิดเผยรายละเอียดภายใน
 อ่าน props และขอบเขต fixed-height ในคู่มือ Core; ไม่เปิดตัวเลือกเลขหน้าเต็มรูปแบบ
 หรือหัวท้ายกระดาษในพาร์ตนี้ สถานะร่วมอยู่ Project Control page-system roadmap
+
+
+## หัวท้ายแยกชุดข้อมูล (model14)
+
+ใช้ examples/page-bands-template.json กับ page-bands-request.json.
+ผู้สร้างแม่แบบกำหนด header/footer และชุดตัวแปร ผู้เรียกส่ง header/footer
+เป็น object ระดับเดียวกับ data. data ใช้กับปก/เนื้อหาตามเดิม.
+GET /templates/:docKey/contract ส่ง header/footer schemas เมื่อแม่แบบมี
+โดยไม่ส่ง graph. ชื่อ key ซ้ำข้ามชุดได้ แต่ไม่มีการ fallback ข้ามชุด.
+
+ภาพใน header/footer ใช้ upload resourceId เดิม พร้อม uploadId ใน request;
+ระบบ claim/prepare ทรัพยากรและย่อภาพตามกรอบในหัวท้ายเหมือนภาพในเนื้อหา.
+หากหัวท้ายสูงเกินกรอบ/เพดาน งานล้มด้วย LAYOUT_FAILED พร้อม path และ section
+และไม่ให้ดาวน์โหลด PDF บางส่วน. ค่าที่ต้องคำนวณให้ผู้เรียกส่งผลลัพธ์มาเอง.
+
+Migration010 เพิ่ม scope ใน variable_schemas และ variable_schema_versions.
+ชุดข้อมูลเก่าคง ID เดิมและถูกจัดเป็น global/format; ข้อมูลใหม่แยก header/footer.
+การ publish clone ID ชุดใหม่เหมือนเดิม; เปลี่ยน current ไม่เปลี่ยน snapshot.
+ใช้ขั้นตอน migration เดิมก่อนเริ่ม API ของรุ่นใหม่. อย่าแก้ migration ที่เผยแพร่แล้ว.

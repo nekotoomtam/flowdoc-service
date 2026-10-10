@@ -2,7 +2,8 @@ import type {TemplateDefinition} from '@flowdoc/core';
 import {OperationError} from '../errors.js';
 export type Json = Record<string, any>;
 export interface FormatRow {id:string;key:string;position:number;payload:Json;ownerAreaVariableId?:string|null;sourceDefinitionId?:string|null}
-export interface SchemaRow {id:string;formatId:string|null}
+export interface SchemaRow {id:string;formatId:string|null;scope?:'global'|'format'|'header'|'footer'}
+export const schemaScope=(s:SchemaRow)=>s.scope??(s.formatId===null?'global':'format');
 export interface VariableRow {id:string;schemaId:string;parentId:string|null;key:string;typeId:number;position:number;payload:Json}
 export interface CurrentRecord {templateId:string;revision:number;payload:Json;formats:FormatRow[];schemas:SchemaRow[];variables:VariableRow[]}
 const codes:Record<number,string>={110001:'string',110002:'object',110003:'array',110004:'image',110005:'link',110006:'area'};
@@ -11,10 +12,11 @@ const invalid=(path:string):never=>{throw new OperationError('INVALID_DATA',path
 export function decompose(input:TemplateDefinition,id:()=>string):CurrentRecord {
  const t=structuredClone(input),{formats,globalSchema,version,areaFormats,...payload}=t;
  const record:CurrentRecord={templateId:t.templateId,revision:0,payload,formats:[],schemas:[],variables:[]};
- function schema(s:any,formatId:string|null){const sid=id();record.schemas.push({id:sid,formatId});
+ function schema(s:any,formatId:string|null,scope:NonNullable<SchemaRow['scope']>=formatId===null?'global':'format'){const sid=id();record.schemas.push({id:sid,formatId,scope});
   function fields(fields:Json,parentId:string|null){Object.entries(fields).forEach(([key,f],position)=>{const vid=id(),{type,items,...rest}=f;if(!Object.hasOwn(typeIds,type))invalid('type');record.variables.push({id:vid,schemaId:sid,parentId,key,typeId:typeIds[type]!,position,payload:rest});if(type==='array')fieldsChild(items.fields,vid);});}
   const fieldsChild=(f:Json,p:string)=>fields(f,p);fields(s.fields,null);
  }
+ for(const k of ['header','footer'] as const)if(t.nodeModelVersion===14&&t[k]){schema(t[k]!.inputSchema,null,k);delete (record.payload[k] as Json).inputSchema;}
  schema(globalSchema,null);Object.entries(formats).forEach(([key,f],position)=>{const fid=id(),{inputSchema,...rest}=f;record.formats.push({id:fid,key,position,payload:rest});schema(inputSchema,fid);});
  const owners=new Map(record.variables.filter(v=>v.typeId===110006).map(v=>[v.payload.areaId,v.id]));
  Object.entries(areaFormats??{}).forEach(([sourceDefinitionId,f],position)=>{const fid=id(),{key,ownerAreaId,inputSchema,...rest}=f,owner=owners.get(ownerAreaId);if(!owner)invalid('ownerAreaId');record.formats.push({id:fid,key,position,payload:rest,ownerAreaVariableId:owner!,sourceDefinitionId});schema(inputSchema,fid);});return record;
@@ -24,7 +26,10 @@ export function checkRecord(r:CurrentRecord):void {
  const ids=new Set<string>();for(const row of [...r.formats,...r.schemas,...r.variables]){if(typeof row.id!=='string'||!row.id||ids.has(row.id))invalid('id');ids.add(row.id);}
  const fmt=new Map(r.formats.map(f=>[f.id,f])),schemas=new Map(r.schemas.map(s=>[s.id,s])),vars=new Map(r.variables.map(v=>[v.id,v]));
  const formatKeys=new Set<string>();for(const f of r.formats){const scope=JSON.stringify([f.ownerAreaVariableId??null,f.key]);if(!f.key||formatKeys.has(scope)||!Number.isInteger(f.position)||f.position<0||!f.payload)invalid('formats');formatKeys.add(scope);}
- const owners=new Set();for(const s of r.schemas){if((s.formatId!==null&&!fmt.has(s.formatId))||owners.has(s.formatId))invalid('schemas');owners.add(s.formatId);}if(!owners.has(null)||r.schemas.length!==r.formats.length+1)invalid('schemas');
+ const owners=new Set<string>();for(const s of r.schemas){const scope=schemaScope(s);if(!['global','format','header','footer'].includes(scope)||(scope==='format'?(s.formatId===null||!fmt.has(s.formatId)):s.formatId!==null))invalid('schemas');const key=scope+':'+(s.formatId??'');if(owners.has(key))invalid('schemas');owners.add(key);if((scope==='header'||scope==='footer')&&(r.payload.nodeModelVersion!==14||!r.payload[scope]))invalid('schemas');}
+ if(!owners.has('global:')||r.formats.some(f=>!owners.has('format:'+f.id)))invalid('schemas');
+ for(const k of ['header','footer'])if(r.payload[k]&&(!owners.has(k+':')||Object.hasOwn(r.payload[k],'inputSchema')))invalid('schemas');
+
  const names=new Set();for(const v of r.variables){if(!schemas.has(v.schemaId)||typeof v.key!=='string'||!v.key||v.key.includes('.')||!codes[v.typeId]||!Number.isInteger(v.position)||v.position<0||!v.payload)invalid('variables');const name=JSON.stringify([v.schemaId,v.parentId,v.key]);if(names.has(name))invalid('key');names.add(name);
   if(v.typeId===110006&&(r.payload.nodeModelVersion<11||v.parentId!==null||typeof v.payload.areaId!=='string'||!v.payload.areaId))invalid('area');
   if(v.typeId===110002)invalid('type'); // Object is an envelope/item, not a supported arbitrary field.
@@ -45,7 +50,8 @@ export function assemble(r:CurrentRecord,version:number):TemplateDefinition {
  const payload=structuredClone(r.payload);
  // Examples belong to the published envelope, not to an earlier draft import.
  if(Array.isArray(payload.examples))for(const e of payload.examples)if(e?.request&&typeof e.request==='object')e.request.version=version;
- return {...payload,templateId:r.templateId,version,globalSchema:schema(r.schemas.find(s=>s.formatId===null)!),formats,...(Object.keys(areaFormats).length?{areaFormats}:{})} as TemplateDefinition;
+ for(const k of ['header','footer'] as const)if(payload[k])payload[k]={...payload[k],inputSchema:schema(r.schemas.find(s=>schemaScope(s)===k)!)};
+ return {...payload,templateId:r.templateId,version,globalSchema:schema(r.schemas.find(s=>schemaScope(s)==='global')!),formats,...(Object.keys(areaFormats).length?{areaFormats}:{})} as TemplateDefinition;
 }
 
 export function normalizeAreaDeletions(existing:CurrentRecord,incoming:CurrentRecord):CurrentRecord {
@@ -55,7 +61,7 @@ export function normalizeAreaDeletions(existing:CurrentRecord,incoming:CurrentRe
  const schemas=new Set(existing.schemas.filter(s=>s.formatId&&formats.has(s.formatId)).map(s=>s.id));
  out.formats=out.formats.filter(f=>!formats.has(f.id));out.schemas=out.schemas.filter(s=>!schemas.has(s.id));out.variables=out.variables.filter(v=>!schemas.has(v.schemaId));
  const fragments=out.formats.map(f=>f.payload.fragment);
- if([12,13].includes(out.payload.nodeModelVersion)&&Array.isArray(out.payload.sections))for(const s of out.payload.sections)if(s?.source?.kind==='authored')fragments.push(s.source.fragment);
+ if([12,13,14].includes(out.payload.nodeModelVersion)&&Array.isArray(out.payload.sections))for(const s of out.payload.sections)if(s?.source?.kind==='authored')fragments.push(s.source.fragment);
  for(const fragment of fragments){if(!fragment||!fragment.nodes)continue;const deleted=new Set<string>();for(const [id,n] of Object.entries(fragment.nodes) as [string,any][])if(n?.type==='area'&&authored.has(n.props?.areaId)){delete fragment.nodes[id];deleted.add(id);}if(Array.isArray(fragment.rootIds))fragment.rootIds=fragment.rootIds.filter((id:string)=>!deleted.has(id));for(const n of Object.values(fragment.nodes) as any[])if(Array.isArray(n.childIds))n.childIds=n.childIds.filter((id:string)=>!deleted.has(id));}
  return out;
 }

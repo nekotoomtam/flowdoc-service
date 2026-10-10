@@ -2,7 +2,7 @@ import type {Pool,PoolClient} from 'pg';
 import {validateTemplate} from '@flowdoc/core';
 import type {Result} from '@flowdoc/core';
 import type {CurrentRecord} from './assembly.js';
-import {checkRecord,normalizeAreaDeletions} from './assembly.js';
+import {checkRecord,normalizeAreaDeletions,schemaScope} from './assembly.js';
 import {freshRecord,readRecord,writeCurrent} from './storage.js';
 import {transaction} from '../db/connection.js';
 import {OperationError,failure} from '../errors.js';
@@ -28,8 +28,8 @@ export async function saveCurrent(pool:Pool,record:CurrentRecord,expectedRevisio
  record=normalizeAreaDeletions(existing,record);checkRecord(record);
  if(existing.revision>=2147483647)throw new OperationError('REVISION_LIMIT','revision','Revision limit reached');
  // Existing IDs may not be moved between entity kinds or owners.
- const owned=new Map<string,string>();for(const f of existing.formats)owned.set(f.id,'format:'+(f.ownerAreaVariableId??''));for(const s of existing.schemas)owned.set(s.id,'schema:'+s.formatId);for(const v of existing.variables)owned.set(v.id,'variable:'+v.schemaId);
- for(const [rows,kind] of [[record.formats,'format'],[record.schemas,'schema'],[record.variables,'variable']] as const)for(const row of rows){const target=kind==='format'?'format:'+((row as any).ownerAreaVariableId??''):kind==='schema'?'schema:'+(row as any).formatId:'variable:'+(row as any).schemaId;if(owned.has(row.id)&&owned.get(row.id)!==target)throw new OperationError('INVALID_DATA','id','Cannot move existing identity between owners');}
+ const owned=new Map<string,string>();for(const f of existing.formats)owned.set(f.id,'format:'+(f.ownerAreaVariableId??''));for(const s of existing.schemas)owned.set(s.id,'schema:'+schemaScope(s)+':'+s.formatId);for(const v of existing.variables)owned.set(v.id,'variable:'+v.schemaId);
+ for(const [rows,kind] of [[record.formats,'format'],[record.schemas,'schema'],[record.variables,'variable']] as const)for(const row of rows){const target=kind==='format'?'format:'+((row as any).ownerAreaVariableId??''):kind==='schema'?'schema:'+schemaScope(row as any)+':'+(row as any).formatId:'variable:'+(row as any).schemaId;if(owned.has(row.id)&&owned.get(row.id)!==target)throw new OperationError('INVALID_DATA','id','Cannot move existing identity between owners');}
  await writeCurrent(c,record);return readRecord(c,record.templateId);
  }),warnings:[]};}catch(e){return failure(e);}
 }
