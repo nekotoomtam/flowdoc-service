@@ -1,3 +1,4 @@
+import {readGenerationJson} from '@flowdoc/core';
 import {readFile} from 'node:fs/promises';
 import {createPool} from './db/connection.js';
 import {migrate} from './db/migrate.js';
@@ -22,7 +23,7 @@ async function main():Promise<Result<unknown>>{
   if(command==='publish')return await publishCurrent(pool,{templateId:args[0]!,requestId:args[1]!});
   let raw:string;try{raw=await readFile(args[0]!,'utf8');}catch{throw new OperationError('INPUT_UNAVAILABLE','template','Template file could not be read');}
   if(command==='draft-import')return await importCurrent(pool,raw);
-  if(command==='draft-save'){let r:any;try{r=JSON.parse(raw);}catch{throw new OperationError('INVALID_DATA','record','Invalid JSON');}return await saveCurrent(pool,r,r?.revision);}
+  if(command==='draft-save'){const parsed=readGenerationJson(raw);if(!parsed.ok)throw new OperationError('INVALID_DATA','record','Invalid JSON');const r=parsed.value as any;return await saveCurrent(pool,r,r?.revision);}
   return await registerTemplate(pool,raw);
  }finally{await pool.end();}
 }

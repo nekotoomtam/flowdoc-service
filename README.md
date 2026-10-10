@@ -4,16 +4,20 @@
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Development version 0.1.3 provides a local HTTP API, serial export processor,
+Development version 0.1.8 provides a local HTTP API, serial export processor,
 temporary PDF lifecycle and JPEG/PNG resource preparation. Release/tag promotion
 is separate. UI, permissions and production scaling remain out of scope.
+
+Start with the Thai [usage guide](docs/usage.md): first PDF, draft publication,
+API requests, uploads, Area examples and file lifetime. It covers development
+0.1.8; release promotion is separate.
 
 ## Local setup and acceptance
 
 Install dependencies with `npm ci --ignore-scripts`; build with `npm run build`.
 With Docker Desktop's Linux engine ready, run `npm run check:database`.
 It uses a fresh isolated PostgreSQL18 volume/internal network, pinned images and
-Core 0.1.3 tarball, without published DB ports or host source mounts. It verifies
+Core 0.1.8 tarball, without published DB ports or host source mounts. It verifies
 fresh migration, populated R3 upgrade/rollback, constraints, publication concurrency,
 CLI editing, source-versus-snapshot PDF equality and restart persistence.
 Results are in `artifacts/<run>/result.json`. Success stops the environment but
@@ -23,7 +27,8 @@ retains its volume/network/images. Failures leave inspection data. Generated
 fixtures/isolated schemas and temporarily alter constraints; never use shared data.
 
 For a persistent local registry, copy .env.example to .env and choose a random
-URL-safe password. Run:
+URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.1.8` explicitly
+to label the image with the current code version. Run:
 
 ```text
 docker compose build registry
@@ -43,15 +48,16 @@ container when supplying a host file. Save returns the new revision; reload
 before editing again. A stale revision is rejected. Import creates current once;
 repeat import reports CURRENT_EXISTS so it cannot accidentally replace IDs.
 Raw template import/registration use Core duplicate-key-aware validation.
-ID-bearing draft-save currently uses JSON.parse; provide a serialized record
-with unique JSON keys, rather than hand-authored duplicate-key input.
+ID-bearing draft-save also uses duplicate-key-aware parsing. Preserve unique
+decoded JSON keys in raw template, draft and HTTP request input.
 
 Changing a variable key keeps its ID. The existing Core key/path references in
 fragments must also be updated by the author. Save allows unresolved content
 refs; publish rejects them. Delete owned child rows from the record together:
 removing a format also requires removing its schema/variables, and removing a
 parent requires removing its children. No hidden text/reference cleanup occurs.
-The SQL ownership FKs cascade, but draft-save does not infer missing rows for you.
+The SQL ownership FKs cascade. Area removal additionally prunes its owned
+subformats, schemas, variables and placement; this is not generic reference cleanup.
 New child entries require distinct UUID IDs; imported children/publication IDs
 are allocated as v7 by DB. Existing IDs cannot move between owner schemas/kinds.
 
@@ -61,12 +67,13 @@ an intentional new publication. The request token is scoped to the template.
 A template lock serializes supported saves/publications/registration; callers
 must not bypass these operations with arbitrary SQL edits during publication.
 Examples are rebound to the selected publication version when assembling the
-Core envelope. Master codes are string/object/array/image; object is only an envelope
+Core envelope. Master codes are string/object/array/image/link/area; object is only an envelope
 or array item under Core's existing limits, not arbitrary nested-field support.
 
 ## Data and compatibility
 
-Master variable_types uses numeric IDs 110001=string, 110002=object, 110003=array.
+Master variable_types uses numeric IDs 110001=string, 110002=object, 110003=array,
+110004=image, 110005=link and 110006=area.
 Current formats/schemas/variables are separately addressable. Each variable's
 schema/parent scopes its key. Snapshot tables contain new IDs and owned JSONB
 payloads. Snapshot relationships point to snapshot rows; master IDs stay the same.
@@ -83,7 +90,7 @@ The original full definition_json is an immutable compatibility witness, not a
 second editable template. Load validates it, assembles the snapshot rows and checks
 the assembled fingerprint. Historical snapshots never load current content.
 Migrations are checksummed and transactional with an advisory lock. Migration
-002's application backfill runs within that transaction. Use the matching release
+002/009 application backfill runs after pending migrations within that transaction. Use the matching release
 CLI to migrate, not an SQL file alone. Do not edit migrations after applying them
 outside isolated development tests. Never reset existing DBs to make tests pass.
 
@@ -96,7 +103,7 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.1.3 is installed solely from vendor/flowdoc-core-0.1.3.tgz. Its SHA256
+Core 0.1.8 is installed solely from vendor/flowdoc-core-0.1.8.tgz. Its SHA256
 and source are in vendor/manifest.json; `node scripts/verifyVendor.mjs` verifies it.
 The lockfile pins dependencies. Linux runtime includes Node24, Python3.11/fontTools
 and the Core-owned resources. Do not copy or fork Core validation/rendering logic.
@@ -117,10 +124,10 @@ consumer. Local release branches/tags do not publish images or deploy a public A
 
 ## Local export API
 
-### Development upload staging (next release)
+### Upload staging
 
-The development branch adds resource intake independently of `/jobs`. It does not
-yet draw images in PDFs. Migrate before starting this candidate; migration 004 adds
+Resource intake is separate from `/jobs`; accepted resources can be drawn in PDFs.
+Migrate before starting the API; migration 004 adds
 upload sessions/items. Compose persists source bytes in its separate staging volume.
 Use `node examples/upload-client.mjs <local.png> image/png` against the running API.
 POST `/uploads` declares a requestKey and items (key, source=upload, mediaType,
@@ -129,9 +136,9 @@ PUT binary to `/uploads/:id/items/:resourceId/content`, GET `/uploads/:id` to po
 and POST `/uploads/:id/finalize` once every binary item has completed.
 For small images, PUT `{data:"<base64>"}` to the item's `/base64` endpoint.
 
-URL declarations are not fetched in this release. ready means intake is complete,
-not image decoding or rendering. HTTPS without credentials is accepted as a descriptor;
-outbound destination enforcement belongs to the future fetcher. Completed item retries
+URL declarations are fetched during job resource preparation. ready means intake
+is complete, not image decoding or rendering. HTTPS descriptors and every fetched
+destination are checked by the preparation boundary described below. Completed item retries
 must contain identical bytes; changed bytes conflict. Retry an interrupted item as a
 whole file; byte-offset resume is unsupported. requestKey is local-service scoped.
 Do not expose this unauthenticated localhost MVP publicly.
@@ -151,8 +158,8 @@ identity. A requestKey may create a new set after that tombstone is purged.
 `UPLOAD_STAGING_DIR` selects the owned root; never point it at unrelated files.
 Interrupted receives become incomplete after recovery; missing finalized bytes
 invalidate the set. Failed deletion retains quota until cleanup succeeds.
-No job claim is exposed yet: the one-hour-after-job policy is deferred to the
-actual resource consumer in the next image integration release. PDF TTL is unchanged.
+Finalized uploads are claimed by admitted jobs. Claimed source data is protected
+through processing and for one hour after completion. PDF TTL is independent.
 
 `npm run check:uploads` verifies actual large PNG intake and restart through a
 separate server process; `check:database` also covers upload DB/HTTP/lifetime tests.
@@ -203,12 +210,12 @@ EXPORT_MAX_PDF_BYTES (52428800), HOST and PORT. Bounds reject oversized requests
 or fail over-budget renders; they are not a large-document capacity guarantee.
 The current renderer/runtime requires packaged Linux x64 dependencies.
 
-### Image variable master (development)
+### Image variable master
 
 Migration 005 adds master 110004 (image), shared by current and version variables.
 Model 5 image variables bind resource UUID strings in global/local scope; URL and
 file intake remain upload sources, not separate variable types. Image variables
-inside array items/table cells are not supported. The registry can publish these
+inside array items require model 10; direct image cells require model 9. The registry can publish these
 templates. The configured server accepts image jobs with a finalized `uploadId`;
 image field values are resource IDs from that upload. Missing/wrong-set references
 are rejected before admission. Ordinary text/table jobs remain supported.
@@ -267,7 +274,8 @@ This bounded serial probe is separate from the regular database suite.
 Model 6 templates support explicit table cells with zero-based columnIndex and
 rowSpan/colSpan (default 1). Registration and publication validate coverage and
 reject overlaps, holes and spans crossing headers or repeated rows. Cell content
-remains TextBlocks. See examples/merged-template.json for the graph shape; the
+in model 6 remains TextBlocks; model 9 adds direct image cell content. See
+examples/merged-template.json for the graph shape; the
 Core package owns merged layout and continuation behavior.
 
 ## Model 7 links
@@ -276,9 +284,9 @@ Core 0.1.4 adds url/link/reference inlines and TextBlock anchorId. Forward-only
 migration 008 registers master 110005/link; current and published schemas retain
 link object defaults, including one-level array item fields. PDF generation and
 validation remain in the pinned Core package. See examples/links-template.json.
-No automatic table of contents or DOCX behavior is added in this slice.
+Model 8 adds the contents behavior below. DOCX remains unsupported.
 
-## Contents example (development 0.1.5)
+## Contents example (model 8)
 
 `examples/contents-template.json` uses Core model 8: explicit TextBlock contents
 levels 1–3, unique anchor IDs, and one root contents node. Import/publish it using
