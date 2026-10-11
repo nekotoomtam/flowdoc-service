@@ -323,3 +323,24 @@ cannot fit a page. Diagnostics retain groupId/groupIndex and source context.
 runs the Service suite, and removes its task containers/volumes/images. It does
 not benchmark production capacity. Keep 300–700 pages and concurrent-worker
 sizing separate from this bounded release. The serial processor is unchanged.
+
+### Development queue admission limit
+
+The development branch limits `queued` + `running` document jobs to
+`JOB_MAX_OUTSTANDING` (default10, positive safe integer). With the serial
+processor this allows one running plus nine waiting jobs. Set it in the server
+or Compose environment and recreate the API after changing it. This is a local
+backlog policy, not a measured ten-job throughput guarantee; use one consistent
+setting for all callers sharing this service database.
+
+A full queue returns HTTP503 with issue code `QUEUE_FULL`, without a new job or
+upload claim. A finalized upload remains reusable until its normal expiry.
+An identical upload-backed replay returns its existing job even when full;
+changed input still conflicts. Completed/failed jobs no longer occupy a slot.
+Upload stream saturation remains a separate429 `UPLOAD_BUSY` condition.
+
+No automatic POST retry is provided: after an ambiguous connection failure the
+first request may already have been accepted, especially for upload-free jobs
+without general idempotency. Queue capacity does not bound request preparation
+CPU, per-document RAM, queue wait time, or the size of retained historical jobs.
+This development addition does not change the0.2.13 release or renderer behavior.

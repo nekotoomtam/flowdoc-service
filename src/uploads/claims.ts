@@ -3,6 +3,8 @@ import type {PreparedInput} from '@flowdoc/core';
 import {transaction} from '../db/connection.js';
 import {OperationError} from '../errors.js';
 import {validJobId} from '../jobs/repository.js';
+import {reserveJobCapacity} from '../jobs/capacity.js';
+import {DEFAULT_MAX_OUTSTANDING,validateMaxOutstanding} from '../jobs/config.js';
 
 interface UploadJobInput {
  uploadId:string; versionId:string; originalInput:unknown; preparedInput:PreparedInput;
@@ -11,7 +13,8 @@ interface UploadJobInput {
 }
 const error=(code:string,message:string)=>new OperationError(code,'uploadId',message);
 /** Internal admission boundary; image HTTP admission remains gated until rendering is wired. */
-export async function enqueueWithUpload(pool:Pool,input:UploadJobInput,now=Date.now()):Promise<{jobId:string;created:boolean}>{
+export async function enqueueWithUpload(pool:Pool,input:UploadJobInput,now=Date.now(),maxOutstanding=DEFAULT_MAX_OUTSTANDING):Promise<{jobId:string;created:boolean}>{
+ validateMaxOutstanding(maxOutstanding);
  if(!validJobId(input.uploadId))throw error('INVALID_UPLOAD','Invalid upload ID');
  if(input.resourceIds.some(id=>!validJobId(id)))throw error('INVALID_RESOURCE','Invalid resource reference');
  const ids=[...new Set(input.resourceIds.map(id=>id.toLowerCase()))].sort();
@@ -34,6 +37,7 @@ export async function enqueueWithUpload(pool:Pool,input:UploadJobInput,now=Date.
   if(items.length!==ids.length||items.some(i=>i.source_kind==='upload'?i.status!=='received'||!i.storage_key:i.status!=='declared'))
    throw error('INVALID_RESOURCE','Resource does not belong to the finalized upload');
   const p=input.preparedInput;
+  await reserveJobCapacity(c,maxOutstanding);
   const jobId=(await c.query('INSERT INTO generation_jobs(id,template_version_id,original_input,prepared_input,warnings_json,skipped_indices) VALUES(uuidv7(),$1,$2,$3,$4,$5) RETURNING id',[input.versionId,original,prepared,JSON.stringify(p.warnings),JSON.stringify(p.skippedContentIndices)])).rows[0].id;
   await c.query('INSERT INTO upload_job_claims(upload_id,job_id,resource_ids) VALUES($1,$2,$3)',[input.uploadId,jobId,refs]);
   return {jobId,created:true};

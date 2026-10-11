@@ -4,6 +4,7 @@ import {mkdir} from 'node:fs/promises';
 import {createPool} from './db/connection.js';
 import {createPdfFiles,readFilePolicy} from './storage/pdf-files.js';
 import {createOutputs} from './storage/outputs.js';
+import {readJobConfig} from './jobs/config.js';
 import {startProcessor} from './jobs/processor.js';
 import {createServer} from './http/server.js';
 import {renderPinnedJob,cleanupRenderTemps} from './jobs/render.js';
@@ -14,6 +15,7 @@ function integer(name:string,value:string|undefined,fallback:number,max:number){
 async function main(){
  if(!process.env.DATABASE_URL)throw Error('DATABASE_URL required');
  // Validate every setting before acquiring a pool, coordinator, listener or timer.
+ const jobConfig=readJobConfig(process.env);
  const policy=readFilePolicy(process.env);
  const uploadConfig=readUploadConfig(process.env);
  const deadline=integer('render deadline',process.env.EXPORT_RENDER_TIMEOUT_MS,120000,3600000);
@@ -30,7 +32,7 @@ async function main(){
  try{
   const files=await createPdfFiles(process.env.EXPORT_OUTPUT_DIR??'output'),outputs=createOutputs(pool,files,policy.tempHours);
   processor=await startProcessor({pool,files,policy,resources:{files:resourceFiles,config:uploadConfig},initialize:async()=>{await cleanupRenderTemps(renderRoot);await outputs.cleanup();await uploads.recover();},render:(p,t,s,images)=>renderPinnedJob(p,t,s,deadline,maxBytes,renderRoot,images)});
-  app=createServer({pool,outputs,uploads,isReady:()=>!closing&&processor!.isReady(),bodyLimit,imagesEnabled:true});
+  app=createServer({pool,outputs,uploads,isReady:()=>!closing&&processor!.isReady(),bodyLimit,imagesEnabled:true,maxOutstanding:jobConfig.maxOutstanding});
   await app.listen({host,port});
   timer=setInterval(()=>{if(cleanup)return;cleanup=Promise.all([outputs.cleanup(),uploads.cleanup()]).then(()=>{}).catch(()=>{}).finally(()=>{cleanup=undefined;});},60000);
   process.once('SIGTERM',()=>{void stop();});process.once('SIGINT',()=>{void stop();});
