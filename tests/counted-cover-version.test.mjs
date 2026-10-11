@@ -1,0 +1,26 @@
+import {beforeAll,afterAll,it,expect} from 'vitest';
+import {readFileSync} from 'node:fs';
+import {isolatedDatabase} from './isolatedDatabase.mjs';
+import {migrate} from '../dist/db/migrate.js';
+import {importCurrent,loadCurrent,saveCurrent} from '../dist/templates/current.js';
+import {publishCurrent} from '../dist/templates/publish.js';
+import {loadTemplate} from '../dist/templates/registry.js';
+const db=isolatedDatabase(),ok=r=>{expect(r.ok,JSON.stringify(r)).toBe(true);return r.value;};
+beforeAll(async()=>{await db.setup();ok(await migrate(db.pool));});
+afterAll(()=>db.close());
+it('preserves counted cover policy across current and immutable published versions',async()=>{
+ const t=JSON.parse(readFileSync('examples/page-numbering-template.json','utf8'));
+ t.templateId=t.docKey='counted-cover';const s=t.sections[0];s.role='cover';
+ s.numbering={mode:'continue',visibility:'hide'};delete s.header;delete s.footer;
+ ok(await importCurrent(db.pool,JSON.stringify(t)));
+ ok(await publishCurrent(db.pool,{templateId:t.templateId,requestId:'counted'}));
+ const before=ok(await loadTemplate(db.pool,t.docKey,1));
+ expect(before.template.definition.sections[0].numbering).toEqual(s.numbering);
+ const current=ok(await loadCurrent(db.pool,t.templateId));
+ expect(current.sections[0].payload.numbering).toEqual(s.numbering);
+ current.sections[0].payload.numbering={mode:'exclude'};
+ ok(await saveCurrent(db.pool,current,current.revision));
+ ok(await publishCurrent(db.pool,{templateId:t.templateId,requestId:'excluded'}));
+ expect(ok(await loadTemplate(db.pool,t.docKey,1)).template).toEqual(before.template);
+ expect(ok(await loadTemplate(db.pool,t.docKey,2)).template.definition.sections[0].numbering).toEqual({mode:'exclude'});
+});

@@ -1,9 +1,9 @@
-# คู่มือใช้งาน FlowDoc Service 0.2.0
+# คู่มือใช้งาน FlowDoc Service 0.2.9
 
 ## Authority Boundary
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-รุ่นพัฒนา 0.2.0 ไม่ใช่การประกาศขึ้น release หรือรับรอง production capacity
+รุ่นพัฒนา 0.2.9 ไม่ใช่การประกาศขึ้น release หรือรับรอง production capacity
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
@@ -11,7 +11,7 @@ Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP 
 ## 1. เริ่มต้นและออก PDF แรก
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.2.0
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.2.9
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
@@ -22,7 +22,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.2.0'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.2.9'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -219,7 +219,7 @@ PDF ใช้นโยบายแยก: `EXPORT_RETAIN_FILES=false` ลบห�
 ยังไม่รวม DOCX, หน้าแก้ไขเอกสาร หรือ SLA งานพร้อมกันจำนวนมาก; ระบบหน้าและหัวท้ายดู model16 ด้านล่าง
 
 
-## แม่แบบหลายส่วน (รุ่นพัฒนา0.2.0 / Core model12)
+## แม่แบบหลายส่วน (รุ่นพัฒนา0.2.9 / Core model12)
 
 ใช้ [page-sections-template.json](../examples/page-sections-template.json) กับ
 [page-sections-request.json](../examples/page-sections-request.json) ผ่าน current
@@ -327,7 +327,7 @@ Migration012 ขยาย owner guards ให้รับ model15/16 โดย�
 API ไม่ต้องส่งข้อมูลเพิ่ม. ดู examples/contents-sections-template.json และ
 contents-sections-request.json; ไม่ต้องมี migration ใหม่สำหรับพฤติกรรมนี้.
 
-## ทดลองทั้งเล่มและอัปเกรดเป็น 0.2.0
+## ทดลองทั้งเล่มและอัปเกรดเป็น 0.2.9
 
 แม่แบบตัวอย่างครบอยู่ที่ `examples/page-system-template.json`:
 ปก → สารบัญ → ตารางเซลล์รวม/ภาพ/Area → หน้าเปล่า → ส่วนซ่อน/ไม่นับเลข → ปิดท้าย.
@@ -365,3 +365,35 @@ Model4–14ยังใช้ envelopeของเดิม; model15–16ใช�
 การอัปเกรด software ไม่แปลงแม่แบบหรือเปลี่ยน versionที่เคย publish.
 GET contract?version=... และ POST /jobs ที่ส่ง versionชัดเจนใช้แม่แบบชุดเดียวกัน.
 การทดสอบ local Docker ไม่ใช่การรับรองเครื่องสะอาด, production load หรือ SLA.
+
+
+## 0.2.9: รูปแบบและเวลาสร้างเอกสาร
+
+ใช้ Core0.2.9 จาก vendor/manifest.json. ตัวเลือกหน้าปกที่นับเลขแต่ซ่อนหัวท้าย,
+hัวท้ายอิงขอบหน้าจริง, Line/สีตาราง, textAlign ในเซลล์และหัวท้าย,
+pageFieldLayout:compact เป็นค่าของแม่แบบ; ผู้เรียกยังส่งข้อมูลตาม contract เดิม.
+อ่านรูปแบบ props และ model gates ในคู่มือ Core. ไม่ต้องเพิ่มฟิลด์ใน API
+หรือ migration จาก0.2.0; snapshot เดิมไม่ถูกแปลงหรือแก้โดยอัปเกรด package.
+
+ผลทดลอง local ของ SRS หนึ่งแม่แบบ85หน้า: ส่งรูปใหม่17ไฟล์และเรียก API ทีละงาน10รอบ
+สำเร็จทั้งหมด; เวลาจากเริ่มอัปโหลดจนดาวน์โหลดเสร็จเฉลี่ย91.66วินาที,
+ส่วนเบี่ยงเบนมาตรฐานแบบตัวอย่าง3.53วินาที, ช่วง87.68–99.52วินาที.
+ใช้ i9-13900H, Docker Linux20 CPUs/ประมาณ7.61GiB, ไม่ใช่ SLA หรือผลทดสอบงานพร้อมกัน.
+ทุกไฟล์ข้อความตรงกัน; มี IMAGE_LOW_RESOLUTION8จุดเดิม ต้องอ่าน warnings ด้วย.
+ข้อมูลจริง/รูปของผู้ใช้ไม่ได้บรรจุใน repo หรือ image.
+
+การทดลองตั้ง EXPORT_RENDER_TIMEOUT_MS=300000 ผ่าน Compose override;
+ค่าปกติของ server ยังคง120000ms. การใส่ชื่อนี้ใน .env อย่างเดียวไม่ส่งเข้า container
+เพราะ compose.yaml ยังไม่ได้ map ตัวเลือกนี้. หากต้องปรับให้สร้าง override:
+
+```yaml
+services:
+  api:
+    environment:
+      EXPORT_RENDER_TIMEOUT_MS: "300000"
+```
+
+แล้วใช้ `docker compose -f compose.yaml -f compose.timeout.yaml up -d api`
+ร่วมกับ env/project เดิม. เพิ่มเวลารอไม่ได้ลดเวลา render หรือรับประกันว่าเล่มใหญ่จะสำเร็จ.
+รูปความละเอียดต่ำไม่ถูกขยายพิกเซลให้คมขึ้น; ชื่อปกยาวเกินหน้าจะ fail ตามกติกา.
+ยังไม่รองรับ DOCX, custom font, Columns/ตารางซ้อนในcell หรือเลขหัวข้ออัตโนมัติ.

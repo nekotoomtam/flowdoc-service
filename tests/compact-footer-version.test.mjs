@@ -1,0 +1,21 @@
+import {beforeAll,afterAll,it,expect} from 'vitest';
+import {readFileSync} from 'node:fs';
+import {isolatedDatabase} from './isolatedDatabase.mjs';
+import {migrate} from '../dist/db/migrate.js';
+import {importCurrent,loadCurrent,saveCurrent} from '../dist/templates/current.js';
+import {publishCurrent} from '../dist/templates/publish.js';
+import {loadTemplate} from '../dist/templates/registry.js';
+const db=isolatedDatabase(),ok=r=>{expect(r.ok,JSON.stringify(r)).toBe(true);return r.value;};
+beforeAll(async()=>{await db.setup();ok(await migrate(db.pool));});afterAll(()=>db.close());
+it('preserves compact band alignment in immutable published versions',async()=>{
+ const t=JSON.parse(readFileSync('examples/page-numbering-template.json','utf8'));t.templateId=t.docKey='compact-footer';
+ const h=t.sections[0].header;
+ const n=Object.values(h.fragment.nodes).find(n=>n.children?.some(c=>c.type==='system-page-field'));
+ expect(n).toBeDefined();n.props.textAlign='center';n.props.pageFieldLayout='compact';
+ ok(await importCurrent(db.pool,JSON.stringify(t)));ok(await publishCurrent(db.pool,{templateId:t.templateId,requestId:'first'}));
+ const first=ok(await loadTemplate(db.pool,t.docKey,1));expect(first.template.definition.sections[0].header).toEqual(h);
+ const c=ok(await loadCurrent(db.pool,t.templateId));c.sections[0].payload.header.fragment.nodes[n.id].props.textAlign='right';
+ ok(await saveCurrent(db.pool,c,c.revision));ok(await publishCurrent(db.pool,{templateId:t.templateId,requestId:'second'}));
+ expect(ok(await loadTemplate(db.pool,t.docKey,1)).template).toEqual(first.template);
+ expect(ok(await loadTemplate(db.pool,t.docKey,2)).template.definition.sections[0].header.fragment.nodes[n.id].props.textAlign).toBe('right');
+});
