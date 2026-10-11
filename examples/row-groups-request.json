@@ -1,0 +1,32 @@
+{
+  "docKey": "srs-basic",
+  "data": {},
+  "sections": {
+    "main": {
+      "content": [
+        {
+          "format": "meeting",
+          "data": {
+            "companies": [
+              {
+                "name": "Company A",
+                "members": [
+                  {
+                    "name": "Person A"
+                  },
+                  {
+                    "name": "Person B"
+                  }
+                ]
+              },
+              {
+                "name": "Company B",
+                "members": []
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
