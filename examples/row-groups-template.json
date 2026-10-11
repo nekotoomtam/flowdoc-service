@@ -362,7 +362,7 @@
                 "emptyRowTemplateId": "empty"
               },
               "pagination": {
-                "keepStart": false
+                "keepStart": true
               }
             }
           ]

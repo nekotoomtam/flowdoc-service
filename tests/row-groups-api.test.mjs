@@ -73,3 +73,12 @@ it('supports empty arrays and refuses forged nested prepared values on worker re
  processor=await startProcessor({pool:db.pool,files:await createPdfFiles(join(root,'pdf')),policy:{retain:true,ttlHours:24,tempHours:24},resources:{files:await createResourceFiles(join(root,'staging')),config:readUploadConfig({})}});
  expect((await waitJob(id)).status).toBe('failed');expect((await app.inject('/jobs/'+id+'/pdf')).statusCode).not.toBe(200);
 },30000);
+
+it('exposes keepStart fallback warnings through completed job status',async()=>{
+ const t=fixture();t.templateId='row-groups-fallback';t.docKey='row-groups-fallback';const f=t.sections[0].formats.meeting;
+ f.rowGroups[0].pagination.keepStart=true;f.fragment.nodes.labelsText.children[0].text=Array(80).fill('Tall prefix').join('\n');
+ ok(await importCurrent(db.pool,JSON.stringify(t)));ok(await publishCurrent(db.pool,{templateId:t.templateId,requestId:'fallback'}));
+ const r=request();r.docKey=t.docKey;const res=await app.inject({method:'POST',url:'/jobs',payload:r});expect(res.statusCode).toBe(202);
+ const view=await waitJob(ok(res.json()).jobId);expect(view.status,JSON.stringify(view)).toBe('succeeded');
+ const warnings=view.warnings.filter(w=>w.code==='ROW_GROUP_KEEP_START_RELAXED');expect(warnings.map(w=>w.groupIndex)).toEqual([0,1]);expect(warnings.every(w=>w.groupId==='companies'&&w.sectionId==='main')).toBe(true);
+},30000);
