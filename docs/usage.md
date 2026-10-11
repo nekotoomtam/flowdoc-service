@@ -1,9 +1,9 @@
-# คู่มือใช้งาน FlowDoc Service 0.2.10
+# คู่มือใช้งาน FlowDoc Service 0.2.11
 
 ## Authority Boundary
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-รุ่นพัฒนา 0.2.10 ไม่ใช่การประกาศขึ้น release หรือรับรอง production capacity
+รุ่นพัฒนา 0.2.11 ไม่ใช่การประกาศขึ้น release หรือรับรอง production capacity
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
@@ -11,7 +11,7 @@ Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP 
 ## 1. เริ่มต้นและออก PDF แรก
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.2.10
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.2.11
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
@@ -22,7 +22,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.2.10'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.2.11'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -406,3 +406,8 @@ services:
 ผู้เรียก API ไม่ต้องเปลี่ยนข้อมูล แม่แบบ หรือการตั้งค่า การ wrap ยังคงใช้กฎเดิม
 ผลวัด0.2.9 ด้านบนเป็น baseline เก่า ไม่ใช่เวลาของรุ่นนี้ และไม่ใช่ SLA
 การขึ้น release แยกจากการปรับรุ่นพัฒนา
+
+## 0.2.11: ลดข้อมูลเตรียมฟอนต์
+
+ส่งเฉพาะ glyph IDs ที่ใช้จริงแยกตามฟอนต์ไปยังตัวเตรียมฟอนต์
+รูปแบบเอกสารและการ wrap คงเดิม ค่า cache ยังเป็น 32 MiB และยังไม่ขึ้น release
