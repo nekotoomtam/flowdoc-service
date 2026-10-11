@@ -1,9 +1,9 @@
-# คู่มือใช้งาน FlowDoc Service 0.2.11
+# คู่มือใช้งาน FlowDoc Service 0.2.13
 
 ## Authority Boundary
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-รุ่นพัฒนา 0.2.11 ไม่ใช่การประกาศขึ้น release หรือรับรอง production capacity
+รุ่น 0.2.13 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
@@ -11,7 +11,7 @@ Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP 
 ## 1. เริ่มต้นและออก PDF แรก
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.2.11
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.2.13
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
@@ -22,7 +22,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.2.11'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.2.13'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -411,3 +411,83 @@ services:
 
 ส่งเฉพาะ glyph IDs ที่ใช้จริงแยกตามฟอนต์ไปยังตัวเตรียมฟอนต์
 รูปแบบเอกสารและการ wrap คงเดิม ค่า cache ยังเป็น 32 MiB และยังไม่ขึ้น release
+
+<a id="row-groups-0213"></a>
+## 0.2.13: บริษัทและสมาชิกหลายรายการในหนึ่งตาราง
+
+ผู้สร้างกำหนด array สองระดับใน Core model17 และ rowGroups ในแม่แบบ;
+ผู้เรียก API ส่งเฉพาะข้อมูล ไม่ส่งกราฟ node หรือคำสั่งแบ่งหน้า.
+ตัวอย่างนี้ต้องใช้ registry ทดลองที่ยังไม่มี `tpl-srs-basic` / `srs-basic`:
+
+```powershell
+docker @dc run --rm registry migrate
+docker @dc run --rm registry draft-import examples/row-groups-template.json
+docker @dc run --rm registry publish tpl-srs-basic row-groups-first
+Invoke-RestMethod "$base/templates/srs-basic/contract?version=1"
+```
+
+ส่ง request โดยตรึง version ที่ publish แล้ว เช่น:
+
+```json
+{
+  "docKey": "srs-basic", "version": 1, "data": {},
+  "sections": {"main": {"content": [{
+    "format": "meeting",
+    "data": {"companies": [
+      {"name": "บริษัท A", "members": [
+        {"name": "ผู้เข้าร่วมคนที่หนึ่ง", "position": "ผู้ทดสอบ"},
+        {"name": "ผู้เข้าร่วมคนที่สอง", "position": "ผู้พัฒนา"}
+      ]},
+      {"name": "บริษัท B", "members": []}
+    ]}
+  }]}}
+}
+```
+
+POST /jobs → อ่าน GET /jobs/{jobId} จน succeeded → GET /jobs/{jobId}/pdf
+เหมือนขั้นตอนแรกของคู่มือ. บริษัท B ยังมีชื่อ หัวคอลัมน์ และ empty row ตาม
+แม่แบบ; companies=[] จะไม่มีชุดบริษัท. required ที่ไม่ส่งให้422 แต่ [] ส่งได้.
+null/ชนิดผิดให้422 พร้อม indexed path; key เกินที่ไม่รู้จักถูกละเลยพร้อม warning.
+ไม่รองรับ array ชั้นที่สามหรือ arbitrary object field. Modelเก่ายังคงกฎเดิม.
+
+ในแม่แบบตัวอย่างเปิด `pagination.keepStart: true`: ชื่อบริษัท/หัวคอลัมน์
+อยู่กับส่วนเริ่มต้นของสมาชิกคนแรก ส่วนที่เหลือแบ่งต่อหน้าได้. ถ้าชุดเริ่มต้นสูง
+เกินหน้าจะผ่อนกติกาและคืน ROW_GROUP_KEEP_START_RELAXED ใน warnings ของ job
+พร้อม groupId/groupIndex, nodeId/path และบริบท Section/รูปแบบ. ไม่ใช่ error
+และไม่แปลว่าข้อมูลถูกตัด. ถ้าเนื้อหาแบ่งไม่ได้และใหญ่เกินหน้า ยังเป็น LAYOUT_FAILED.
+EXPANSION_LIMIT หมายถึงผลขยายเกิน100,000 node/inline identities ให้422
+ก่อนสร้าง job. อย่าส่งซ้ำแบบเดิมโดยคาดว่าระบบจะหายล่ม.
+
+## อัปเกรดจาก 0.2.9–0.2.12 เป็น 0.2.13
+
+1. หยุดรับงานใหม่และรอ queued/running ให้จบก่อนหยุด API; สำรองฐานข้อมูลตาม
+   วิธีดูแลระบบของตน อย่าลบ volume เพื่ออัปเกรด.
+2. เลือกโค้ด0.2.13 พร้อม vendor/manifest.json และ lockfile ของชุดเดียวกัน.
+   เปลี่ยน FLOWDOC_REGISTRY_IMAGE ใน env เป็น imageชื่อใหม่0.2.13 แล้ว build.
+3. ใช้ Docker project/รหัสผ่าน/volume เดิม เรียก migrate ด้วย image0.2.13:
+
+```powershell
+docker @dc stop api
+docker @dc build registry
+docker @dc up -d --wait db
+docker @dc run --rm registry migrate
+docker @dc up -d --force-recreate api
+Invoke-RestMethod "$base/health"
+```
+
+migrate ใช้ checksum และ transaction; รุ่น0.2.9–0.2.11 มีถึง012 จึงเพิ่ม013,
+รุ่น0.2.12ที่ใช้ migration013แล้วจะไม่มีรายการใหม่. ไม่แก้ published snapshot
+ไม่เปลี่ยน template model ให้อัตโนมัติ และไม่ต้อง import แม่แบบเก่าซ้ำ.
+หากใช้ env manual ตามคู่มือนี้ `$dc` ต้องยังชี้ไฟล์/projectเดิม. คำสั่งนี้ไม่มี
+rollback migration อัตโนมัติ; ไม่ควรเปิด imageเก่ากับแม่แบบmodel17ใหม่.
+
+ตรวจ vendor ด้วย `node scripts/verifyVendor.mjs`. คำสั่ง
+`npm run check:database` สร้าง DBทดลองใหม่เพื่อตรวจ migrations001–013,
+CLI/publish/constraints/restart โดยไม่ทดสอบกับ DBจริง. ผลอยู่ artifacts/<run>;
+ตามพฤติกรรมสคริปต์นี้ volume/imageยังเก็บไว้หลังหยุด ให้ลบเฉพาะprojectทดลอง
+ที่ตรวจชื่อแล้วเมื่อตรวจผลเสร็จ. ทางเลือกตรวจ suite พร้อม cleanupอัตโนมัติคือ
+`node scripts/checkRowGroups.mjs`.
+
+รุ่นนี้รวมการลดต้นทุน shaping/font preparation ใน0.2.10–0.2.11 และกลุ่มแถว
+ใน0.2.12–0.2.13. ไม่รวม autoLink, DOCX, Editor, การเยื้องหัวข้อใหม่ หรือการเพิ่ม
+workerพร้อมกัน. เวลาที่วัดจากเล่มทดลองเป็นข้อมูลเครื่อง/ชุดข้อมูลนั้น ไม่ใช่ SLA.

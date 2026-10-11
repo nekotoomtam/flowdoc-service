@@ -4,20 +4,19 @@
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Development version 0.2.11 provides a local HTTP API, serial export processor,
+Version 0.2.13 provides a local HTTP API, serial export processor,
 temporary PDF lifecycle and JPEG/PNG resource preparation. Release/tag promotion
 is separate. UI, permissions and production scaling remain out of scope.
 
 Start with the Thai [usage guide](docs/usage.md): first PDF, draft publication,
-API requests, uploads, Area examples and file lifetime. It covers development
-0.2.11; release promotion is separate.
+API requests, uploads, Area examples and file lifetime. It covers 0.2.13; shared release status remains in Project Control.
 
 ## Local setup and acceptance
 
 Install dependencies with `npm ci --ignore-scripts`; build with `npm run build`.
 With Docker Desktop's Linux engine ready, run `npm run check:database`.
 It uses a fresh isolated PostgreSQL18 volume/internal network, pinned images and
-Core 0.2.11 tarball, without published DB ports or host source mounts. It verifies
+Core 0.2.13 tarball, without published DB ports or host source mounts. It verifies
 fresh migration, populated R3 upgrade/rollback, constraints, publication concurrency,
 CLI editing, source-versus-snapshot PDF equality and restart persistence.
 Results are in `artifacts/<run>/result.json`. Success stops the environment but
@@ -27,7 +26,7 @@ retains its volume/network/images. Failures leave inspection data. Generated
 fixtures/isolated schemas and temporarily alter constraints; never use shared data.
 
 For a persistent local registry, copy .env.example to .env and choose a random
-URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.2.11` explicitly
+URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.2.13` explicitly
 to label the image with the current code version. Run:
 
 ```text
@@ -103,7 +102,7 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.2.11 is installed solely from vendor/flowdoc-core-0.2.11.tgz. Its SHA256
+Core 0.2.13 is installed solely from vendor/flowdoc-core-0.2.13.tgz. Its SHA256
 and source are in vendor/manifest.json; `node scripts/verifyVendor.mjs` verifies it.
 The lockfile pins dependencies. Linux runtime includes Node24, Python3.11/fontTools
 and the Core-owned resources. Do not copy or fork Core validation/rendering logic.
@@ -301,3 +300,26 @@ Model14 adds scoped header/footer inputs, repeated text/images/Columns and migra
 Model15 adds per-section data/header/footer/content, relational section owners and migration011. See docs/usage.md and examples/section-ownership-template.json. Legacy models remain unchanged; there is no automatic template conversion.
 
 Model16 adds creator-authored current/total page fields and section counting policies. Callers do not supply system numbers. Migration012 extends section owner guards for model16; see docs/usage.md and examples/page-numbering-template.json.
+
+## 0.2.13: nested arrays, row groups and upgrade
+
+Core model17 supports two array levels; rowGroups define contiguous company
+prefix/member/empty rows. `pagination.keepStart` belongs to the template, not
+request JSON. Requests still contain only the pinned docKey/version and data.
+See [usage](docs/usage.md#row-groups-0213) and the checked-in
+[row-group template](examples/row-groups-template.json)/[request](examples/row-groups-request.json).
+This example enables keepStart; it uses docKey srs-basic on a fresh registry.
+
+Run migration013 with this version's CLI before starting the upgraded API.
+It extends existing Section-ownership checks to model17; no new master code or
+table is added. Existing variables use schema_id/parent_id, cloned version
+relations use newly allocated version IDs. Published definitions remain pinned
+and unchanged. New nested-array templates must explicitly select model17.
+
+Successful jobs can contain `ROW_GROUP_KEEP_START_RELAXED` when a group start
+cannot fit a page. Diagnostics retain groupId/groupIndex and source context.
+`EXPANSION_LIMIT` is HTTP422 before enqueue, not service unavailability.
+`node scripts/checkRowGroups.mjs` builds a fresh isolated DB/test environment,
+runs the Service suite, and removes its task containers/volumes/images. It does
+not benchmark production capacity. Keep 300–700 pages and concurrent-worker
+sizing separate from this bounded release. The serial processor is unchanged.
