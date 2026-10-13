@@ -14,7 +14,7 @@ services:
       retries: 30
     networks: [private]
   registry:
-    image: ${FLOWDOC_REGISTRY_IMAGE:-flowdoc-service:0.2.13}
+    image: ${FLOWDOC_REGISTRY_IMAGE:-flowdoc-service:0.2.14}
     build:
       context: .
       target: runtime
@@ -25,7 +25,7 @@ services:
         condition: service_healthy
     networks: [private]
   api:
-    image: ${FLOWDOC_REGISTRY_IMAGE:-flowdoc-service:0.2.13}
+    image: ${FLOWDOC_REGISTRY_IMAGE:-flowdoc-service:0.2.14}
     build:
       context: .
       target: runtime
@@ -49,6 +49,7 @@ services:
       UPLOAD_REQUEST_IDLE_MS: ${UPLOAD_REQUEST_IDLE_MS:-60000}
       UPLOAD_REQUEST_MS: ${UPLOAD_REQUEST_MS:-600000}
       UPLOAD_METADATA_MS: ${UPLOAD_METADATA_MS:-86400000}
+      JOB_MAX_OUTSTANDING: ${JOB_MAX_OUTSTANDING:-10}
       EXPORT_RETAIN_FILES: ${EXPORT_RETAIN_FILES:-false}
       EXPORT_FILE_TTL_HOURS: ${EXPORT_FILE_TTL_HOURS:-24}
       EXPORT_TEMP_FILE_TTL_HOURS: ${EXPORT_TEMP_FILE_TTL_HOURS:-24}
@@ -60,7 +61,7 @@ services:
     networks: [private, image-egress]
   verification:
     profiles: [verify]
-    image: ${FLOWDOC_VERIFY_IMAGE:-flowdoc-service-tests:0.2.13}
+    image: ${FLOWDOC_VERIFY_IMAGE:-flowdoc-service-tests:0.2.14}
     build:
       context: .
       target: verification

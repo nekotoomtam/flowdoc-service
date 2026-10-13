@@ -4,19 +4,19 @@
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Version 0.2.13 provides a local HTTP API, serial export processor,
+Version 0.2.14 provides a local HTTP API, serial export processor,
 temporary PDF lifecycle and JPEG/PNG resource preparation. Release/tag promotion
 is separate. UI, permissions and production scaling remain out of scope.
 
 Start with the Thai [usage guide](docs/usage.md): first PDF, draft publication,
-API requests, uploads, Area examples and file lifetime. It covers 0.2.13; shared release status remains in Project Control.
+API requests, uploads, Area examples and file lifetime. It covers 0.2.14; shared release status remains in Project Control.
 
 ## Local setup and acceptance
 
 Install dependencies with `npm ci --ignore-scripts`; build with `npm run build`.
 With Docker Desktop's Linux engine ready, run `npm run check:database`.
 It uses a fresh isolated PostgreSQL18 volume/internal network, pinned images and
-Core 0.2.13 tarball, without published DB ports or host source mounts. It verifies
+Core 0.2.14 tarball, without published DB ports or host source mounts. It verifies
 fresh migration, populated R3 upgrade/rollback, constraints, publication concurrency,
 CLI editing, source-versus-snapshot PDF equality and restart persistence.
 Results are in `artifacts/<run>/result.json`. Success stops the environment but
@@ -26,7 +26,7 @@ retains its volume/network/images. Failures leave inspection data. Generated
 fixtures/isolated schemas and temporarily alter constraints; never use shared data.
 
 For a persistent local registry, copy .env.example to .env and choose a random
-URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.2.13` explicitly
+URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.2.14` explicitly
 to label the image with the current code version. Run:
 
 ```text
@@ -102,8 +102,10 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.2.13 is installed solely from vendor/flowdoc-core-0.2.13.tgz. Its SHA256
-and source are in vendor/manifest.json; `node scripts/verifyVendor.mjs` verifies it.
+Core 0.2.14 is installed solely from `vendor/flowdoc-core-0.2.14.tgz`.
+Its SHA256 and source commit are pinned in `vendor/manifest.json`;
+`node scripts/verifyVendor.mjs` verifies the checksum. Earlier archives remain
+unchanged. The 0.2.14 package includes incremental PDF fingerprint hashing.
 The lockfile pins dependencies. Linux runtime includes Node24, Python3.11/fontTools
 and the Core-owned resources. Do not copy or fork Core validation/rendering logic.
 
@@ -321,5 +323,35 @@ cannot fit a page. Diagnostics retain groupId/groupIndex and source context.
 `EXPANSION_LIMIT` is HTTP422 before enqueue, not service unavailability.
 `node scripts/checkRowGroups.mjs` builds a fresh isolated DB/test environment,
 runs the Service suite, and removes its task containers/volumes/images. It does
-not benchmark production capacity. Keep 300–700 pages and concurrent-worker
-sizing separate from this bounded release. The serial processor is unchanged.
+not benchmark production capacity. The usage guide records later bounded
+capacity observations; concurrent-worker sizing remains unverified.
+
+## 0.2.14: queue admission, API client and memory changes
+
+Service limits `queued` + `running` document jobs to
+`JOB_MAX_OUTSTANDING` (default10, positive safe integer). With the serial
+processor this allows one running plus nine waiting jobs. Set it in the server
+or Compose environment and recreate the API after changing it. This is a local
+backlog policy, not a measured ten-job throughput guarantee; use one consistent
+setting for all callers sharing this service database.
+
+A full queue returns HTTP503 with issue code `QUEUE_FULL`, without a new job or
+upload claim. A finalized upload remains reusable until its normal expiry.
+An identical upload-backed replay returns its existing job even when full;
+changed input still conflicts. Completed/failed jobs no longer occupy a slot.
+Upload stream saturation remains a separate429 `UPLOAD_BUSY` condition.
+
+No automatic POST retry is provided: after an ambiguous connection failure the
+first request may already have been accepted, especially for upload-free jobs
+without general idempotency. Queue capacity does not bound request preparation
+CPU, per-document RAM, queue wait time, or the size of retained historical jobs.
+Version 0.2.14 includes this policy, processor crash/failure isolation checks,
+and the local public-API example in `examples/api-client`. See the usage guide
+for its one/two/six-request flow and failed-job handling.
+
+Prepared jobs send only the document and required image input to the child;
+Core validation and snapshots remain. Core 0.2.14 hashes draw JSON in parts.
+These changes preserve PDF output without changing template/API contracts or
+introducing whole-system streaming. The guide includes measured RAM and its
+limits. There are no new migrations beyond001–013; upgrade with the same
+database/project and retain published template versions.

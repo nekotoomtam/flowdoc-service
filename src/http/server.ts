@@ -4,14 +4,16 @@ import {buildAreaContract} from '../templates/areaContract.js';
 import Fastify from 'fastify';
 import type {Pool} from 'pg';
 import {loadTemplate} from '../templates/registry.js';
+import {DEFAULT_MAX_OUTSTANDING,validateMaxOutstanding} from '../jobs/config.js';
 import {submitJob} from '../jobs/admission.js';
 import {getJob} from '../jobs/repository.js';
 import type {Outputs} from '../storage/outputs.js';
 import {failure,OperationError} from '../errors.js';
 import type {Uploads} from '../uploads/service.js';
 import {registerUploads} from './uploads.js';
-const status=(code:string)=>({UNKNOWN_SECTION:422,INVALID_JOB_ID:400,INVALID_DATA:422,TYPE_MISMATCH:422,MISSING_REQUIRED:422,EMPTY_CONTENT:422,EXPANSION_LIMIT:422,IMAGE_JOBS_UNAVAILABLE:422,INVALID_UPLOAD:422,INVALID_RESOURCE:422,UPLOAD_NOT_FOUND:404,UPLOAD_GONE:410,UPLOAD_CONFLICT:409,UPLOAD_INCOMPLETE:409,TEMPLATE_NOT_FOUND:404,VERSION_NOT_FOUND:404,JOB_NOT_FOUND:404,OUTPUT_GONE:410}[code]??503);
-export function createServer(deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean;bodyLimit?:number;uploads?:Uploads;imagesEnabled?:boolean}){
+const status=(code:string)=>({QUEUE_FULL:503,UNKNOWN_SECTION:422,INVALID_JOB_ID:400,INVALID_DATA:422,TYPE_MISMATCH:422,MISSING_REQUIRED:422,EMPTY_CONTENT:422,EXPANSION_LIMIT:422,IMAGE_JOBS_UNAVAILABLE:422,INVALID_UPLOAD:422,INVALID_RESOURCE:422,UPLOAD_NOT_FOUND:404,UPLOAD_GONE:410,UPLOAD_CONFLICT:409,UPLOAD_INCOMPLETE:409,TEMPLATE_NOT_FOUND:404,VERSION_NOT_FOUND:404,JOB_NOT_FOUND:404,OUTPUT_GONE:410}[code]??503);
+export function createServer(deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean;bodyLimit?:number;uploads?:Uploads;imagesEnabled?:boolean;maxOutstanding?:number}){
+ const maxOutstanding=validateMaxOutstanding(deps.maxOutstanding??DEFAULT_MAX_OUTSTANDING);
  const app=Fastify({logger:false,forceCloseConnections:true,bodyLimit:deps.bodyLimit??2097152});
  app.addContentTypeParser('application/json',{parseAs:'string'},(_req,body,done)=>{
   const r=readGenerationJson(body as string);if(!r.ok){done(Object.assign(new Error('Invalid JSON'),{statusCode:400}));return;}
@@ -36,7 +38,7 @@ export function createServer(deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean
  app.post('/jobs',async(req,reply)=>{
   if(!deps.isReady()){reply.code(503);return failure(new OperationError('UNAVAILABLE','service','Service unavailable'));}
   if(!req.body||typeof req.body!=='object'||Array.isArray(req.body)||typeof (req.body as Record<string,unknown>).docKey!=='string'){reply.code(400);return failure(new OperationError('INVALID_REQUEST','request','Invalid request'));}
-  const r=await submitJob(deps.pool,req.body,deps.imagesEnabled===true);reply.code(r.ok?202:status(r.issues[0]!.code));return r;
+  const r=await submitJob(deps.pool,req.body,deps.imagesEnabled===true,maxOutstanding);reply.code(r.ok?202:status(r.issues[0]!.code));return r;
  });
  app.get<{Params:{jobId:string}}>('/jobs/:jobId',async(req,reply)=>{
   const r=await getJob(deps.pool,req.params.jobId);if(!r.ok){reply.code(status(r.issues[0]!.code));return r;}
