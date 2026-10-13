@@ -1,16 +1,16 @@
-# คู่มือใช้งาน FlowDoc Service 0.2.13
+# คู่มือใช้งาน FlowDoc Service 0.2.14
 
 ## Authority Boundary
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-รุ่น 0.2.13 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
+รุ่น 0.2.14 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
 
-## หน้าทดลอง API ในเครื่อง (development เท่านั้น)
+## หน้าทดลอง API ในเครื่อง
 
-ตัวอย่างนี้อยู่ใน `examples/api-client` และยังไม่ใช่ส่วนของ release 0.2.13
+ตัวอย่างนี้อยู่ใน `examples/api-client` และรวมอยู่ในรุ่น 0.2.14 สำหรับทดลองในเครื่อง
 ใช้ Node 24 บนเครื่อง พร้อม API ที่เปิดและ publish แม่แบบแล้วตามขั้นตอนด้านล่าง
 ไม่มี Editor และไม่สร้างแม่แบบหรือแก้ DB ให้ผู้เรียก
 
@@ -48,7 +48,7 @@ proxy; ไม่เพิ่ม CORS หรือ static route ให้ product
 ## 1. เริ่มต้นและออก PDF แรก
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.2.13
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.2.14
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
@@ -59,7 +59,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.2.13'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.2.14'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -394,7 +394,7 @@ finalize, ส่งคำขอที่ตรึง version1, รอ job, ด�
 
 ก่อนอัปเกรดฐานข้อมูลที่มีข้อมูลจริง ให้สำรอง DB และพื้นที่ไฟล์ตามนโยบายผู้ดูแล,
 หยุด API/worker เดิม แล้วรัน migrate ด้วย imageใหม่ก่อนเริ่ม APIใหม่.
-รุ่นนี้มี migrations001–012; คำสั่งใช้ checksum ตรวจประวัติและทำ transaction.
+รุ่นปัจจุบันมี migrations001–013; คำสั่งใช้ checksum ตรวจประวัติและทำ transaction.
 ห้ามแก้ SQLเก่า หรือเปิด workerเก่ากับ schemaใหม่พร้อมกัน. ไม่รองรับ SQL downgrade.
 ถ้าต้องย้อนกลับ ให้คืนทั้ง backupและ imageที่ตรงกัน ไม่แก้ snapshotที่ publishแล้ว.
 
@@ -495,13 +495,14 @@ null/ชนิดผิดให้422 พร้อม indexed path; key เก�
 EXPANSION_LIMIT หมายถึงผลขยายเกิน100,000 node/inline identities ให้422
 ก่อนสร้าง job. อย่าส่งซ้ำแบบเดิมโดยคาดว่าระบบจะหายล่ม.
 
-## อัปเกรดจาก 0.2.9–0.2.12 เป็น 0.2.13
+## อัปเกรดจาก 0.2.9–0.2.13 เป็น 0.2.14
 
 1. หยุดรับงานใหม่และรอ queued/running ให้จบก่อนหยุด API; สำรองฐานข้อมูลตาม
    วิธีดูแลระบบของตน อย่าลบ volume เพื่ออัปเกรด.
-2. เลือกโค้ด0.2.13 พร้อม vendor/manifest.json และ lockfile ของชุดเดียวกัน.
-   เปลี่ยน FLOWDOC_REGISTRY_IMAGE ใน env เป็น imageชื่อใหม่0.2.13 แล้ว build.
-3. ใช้ Docker project/รหัสผ่าน/volume เดิม เรียก migrate ด้วย image0.2.13:
+2. เลือกโค้ด0.2.14 พร้อม vendor/manifest.json และ lockfile ของชุดเดียวกัน.
+   เปลี่ยน FLOWDOC_REGISTRY_IMAGE ใน env เป็น imageชื่อใหม่ เช่น
+   `flowdoc-service:manual-0.2.14` แล้ว build ไม่เขียนทับ image เดิม.
+3. ใช้ Docker project/รหัสผ่าน/volume เดิม เรียก migrate ด้วย image0.2.14:
 
 ```powershell
 docker @dc stop api
@@ -513,7 +514,7 @@ Invoke-RestMethod "$base/health"
 ```
 
 migrate ใช้ checksum และ transaction; รุ่น0.2.9–0.2.11 มีถึง012 จึงเพิ่ม013,
-รุ่น0.2.12ที่ใช้ migration013แล้วจะไม่มีรายการใหม่. ไม่แก้ published snapshot
+รุ่น0.2.12–0.2.13ที่ใช้ migration013แล้วจะไม่มีรายการใหม่. ไม่แก้ published snapshot
 ไม่เปลี่ยน template model ให้อัตโนมัติ และไม่ต้อง import แม่แบบเก่าซ้ำ.
 หากใช้ env manual ตามคู่มือนี้ `$dc` ต้องยังชี้ไฟล์/projectเดิม. คำสั่งนี้ไม่มี
 rollback migration อัตโนมัติ; ไม่ควรเปิด imageเก่ากับแม่แบบmodel17ใหม่.
@@ -530,9 +531,9 @@ CLI/publish/constraints/restart โดยไม่ทดสอบกับ DBจ
 workerพร้อมกัน. เวลาที่วัดจากเล่มทดลองเป็นข้อมูลเครื่อง/ชุดข้อมูลนั้น ไม่ใช่ SLA.
 
 
-## ส่วนเพิ่มในสาขาพัฒนา: คิวเต็มและงานล้มเหลว (R2)
+## 0.2.14: คิวเต็มและงานล้มเหลว
 
-ส่วนนี้อธิบายโค้ดสาขาพัฒนาหลัง release 0.2.13 ยังไม่ได้เปลี่ยน release เดิม
+รุ่น 0.2.14 รวมการจำกัดคิวและการจัดการงานที่ถูกขัดจังหวะดังนี้
 ระบบยังสร้างเอกสารทีละงาน โดย `JOB_MAX_OUTSTANDING=10` จำกัดจำนวนงานที่
 `queued` รวมกับ `running` ไม่เกิน 10 งาน เปลี่ยนค่าได้ผ่าน environment
 ของ server หรือ Compose แล้วสร้าง API container ใหม่ ค่าเป็นจำนวนเต็มบวก
@@ -564,3 +565,32 @@ processor กลับมาทำต่อ ชุดอัปโหลดที
 เมื่อ status เป็น succeeded ให้ตรวจ outputAvailable ก่อนดาวน์โหลดตาม downloadUrl
 ไฟล์ชั่วคราวถูกลบหลังส่งสำเร็จตามค่าเริ่มต้น การดาวน์โหลดซ้ำคืน 410
 อย่าแปลว่างานสร้างล้มเหลวเพียงเพราะไฟล์ถูกใช้ไปหรือหมดอายุแล้ว
+
+## 0.2.14: หน่วยความจำและผลทดสอบเอกสารยาว
+
+Service ลดข้อมูลซ้ำที่ส่งให้ตัวสร้าง PDF และ Core คำนวณลายนิ้วมือเอกสาร
+ทีละส่วนแทนการสร้าง JSON ทั้งเล่ม โดยคงการตรวจข้อมูล รูปแบบหน้าและลิงก์เดิม
+ผู้เรียกใช้ request และแม่แบบเดิมได้ ไม่ต้องเปิด option เพิ่ม
+
+ผลจากชุดทดลองวันที่ 13 ตุลาคม 2026 บนโค้ดเดียวกันก่อนเปลี่ยนเลขรุ่น:
+
+| ชุดทดลอง | RAM สูงสุดแบบ working set | เวลา worker |
+| --- | ---: | ---: |
+| 98 หน้า ก่อนลด JSON ใน Core | 362.29 MiB | 11.17 วินาที |
+| 98 หน้า หลังลด JSON ใน Core | 357.12 MiB | 11.64 วินาที |
+| 483 หน้า หลังลด JSON ใน Core | 642.90 MiB | 56.07 วินาที |
+
+98 หน้าเป็นการเทียบก่อน–หลังหนึ่งคู่ด้วยตัววัดภายนอกทุก200ms; 483หน้าเป็น
+การยืนยันหลังแก้หนึ่งครั้ง ไม่ใช่ผลเทียบก่อน–หลังใหม่ของเล่มใหญ่
+working set เป็นค่าของ container API ซึ่งรวมโปรเซสลูกและตัวเก็บข้อมูล แต่ไม่รวม DB
+การสุ่มวัดอาจไม่เห็นพีคสั้นมาก และค่าหน่วยความจำรวมของระบบยังรวมแคชไฟล์
+จึงไม่ควรใช้ตัวเลขนี้เป็นเพดานจำนวนหน้า/RAM, SLA หรือขนาดเครื่องขั้นต่ำ
+
+ทั้งสองขนาดผ่านการเทียบคำสั่งวาด ฟอนต์ รูปภาพ ขนาดหน้า ข้อมูล และลิงก์กับ
+ไฟล์อ้างอิงครบ ไม่พบ OOM หรือตัวเฝ้าระวังสั่งหยุด ข้อมูลชุด483หน้าครบ
+7,285ค่า / 1,815รายการ / 1,956ลิงก์ภายใน การจัดหน้าบางส่วนและบัฟเฟอร์ PDF
+ยังอยู่ในหน่วยความจำจนใช้เสร็จ ระบบยังทำงานทีละเล่ม ไม่ใช่ streaming ทั้งระบบ
+
+ตัวอย่างทดลองใช้ API container1GiB/2CPU และ DB256MiB; นี่เป็นเงื่อนไขของ
+การทดลอง ไม่ใช่ข้อจำกัดที่ Compose ตั้งให้โดยอัตโนมัติ งาน700หน้าและการเพิ่ม
+workerพร้อมกันยังไม่ได้รับการยืนยัน งานลด RAM เพิ่มเติมพักไว้หลังรุ่นนี้
