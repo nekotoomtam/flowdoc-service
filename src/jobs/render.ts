@@ -36,7 +36,9 @@ export async function renderPinnedJob(prepared:PreparedInput,template:TemplateDe
    }catch{}
    resolve({ok:false,issues:issues.length?issues:[{code:'RENDER_FAILED',path:'job',message:'Document rendering failed or exceeded execution limits'}],warnings:[]});
   };
-  child.on('error',()=>void finish(1));child.on('close',code=>void finish(code));child.stdin.on('error',()=>{});child.stdin.end(JSON.stringify({template,prepared,imageInput}));
+  // The processor validates the pinned template before composing/preparing images.
+  // Send only the branch the child consumes; retain composition for direct callers.
+  child.on('error',()=>void finish(1));child.on('close',code=>void finish(code));child.stdin.on('error',()=>{});child.stdin.end(JSON.stringify(imageInput?{mode:'document',imageInput}:{mode:'compose',template,prepared}));
  });}finally{await rm(temporary,{recursive:true,force:true});}
 }
 

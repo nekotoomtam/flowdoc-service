@@ -1,16 +1,29 @@
 import {loadBundledResources,createPdfEngine,composeDocument,validateTemplate} from '@flowdoc/core';
 import {readFile,writeFile} from 'node:fs/promises';
 import sharp from 'sharp';
-import type {PdfImageResources} from '@flowdoc/core';
+import type {PdfImageResources,PreparedInput,TemplateDefinition} from '@flowdoc/core';
+import type {JobImageInput} from '../images/job.js';
 import {join} from 'node:path';
-import {tmpdir} from 'node:os';
-const chunks:Buffer[]=[];for await(const chunk of process.stdin)chunks.push(Buffer.from(chunk));
+type RenderInput={mode:'document';imageInput:JobImageInput}|{mode:'compose';template:TemplateDefinition;prepared:PreparedInput};
+async function readInput():Promise<RenderInput>{
+ // Node's decoder preserves multibyte characters split across pipe chunks.
+ // Keep the temporary JSON text scoped here, not alongside the rendered document.
+ process.stdin.setEncoding('utf8');let text='';
+ for await(const chunk of process.stdin)text+=chunk;
+ return JSON.parse(text) as RenderInput;
+}
 const temporary=process.env.FLOWDOC_RENDER_TEMP!;
 try{
- const input=JSON.parse(Buffer.concat(chunks).toString('utf8'));const t=validateTemplate(input.template);if(!t.ok)throw Error('template');
- const doc=input.imageInput?{ok:true,value:input.imageInput.document}:composeDocument(t.value,input.prepared);if(!doc.ok)throw Error('composition');
+ const input=await readInput();
+ if(input.mode!=='document'&&input.mode!=='compose')throw Error('render input');
+ const imageInput=input.mode==='document'?input.imageInput:undefined;
+ const doc=(()=>{
+  if(input.mode==='document')return {ok:true as const,value:input.imageInput.document};
+  const t=validateTemplate(input.template);if(!t.ok)throw Error('template');
+  return composeDocument(t.value,input.prepared);
+ })();if(!doc.ok)throw Error('composition');
  const images:PdfImageResources={};sharp.cache(false);sharp.concurrency(1);
- for(const [id,raw] of Object.entries(input.imageInput?.images??{})){
+ for(const [id,raw] of Object.entries(imageInput?.images??{})){
   const i=raw as {path:string;width:number;height:number;mediaType:string};
   if(i.mediaType==='image/jpeg')images[id]={kind:'jpeg',width:i.width,height:i.height,bytes:await readFile(i.path)};
   else{
