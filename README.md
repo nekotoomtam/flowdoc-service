@@ -102,8 +102,11 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.2.13 is installed solely from vendor/flowdoc-core-0.2.13.tgz. Its SHA256
-and source are in vendor/manifest.json; `node scripts/verifyVendor.mjs` verifies it.
+Core is installed solely from `vendor/flowdoc-core-0.2.13-bb6e21c.tgz`, the
+development revision containing incremental PDF fingerprint hashing. Package
+metadata remains 0.2.13; the distinct filename, SHA256 and source commit in
+`vendor/manifest.json` identify this revision without replacing the original
+0.2.13 archive. `node scripts/verifyVendor.mjs` verifies its checksum.
 The lockfile pins dependencies. Linux runtime includes Node24, Python3.11/fontTools
 and the Core-owned resources. Do not copy or fork Core validation/rendering logic.
 
