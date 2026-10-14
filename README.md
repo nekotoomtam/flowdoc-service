@@ -355,3 +355,56 @@ These changes preserve PDF output without changing template/API contracts or
 introducing whole-system streaming. The guide includes measured RAM and its
 limits. There are no new migrations beyond001–013; upgrade with the same
 database/project and retain published template versions.
+
+## Candidate Area18 authoring tools
+
+This local setup section describes the candidate implementation only. Shared
+scope and acceptance: ../flowdoc-project-control/docs/domains/flowdoc-template-authoring-tools-plan.md.
+It does not establish a connected AI host or release readiness.
+
+After building and applying migrations through 015 to the intended development
+database, start the Service with its existing database/output configuration plus
+AUTHORING_TOKEN (a secret of at least 32 characters) and AUTHORING_PRINCIPAL
+(a stable owner name; default local-owner). Authoring stays disabled without a
+token. Keep HOST at 127.0.0.1 for this prototype. Do not expose the Service directly
+to the internet; this is a single configured principal, not multi-tenant login.
+
+Configure the MCP host to launch Node with the absolute path to
+ dist/tools/server.js (or npm run tools:authoring from this checkout), using
+AUTHORING_URL=http://127.0.0.1:3000 and the same AUTHORING_TOKEN in host-managed
+secret environment configuration. The adapter uses stdio; credentials are never
+tool arguments. The model host must support MCP resource reads to retrieve PDFs.
+Only grant this tool server and reference-document reads to the authoring model;
+adding MCP does not remove shell/SQL/filesystem tools already granted by its host.
+No host settings or credentials are installed by this repository change.
+
+Call get_authoring_contract first for the example definition/request and limits.
+The required sequence is create_template_draft({name,docKey,idempotencyKey}) →
+receive templateId/revision0 → update_template_draft({templateId,
+expectedRevision:0,definition,idempotencyKey}) → validate_template({definition,
+sampleRequest}) → preview_template_draft({templateId,expectedRevision,
+sampleRequest,idempotencyKey}) → get_preview_status({jobId}) →
+get_preview_pdf({jobId}). Read the returned flowdoc-preview resource for PDF bytes.
+Set definition.templateId/docKey to the returned identity and definition.version=1;
+draft revision is a separate concurrency token. Include globalSchema and all
+Section/Format schemas in the complete definition. Internal database IDs are
+assigned/reconciled by Service. Whole-definition saves can remove omitted content;
+review the returned diff and reload after STALE_CURRENT.
+
+For images use create_preview_upload, upload_preview_image and
+finalize_preview_upload, then put the owned uploadId and returned resource IDs
+in sampleRequest. MCP uploads accept PNG/JPEG base64 within advertised limits;
+use a fresh upload for a changed preview. HTTP upload routes remain under the
+same authoring authentication and ownership checks.
+
+Preview jobs share the existing serial worker and outstanding-job limit. A
+preview pins revision, definition, fingerprint and sample input without creating
+a published version. Preview PDFs can be downloaded repeatedly until the existing
+output TTL expires, even with EXPORT_RETAIN_FILES=false. Expiry does not erase
+the draft. Successful authoring retry receipts/audit are retained until explicit
+administrative database cleanup; they are not pruned on PDF expiry. A replay
+returns the original job, so request a fresh preview with a new key after expiry.
+
+There is no publish tool or authoring publish route. Human approval and a future
+revision-bound publication operation are outside this implementation. Existing
+administrative CLI permissions must not be given to the model.

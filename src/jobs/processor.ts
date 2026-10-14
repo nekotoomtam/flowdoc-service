@@ -25,7 +25,7 @@ export async function startProcessor(deps:Dependencies){
     try{await transaction(pool,async c=>{
      const updated=await c.query("UPDATE generation_jobs SET status='succeeded',finished_at=now() WHERE id=$1 AND status='running' RETURNING id",[job.id]);if(updated.rowCount!==1)throw Error('Job transition conflict');
      await c.query("UPDATE job_processing SET stage='complete',warnings_json=warnings_json||$2::jsonb,updated_at=now() WHERE job_id=$1",[job.id,JSON.stringify(result.warnings)]);
-     await c.query("INSERT INTO document_outputs(id,job_id,path,media_type,byte_size,retain,expires_at) VALUES(uuidv7(),$1,$2,'application/pdf',$3,$4,now()+($5 * interval '1 hour'))",[job.id,output.path,output.byteSize,deps.policy.retain,deps.policy.ttlHours]);
+     await c.query("INSERT INTO document_outputs(id,job_id,path,media_type,byte_size,retain,expires_at) VALUES(uuidv7(),$1,$2,'application/pdf',$3,$4 OR EXISTS(SELECT 1 FROM generation_jobs WHERE id=$1 AND preview_template_id IS NOT NULL),now()+($5 * interval '1 hour'))",[job.id,output.path,output.byteSize,deps.policy.retain,deps.policy.ttlHours]);
     });}finally{output.release?.();}
    }catch{await failJob(pool,job.id,[{code:'RENDER_FAILED',path:'job',message:'Document processing failed'}]);}
   }catch{lost();}
@@ -38,7 +38,7 @@ export async function startProcessor(deps:Dependencies){
 async function claimAndStartRender(deps:Dependencies,signal:AbortSignal){
  const {pool}=deps,job=await claimNextJob(pool);if(!job)return null;
  try{
-    const row=(await pool.query('SELECT definition_json,fingerprint FROM template_versions WHERE id=$1',[job.versionId])).rows[0];
+    const row=job.versionId?(await pool.query('SELECT definition_json,fingerprint FROM template_versions WHERE id=$1',[job.versionId])).rows[0]:{definition_json:job.previewDefinition,fingerprint:job.previewFingerprint};
     const valid=validateTemplate(row?.definition_json);if(!valid.ok||valid.value.fingerprint!==row.fingerprint)throw Error('Invalid pinned template');
     if(valid.value.definition.nodeModelVersion>=11){
      if(!job.originalInput||typeof job.originalInput!=='object'||Array.isArray(job.originalInput))throw Error('Invalid original input');

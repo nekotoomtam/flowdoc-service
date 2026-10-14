@@ -11,11 +11,14 @@ import {renderPinnedJob,cleanupRenderTemps} from './jobs/render.js';
 import {readUploadConfig} from './uploads/config.js';
 import {createUploads} from './uploads/service.js';
 import {createResourceFiles} from './storage/resource-files.js';
+import {checkAuthoringAccess} from './http/authoring.js';
 function integer(name:string,value:string|undefined,fallback:number,max:number){const n=Number(value??fallback);if(!Number.isSafeInteger(n)||n<1||n>max)throw Error('Invalid '+name);return n;}
 async function main(){
  if(!process.env.DATABASE_URL)throw Error('DATABASE_URL required');
  // Validate every setting before acquiring a pool, coordinator, listener or timer.
  const jobConfig=readJobConfig(process.env);
+ const authoring=process.env.AUTHORING_TOKEN?{token:process.env.AUTHORING_TOKEN,principal:process.env.AUTHORING_PRINCIPAL??'local-owner'}:undefined;
+ if(authoring)checkAuthoringAccess(authoring);
  const policy=readFilePolicy(process.env);
  const uploadConfig=readUploadConfig(process.env);
  const deadline=integer('render deadline',process.env.EXPORT_RENDER_TIMEOUT_MS,120000,3600000);
@@ -32,7 +35,7 @@ async function main(){
  try{
   const files=await createPdfFiles(process.env.EXPORT_OUTPUT_DIR??'output'),outputs=createOutputs(pool,files,policy.tempHours);
   processor=await startProcessor({pool,files,policy,resources:{files:resourceFiles,config:uploadConfig},initialize:async()=>{await cleanupRenderTemps(renderRoot);await outputs.cleanup();await uploads.recover();},render:(p,t,s,images)=>renderPinnedJob(p,t,s,deadline,maxBytes,renderRoot,images)});
-  app=createServer({pool,outputs,uploads,isReady:()=>!closing&&processor!.isReady(),bodyLimit,imagesEnabled:true,maxOutstanding:jobConfig.maxOutstanding});
+  app=createServer({pool,outputs,uploads,isReady:()=>!closing&&processor!.isReady(),bodyLimit,imagesEnabled:true,maxOutstanding:jobConfig.maxOutstanding,...(authoring?{authoring}:{})});
   await app.listen({host,port});
   timer=setInterval(()=>{if(cleanup)return;cleanup=Promise.all([outputs.cleanup(),uploads.cleanup()]).then(()=>{}).catch(()=>{}).finally(()=>{cleanup=undefined;});},60000);
   process.once('SIGTERM',()=>{void stop();});process.once('SIGINT',()=>{void stop();});

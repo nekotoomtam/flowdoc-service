@@ -1,9 +1,10 @@
 {
   "name": "@flowdoc/core",
-  "version": "0.2.14",
-  "file": "flowdoc-core-0.2.14.tgz",
-  "sha256": "dadd33fea7c4091fa67f58662746245718f71c8a0a9ef00644a40c5f5e2cf7f2",
-  "sourceCommit": "a330011c7e2cedfa0cb840cbe75310537892daaa",
-  "sourceArtifact": "flowdoc-core/artifacts/release-0214",
-  "runtime": "linux-x64 glibc, Node24, Python3.11, fontTools4.58.2"
+  "version": "0.2.15-area.4",
+  "file": "flowdoc-core-0.2.15-area.4.tgz",
+  "sha256": "6775c201b0bcab4996f5ef099e449e7abe612c3b7b846dbfc7ced81561b6600e",
+  "sourceCommit": null,
+  "sourceArtifact": "flowdoc-core/artifacts/area-cache-budget-20261014",
+  "runtime": "linux-x64 glibc, Node24, Python3.11, fontTools4.58.2",
+  "candidate": "uncommitted isolated worktree; not release evidence"
 }
