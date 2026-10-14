@@ -408,3 +408,10 @@ returns the original job, so request a fresh preview with a new key after expiry
 There is no publish tool or authoring publish route. Human approval and a future
 revision-bound publication operation are outside this implementation. Existing
 administrative CLI permissions must not be given to the model.
+
+The full Thai authoring regression is in examples/thai-authoring-template.json
+and examples/thai-authoring-request.json. tests/thai-authoring-layout.test.mjs
+uses the real renderer (requires the Linux runtime), not a mocked PDF response.
+The fixture retains the original trial text; body12 uses lineHeightPt20 and
+bold16 headings use28. The former18/24 values were below actual glyph/font height
+for this input. Validation/composition is not a substitute for rendering preview.
