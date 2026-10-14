@@ -1,6 +1,9 @@
 import {McpServer,ResourceTemplate} from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-export function createAuthoringTools(config:{baseUrl:string;token:string;fetch?:typeof fetch}){
+import {mkdir,mkdtemp,writeFile,unlink,rmdir} from 'node:fs/promises';
+import {resolve,join} from 'node:path';
+import {createHash} from 'node:crypto';
+export function createAuthoringTools(config:{baseUrl:string;token:string;fetch?:typeof fetch;previewDirectory?:string}){
  const base=new URL(config.baseUrl);if(!['http:','https:'].includes(base.protocol)||base.username||base.password||base.search||base.hash||base.pathname!=='/')throw Error('Invalid authoring URL');
  if(base.protocol==='http:'&&!['127.0.0.1','localhost','[::1]'].includes(base.hostname))throw Error('Remote authoring requires HTTPS');
  if(config.token.length<32)throw Error('Authoring credential required');
@@ -26,6 +29,24 @@ export function createAuthoringTools(config:{baseUrl:string;token:string;fetch?:
  tool('validate_template','Validate definition and optional sample data without saving.',{definition:json,sampleRequest:json.optional()},a=>call('/authoring/validate','POST',a),true);
  tool('preview_template_draft','Queue a snapshot of an exact saved revision. Does not publish. Include uploadId in sampleRequest only for an owned finalized upload.',{templateId:id,expectedRevision:z.number().int().positive(),sampleRequest:json,idempotencyKey:key},({templateId,...a})=>call('/authoring/drafts/'+templateId+'/previews','POST',a));
  tool('get_preview_status','Read preview progress and artifact availability.',{jobId:id},a=>call('/authoring/previews/'+a.jobId),true);
+ if(config.previewDirectory){
+  const directory=resolve(config.previewDirectory);
+  server.registerTool('save_preview_pdf',{description:'Download an owned preview PDF directly to a local file on the MCP host. Returns absolute path, byteSize and SHA-256; open that path to inspect every page. Prefer this over copying resource base64. Each call creates a separate file. Does not publish.',inputSchema:z.object({jobId:id}).strict(),annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:false,openWorldHint:false}},async({jobId})=>{
+   let folder:string|undefined;
+   try{
+    const bytes:Buffer=await call('/authoring/previews/'+jobId+'/pdf','GET',undefined,true);
+    if(bytes.subarray(0,5).toString()!=='%PDF-')throw Error('Invalid PDF');
+    await mkdir(directory,{recursive:true,mode:0o700});
+    folder=await mkdtemp(join(directory,'preview-'));
+    const path=join(folder,jobId+'.pdf');
+    await writeFile(path,bytes,{flag:'wx',mode:0o600});
+    return {content:[{type:'text' as const,text:JSON.stringify({ok:true,value:{path,byteSize:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex'),mimeType:'application/pdf'}})}]};
+   }catch{
+    if(folder){await unlink(join(folder,jobId+'.pdf')).catch(()=>{});await rmdir(folder).catch(()=>{});}
+    return {content:[{type:'text' as const,text:'Preview PDF could not be saved. Check preview availability and local output-directory access, then retry.'}],isError:true};
+   }
+  });
+ }
  server.registerTool('get_preview_pdf',{description:'Get a PDF resource link after preview succeeds. Client must support MCP resources to retrieve the binary.',inputSchema:z.object({jobId:id}).strict()},async({jobId})=>{
   try{const r=await call('/authoring/previews/'+jobId);if(!r.ok||!r.value.outputAvailable)throw Error();return {content:[{type:'resource_link',uri:`flowdoc-preview://${jobId}/pdf`,name:`preview-${jobId}.pdf`,mimeType:'application/pdf'}]};}
   catch{return {content:[{type:'text',text:'Preview PDF is not available.'}],isError:true};}
