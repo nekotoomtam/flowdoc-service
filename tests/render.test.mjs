@@ -1,9 +1,19 @@
 import {it,expect} from 'vitest';
 import {readFileSync} from 'node:fs';
 import {validateTemplate,prepareGeneration,composeDocument} from '@flowdoc/core';
-import {renderPinnedJob} from '../dist/jobs/render.js';
+import {renderPinnedJob,renderDocumentJob} from '../dist/jobs/render.js';
 const t=validateTemplate(readFileSync('examples/srs-template.json','utf8')).value;
 const p=prepareGeneration(t,JSON.parse(readFileSync('examples/srs-request.json','utf8'))).value;
+it('hands off serialized document data before yielding to the renderer',async()=>{
+ const document=composeDocument(t,p).value;
+ const expected=await renderPinnedJob(p,t.definition);
+ const pending=renderDocumentJob({document,images:{}});
+ document.rootIds.length=0;document.nodes={};
+ const actual=await pending;
+ expect(actual.ok,JSON.stringify(actual)).toBe(true);
+ expect(expected.ok,JSON.stringify(expected)).toBe(true);
+ expect(Buffer.from(actual.value.bytes)).toEqual(Buffer.from(expected.value.bytes));
+},30000);
 it('renders the prepared document without transporting unused composition inputs',async()=>{
  const document=composeDocument(t,p).value;
  const reference=await renderPinnedJob(p,t.definition);
