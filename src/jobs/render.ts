@@ -6,15 +6,17 @@ import {fileURLToPath} from 'node:url';
 import type {PreparedInput,TemplateDefinition,Result,PdfArtifact,Issue} from '@flowdoc/core';
 import type {JobImageInput} from '../images/job.js';
 export function renderPinnedJob(prepared:PreparedInput,template:TemplateDefinition,signal?:AbortSignal,deadlineMs=120000,maxBytes=52428800,tempRoot=join(tmpdir(),'flowdoc-job-renders'),imageInput?:JobImageInput):Promise<Result<Pick<PdfArtifact,"bytes"|"mediaType">>>{
- try{return renderSerializedJob(JSON.stringify(imageInput?{mode:'document',imageInput}:{mode:'compose',template,prepared}),signal,deadlineMs,maxBytes,tempRoot);}
+ try{return renderSerializedJob({text:JSON.stringify(imageInput?{mode:'document',imageInput}:{mode:'compose',template,prepared})},signal,deadlineMs,maxBytes,tempRoot);}
  catch(error){return Promise.reject(error);}
 }
 // Serialize before returning: the pending transport retains no document graph.
 export function renderDocumentJob(imageInput:JobImageInput,signal?:AbortSignal):Promise<Result<Pick<PdfArtifact,"bytes"|"mediaType">>>{
- try{return renderSerializedJob(JSON.stringify({mode:'document',imageInput}),signal);}
+ try{return renderSerializedJob({text:JSON.stringify({mode:'document',imageInput})},signal);}
  catch(error){return Promise.reject(error);}
 }
-async function renderSerializedJob(serialized:string,signal?:AbortSignal,deadlineMs=120000,maxBytes=52428800,tempRoot=join(tmpdir(),'flowdoc-job-renders')):Promise<Result<Pick<PdfArtifact,"bytes"|"mediaType">>>{
+// Suspended async frames can retain the original argument even after reassignment.
+// Mutate a holder instead so that retained argument cannot keep the JSON alive.
+async function renderSerializedJob(payload:{text:string},signal?:AbortSignal,deadlineMs=120000,maxBytes=52428800,tempRoot=join(tmpdir(),'flowdoc-job-renders')):Promise<Result<Pick<PdfArtifact,"bytes"|"mediaType">>>{
  const root=resolvePath(tempRoot);await mkdir(root,{recursive:true});const temporary=await mkdtemp(join(root,'render-'));
  try{return await new Promise<Result<Pick<PdfArtifact,'bytes'|'mediaType'>>>(resolve=>{
   const child=spawn(process.execPath,[fileURLToPath(new URL('./render-child.js',import.meta.url))],{stdio:['pipe','pipe','ignore'],detached:process.platform!=='win32',env:{FLOWDOC_RENDER_TEMP:temporary,PATH:process.env.PATH,...(process.env.PYTHON_EXECUTABLE?{PYTHON_EXECUTABLE:process.env.PYTHON_EXECUTABLE}:{})}});
@@ -47,7 +49,7 @@ async function renderSerializedJob(serialized:string,signal?:AbortSignal,deadlin
   };
   // The processor validates the pinned template before composing/preparing images.
   // Send only the branch the child consumes; retain composition for direct callers.
-  child.on('error',()=>void finish(1));child.on('close',code=>void finish(code));child.stdin.on('error',()=>{});child.stdin.end(serialized);serialized='';
+  child.on('error',()=>void finish(1));child.on('close',code=>void finish(code));child.stdin.on('error',()=>{});child.stdin.end(payload.text);payload.text='';
  });}finally{await rm(temporary,{recursive:true,force:true});}
 }
 
