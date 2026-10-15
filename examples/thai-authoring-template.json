@@ -1,0 +1,437 @@
+{
+  "schemaVersion": 1,
+  "nodeModelVersion": 18,
+  "templateId": "a5b93e22-242e-4712-8806-2fcc6c147158",
+  "docKey": "codex-self-srs",
+  "version": 1,
+  "name": "ข้อกำหนดระบบคลังสินค้า — ทดสอบโดย Codex",
+  "book": {
+    "contentSlot": "body",
+    "defaultPageLayoutId": "normal"
+  },
+  "globalSchema": {
+    "type": "object",
+    "fields": {
+      "projectName": {
+        "type": "string",
+        "required": true
+      }
+    }
+  },
+  "styles": {
+    "body": {
+      "fontFamilyKey": "sarabun",
+      "fontWeight": "normal",
+      "fontSize": {
+        "value": 12,
+        "unit": "pt"
+      },
+      "lineHeightPt": 20
+    },
+    "heading": {
+      "fontFamilyKey": "sarabun",
+      "fontWeight": "bold",
+      "fontSize": {
+        "value": 16,
+        "unit": "pt"
+      },
+      "lineHeightPt": 28
+    }
+  },
+  "examples": [],
+  "pageLayouts": {
+    "normal": {
+      "page": {
+        "size": "A4",
+        "orientation": "portrait",
+        "margin": {
+          "top": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "right": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "bottom": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "left": {
+            "value": 20,
+            "unit": "mm"
+          }
+        }
+      }
+    }
+  },
+  "sections": [
+    {
+      "id": "main",
+      "key": "main",
+      "source": {
+        "kind": "authored",
+        "fragment": {
+          "rootIds": [
+            "title",
+            "intro",
+            "area"
+          ],
+          "nodes": {
+            "area": {
+              "id": "area",
+              "type": "area",
+              "props": {
+                "areaId": "main-details"
+              }
+            },
+            "title": {
+              "id": "title",
+              "type": "text-block",
+              "role": {
+                "role": "paragraph"
+              },
+              "props": {
+                "textStyleId": "heading"
+              },
+              "children": [
+                {
+                  "id": "project",
+                  "type": "field-ref",
+                  "scope": "global",
+                  "key": "projectName"
+                }
+              ]
+            },
+            "intro": {
+              "id": "intro",
+              "type": "text-block",
+              "role": {
+                "role": "paragraph"
+              },
+              "props": {
+                "textStyleId": "body"
+              },
+              "children": [
+                {
+                  "id": "introValue",
+                  "type": "field-ref",
+                  "scope": "section",
+                  "key": "introduction"
+                }
+              ]
+            }
+          }
+        },
+        "repeats": []
+      },
+      "inputSchema": {
+        "type": "object",
+        "fields": {
+          "details": {
+            "type": "area",
+            "areaId": "main-details",
+            "required": true
+          },
+          "introduction": {
+            "type": "string",
+            "required": true
+          }
+        }
+      },
+      "formats": {},
+      "footer": {
+        "inputSchema": {
+          "type": "object",
+          "fields": {}
+        },
+        "baseTextStyleId": "body",
+        "fragment": {
+          "rootIds": [
+            "page"
+          ],
+          "nodes": {
+            "page": {
+              "id": "page",
+              "type": "text-block",
+              "role": {
+                "role": "paragraph"
+              },
+              "props": {
+                "textStyleId": "body",
+                "textAlign": "center",
+                "pageFieldLayout": "compact"
+              },
+              "children": [
+                {
+                  "id": "current",
+                  "type": "system-page-field",
+                  "field": "current",
+                  "width": {
+                    "value": 35,
+                    "unit": "pt"
+                  }
+                },
+                {
+                  "id": "separator",
+                  "type": "text",
+                  "text": " / "
+                },
+                {
+                  "id": "total",
+                  "type": "system-page-field",
+                  "field": "total",
+                  "width": {
+                    "value": 35,
+                    "unit": "pt"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ],
+  "areaFormats": {
+    "chapter": {
+      "key": "chapter",
+      "ownerAreaId": "main-details",
+      "inputSchema": {
+        "type": "object",
+        "fields": {
+          "title": {
+            "type": "string",
+            "required": true
+          },
+          "requirements": {
+            "type": "array",
+            "required": true,
+            "items": {
+              "type": "object",
+              "fields": {
+                "code": {
+                  "type": "string",
+                  "required": true
+                },
+                "description": {
+                  "type": "string",
+                  "required": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "fragment": {
+        "rootIds": [
+          "chapter",
+          "table"
+        ],
+        "nodes": {
+          "chapter": {
+            "id": "chapter",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "heading"
+            },
+            "children": [
+              {
+                "id": "chapterTitle",
+                "type": "field-ref",
+                "scope": "local",
+                "key": "title"
+              }
+            ]
+          },
+          "table": {
+            "id": "table",
+            "type": "table",
+            "props": {
+              "headerRowCount": 1,
+              "repeatHeaderRows": true
+            },
+            "columns": [
+              {
+                "width": {
+                  "value": 80,
+                  "unit": "pt"
+                }
+              },
+              {
+                "width": {
+                  "value": 390,
+                  "unit": "pt"
+                }
+              }
+            ],
+            "rowIds": [
+              "head",
+              "row"
+            ]
+          },
+          "head": {
+            "id": "head",
+            "type": "table-row",
+            "props": {
+              "allowBreak": true
+            },
+            "cellIds": [
+              "head0",
+              "head1"
+            ]
+          },
+          "head0": {
+            "id": "head0",
+            "type": "table-cell",
+            "props": {},
+            "childIds": [
+              "head0text"
+            ]
+          },
+          "head0text": {
+            "id": "head0text",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body",
+              "textAlign": "center"
+            },
+            "children": [
+              {
+                "id": "head0textleaf",
+                "type": "text",
+                "text": "รหัส"
+              }
+            ]
+          },
+          "head1": {
+            "id": "head1",
+            "type": "table-cell",
+            "props": {},
+            "childIds": [
+              "head1text"
+            ]
+          },
+          "head1text": {
+            "id": "head1text",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body",
+              "textAlign": "center"
+            },
+            "children": [
+              {
+                "id": "head1textleaf",
+                "type": "text",
+                "text": "ข้อกำหนด"
+              }
+            ]
+          },
+          "row": {
+            "id": "row",
+            "type": "table-row",
+            "props": {
+              "allowBreak": true
+            },
+            "cellIds": [
+              "row0",
+              "row1"
+            ]
+          },
+          "row0": {
+            "id": "row0",
+            "type": "table-cell",
+            "props": {},
+            "childIds": [
+              "row0text"
+            ]
+          },
+          "row0text": {
+            "id": "row0text",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body",
+              "textAlign": "center"
+            },
+            "children": [
+              {
+                "id": "row0textvalue",
+                "type": "field-ref",
+                "scope": "item",
+                "key": "code"
+              }
+            ]
+          },
+          "row1": {
+            "id": "row1",
+            "type": "table-cell",
+            "props": {},
+            "childIds": [
+              "row1text"
+            ]
+          },
+          "row1text": {
+            "id": "row1text",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "row1textvalue",
+                "type": "field-ref",
+                "scope": "item",
+                "key": "description"
+              }
+            ]
+          }
+        }
+      },
+      "repeats": [
+        {
+          "tableId": "table",
+          "rowTemplateId": "row",
+          "source": {
+            "scope": "local",
+            "key": "requirements"
+          }
+        }
+      ]
+    },
+    "break": {
+      "key": "new-page",
+      "ownerAreaId": "main-details",
+      "inputSchema": {
+        "type": "object",
+        "fields": {}
+      },
+      "fragment": {
+        "rootIds": [
+          "break"
+        ],
+        "nodes": {
+          "break": {
+            "id": "break",
+            "type": "page-break"
+          }
+        }
+      },
+      "repeats": []
+    }
+  }
+}

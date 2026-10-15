@@ -16,9 +16,9 @@ import {startProcessor} from '../dist/jobs/processor.js';
 import {createServer} from '../dist/http/server.js';
 const db=isolatedDatabase();let app,processor,uploads,root,resources,pdfFiles;
 const ok=r=>{expect(r.ok,JSON.stringify(r)).toBe(true);return r.value;};
-export function imageTemplate(){const t=JSON.parse(readFileSync('examples/srs-template.json','utf8'));t.templateId='uat-images';t.docKey='uat-images';t.nodeModelVersion=5;t.examples=[];
- t.globalSchema={type:'object',fields:{}};t.formats={};
- for(const [name,w,h] of [['photo',450,240],['small',225,120]])t.formats[name]={inputSchema:{type:'object',fields:{photo:{type:'image',required:true}}},fragment:{rootIds:['image'],nodes:{image:{id:'image',type:'image',props:{width:{value:w,unit:'pt'},height:{value:h,unit:'pt'},align:name==='small'?'right':'center',source:{scope:'local',key:'photo'}}}}},repeats:[]};return t;}
+export function imageTemplate(){const t=JSON.parse(readFileSync('examples/srs-template.json','utf8'));t.templateId='uat-images';t.docKey='uat-images';t.nodeModelVersion=18;t.examples=[];
+ t.globalSchema={type:'object',fields:{}};t.areaFormats={};
+ for(const [name,w,h] of [['photo',450,240],['small',225,120]])t.areaFormats[name]={inputSchema:{type:'object',fields:{photo:{type:'image',required:true}}},fragment:{rootIds:['image'],nodes:{image:{id:'image',type:'image',props:{width:{value:w,unit:'pt'},height:{value:h,unit:'pt'},align:name==='small'?'right':'center',source:{scope:'local',key:'photo'}}}}},repeats:[]};for(const [key,f] of Object.entries(t.areaFormats)){f.key=key;f.ownerAreaId="main-content";}return t;}
 beforeAll(async()=>{await db.setup();ok(await migrate(db.pool));ok(await registerTemplate(db.pool,JSON.stringify(imageTemplate())));root=await mkdtemp(join(tmpdir(),'image-api-'));resources=await createResourceFiles(join(root,'staging'));uploads=createUploads({pool:db.pool,files:resources,config:readUploadConfig({})});const files=await createPdfFiles(join(root,'pdf'));pdfFiles=files;processor=await startProcessor({pool:db.pool,files,policy:{retain:true,ttlHours:24,tempHours:24},resources:{files:resources,config:readUploadConfig({})}});app=createServer({pool:db.pool,uploads,outputs:createOutputs(db.pool,files,24),isReady:()=>processor.isReady(),imagesEnabled:true});});
 afterAll(async()=>{await app?.close();await processor?.stop();await uploads?.stop();await db.close();});
 it('uploads JPEG/alpha PNG, exports repeated sizes with warnings/progress and immutable input',async()=>{
@@ -28,7 +28,7 @@ it('uploads JPEG/alpha PNG, exports repeated sizes with warnings/progress and im
  for(let i=0;i<bytes.length;i++)expect((await app.inject({method:'PUT',url:`/uploads/${s.uploadId}/items/${s.items.find(x=>x.key==='p'+i).resourceId}/content`,headers:{'content-type':'application/octet-stream'},payload:bytes[i]})).statusCode).toBe(200);
  ok((await app.inject({method:'POST',url:`/uploads/${s.uploadId}/finalize`})).json());
  const ids=[0,1,2].map(i=>s.items.find(x=>x.key==='p'+i).resourceId);
- const request={docKey:'uat-images',uploadId:s.uploadId,data:{},content:[{format:'photo',data:{photo:ids[0]}},{format:'small',data:{photo:ids[0]}},{format:'photo',data:{photo:ids[1]}},{format:'photo',data:{photo:ids[2]}}]};
+ const request={docKey:'uat-images',uploadId:s.uploadId,data:{},sections:{main:{data:{content:[{format:'photo',data:{photo:ids[0]}},{format:'small',data:{photo:ids[0]}},{format:'photo',data:{photo:ids[1]}},{format:'photo',data:{photo:ids[2]}}]}}}};
  const submitted=await app.inject({method:'POST',url:'/jobs',payload:request});expect(submitted.statusCode,submitted.body).toBe(202);const job=ok(submitted.json());
  expect(ok((await app.inject({method:'POST',url:'/jobs',payload:request})).json()).jobId).toBe(job.jobId);
  let view;for(let n=0;n<600;n++){view=ok((await app.inject({method:'GET',url:'/jobs/'+job.jobId})).json());if(['failed','succeeded'].includes(view.status))break;await new Promise(r=>setTimeout(r,25));}
@@ -52,9 +52,9 @@ it('rejects missing/wrong references and turns a blocked URL into a persisted wa
  const s=ok((await app.inject({method:'POST',url:'/uploads',payload:{requestKey:'blocked-url',items:[{key:'url',source:'url',url:'https://127.0.0.1/private'}]}})).json());
  ok((await app.inject({method:'POST',url:`/uploads/${s.uploadId}/finalize`})).json());
  const content=[{format:'photo',data:{photo:s.items[0].resourceId}}];
- expect((await app.inject({method:'POST',url:'/jobs',payload:{docKey:'uat-images',data:{},content}})).statusCode).toBe(422);
- expect((await app.inject({method:'POST',url:'/jobs',payload:{docKey:'uat-images',data:{},uploadId:s.uploadId,content:[{format:'photo',data:{photo:'00000000-0000-4000-8000-000000000000'}}]}})).statusCode).toBe(422);
- const job=ok((await app.inject({method:'POST',url:'/jobs',payload:{docKey:'uat-images',data:{},uploadId:s.uploadId,content}})).json());
+ expect((await app.inject({method:'POST',url:'/jobs',payload:{docKey:'uat-images',data:{},sections:{main:{data:{content:content}}}}})).statusCode).toBe(422);
+ expect((await app.inject({method:'POST',url:'/jobs',payload:{docKey:'uat-images',data:{},uploadId:s.uploadId,sections:{main:{data:{content:[{format:'photo',data:{photo:'00000000-0000-4000-8000-000000000000'}}]}}}}})).statusCode).toBe(422);
+ const job=ok((await app.inject({method:'POST',url:'/jobs',payload:{docKey:'uat-images',data:{},uploadId:s.uploadId,sections:{main:{data:{content:content}}}}})).json());
  let view;for(let n=0;n<500;n++){view=ok((await app.inject({method:'GET',url:'/jobs/'+job.jobId})).json());if(['failed','succeeded'].includes(view.status))break;await new Promise(r=>setTimeout(r,20));}
  expect(view.status).toBe('succeeded');expect(view.warnings.some(w=>w.code==='IMAGE_UNUSABLE')).toBe(true);expect(JSON.stringify(view)).not.toContain('127.0.0.1');
  const item=(await db.pool.query('SELECT reserved_bytes FROM upload_sessions WHERE id=$1',[s.uploadId])).rows[0];expect(Number(item.reserved_bytes)).toBe(0);
@@ -65,7 +65,7 @@ it('keeps exporting with a warning when preparation capacity is exhausted withou
  const bytes=await sharp({create:{width:800,height:400,channels:3,background:'white'}}).jpeg().toBuffer();
  const s=ok((await app.inject({method:'POST',url:'/uploads',payload:{requestKey:'capacity',items:[{key:'photo',source:'upload',mediaType:'image/jpeg',byteSize:bytes.length}]}})).json());
  ok((await app.inject({method:'PUT',url:`/uploads/${s.uploadId}/items/${s.items[0].resourceId}/content`,headers:{'content-type':'application/octet-stream'},payload:bytes})).json());ok((await app.inject({method:'POST',url:`/uploads/${s.uploadId}/finalize`})).json());
- const job=ok((await app.inject({method:'POST',url:'/jobs',payload:{docKey:'uat-images',data:{},uploadId:s.uploadId,content:[{format:'photo',data:{photo:s.items[0].resourceId}}]}})).json());
+ const job=ok((await app.inject({method:'POST',url:'/jobs',payload:{docKey:'uat-images',data:{},uploadId:s.uploadId,sections:{main:{data:{content:[{format:'photo',data:{photo:s.items[0].resourceId}}]}}}}})).json());
  let view;for(let n=0;n<500;n++){view=ok((await app.inject({method:'GET',url:'/jobs/'+job.jobId})).json());if(['failed','succeeded'].includes(view.status))break;await new Promise(r=>setTimeout(r,20));}
  expect(view.status).toBe('succeeded');expect(view.warnings.some(w=>w.code==='IMAGE_UNUSABLE')).toBe(true);expect(await readdir(resources.jobDirectory(job.jobId))).toEqual([]);
  expect(Number((await db.pool.query('SELECT reserved_bytes FROM upload_sessions WHERE id=$1',[s.uploadId])).rows[0].reserved_bytes)).toBe(bytes.length);

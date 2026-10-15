@@ -4,10 +4,10 @@ import {failure,OperationError} from '../errors.js';
 import type {Job,JobView} from './types.js';
 type Queryable=Pool|PoolClient;
 export const validJobId=(id:string)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-export async function getJob(pool:Queryable,id:string):Promise<Result<JobView>>{
+export async function getJob(pool:Queryable,id:string,includePreview=false):Promise<Result<JobView>>{
  if(!validJobId(id))return failure(new OperationError('INVALID_JOB_ID','jobId','Invalid job ID'));
  try{
-  const r=await pool.query('SELECT j.id,j.status,j.warnings_json,j.skipped_indices,j.errors_json,v.version FROM generation_jobs j JOIN template_versions v ON v.id=j.template_version_id WHERE j.id=$1',[id]);
+  const r=await pool.query('SELECT j.id,j.status,j.warnings_json,j.skipped_indices,j.errors_json,COALESCE(v.version,0) AS version FROM generation_jobs j LEFT JOIN template_versions v ON v.id=j.template_version_id WHERE j.id=$1 AND (j.template_version_id IS NOT NULL OR $2)',[id,includePreview]);
   const row=r.rows[0];if(!row)return failure(new OperationError('JOB_NOT_FOUND','jobId','Job not found'));
   const progress=(await pool.query('SELECT stage,completed,total,warnings_json FROM job_processing WHERE job_id=$1',[id])).rows[0];
   const warnings=[...row.warnings_json,...(progress?.warnings_json??[])];
@@ -15,8 +15,8 @@ export async function getJob(pool:Queryable,id:string):Promise<Result<JobView>>{
  }catch(error){return failure(error);}
 }
 export async function claimNextJob(pool:Queryable):Promise<Job|null>{
- const r=await pool.query<{id:string;template_version_id:string;prepared_input:PreparedInput;original_input:unknown}>(`UPDATE generation_jobs SET status='running',started_at=now() WHERE id=(SELECT id FROM generation_jobs WHERE status='queued' ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1) AND status='queued' RETURNING id,template_version_id,prepared_input,original_input`);
- const row=r.rows[0];return row?{id:row.id,versionId:row.template_version_id,preparedInput:row.prepared_input,originalInput:row.original_input}:null;
+ const r=await pool.query(`UPDATE generation_jobs SET status='running',started_at=now() WHERE id=(SELECT id FROM generation_jobs WHERE status='queued' ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1) AND status='queued' RETURNING id,template_version_id,prepared_input,original_input,preview_definition,preview_fingerprint`);
+ const row=r.rows[0];return row?{id:row.id,versionId:row.template_version_id,preparedInput:row.prepared_input,originalInput:row.original_input,...(row.preview_definition?{previewDefinition:row.preview_definition,previewFingerprint:row.preview_fingerprint}:{})}:null;
 }
 export async function failJob(pool:Queryable,id:string,issues:Issue[]):Promise<boolean>{
  const r=await pool.query("UPDATE generation_jobs SET status='failed',finished_at=now(),errors_json=$2 WHERE id=$1 AND status='running'",[id,JSON.stringify(issues)]);if(r.rowCount===1)await pool.query("UPDATE job_processing SET stage='failed',updated_at=now() WHERE job_id=$1",[id]);return r.rowCount===1;

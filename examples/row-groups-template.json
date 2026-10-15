@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "nodeModelVersion": 17,
+  "nodeModelVersion": 18,
   "templateId": "tpl-srs-basic",
   "docKey": "srs-basic",
   "version": 1,
@@ -56,318 +56,341 @@
       "id": "main",
       "key": "main",
       "source": {
-        "kind": "content"
+        "kind": "authored",
+        "repeats": [],
+        "fragment": {
+          "rootIds": [
+            "area"
+          ],
+          "nodes": {
+            "area": {
+              "id": "area",
+              "type": "area",
+              "props": {
+                "areaId": "main-content"
+              }
+            }
+          }
+        }
       },
       "inputSchema": {
         "type": "object",
-        "fields": {}
+        "fields": {
+          "content": {
+            "type": "area",
+            "areaId": "main-content"
+          }
+        }
       },
-      "formats": {
-        "meeting": {
-          "inputSchema": {
-            "type": "object",
-            "fields": {
-              "companies": {
-                "type": "array",
-                "required": true,
-                "items": {
-                  "type": "object",
-                  "fields": {
-                    "name": {
-                      "type": "string",
-                      "required": true
-                    },
-                    "members": {
-                      "type": "array",
-                      "required": true,
-                      "items": {
-                        "type": "object",
-                        "fields": {
-                          "name": {
-                            "type": "string",
-                            "required": true
-                          }
-                        }
+      "formats": {}
+    }
+  ],
+  "areaFormats": {
+    "meeting": {
+      "inputSchema": {
+        "type": "object",
+        "fields": {
+          "companies": {
+            "type": "array",
+            "required": true,
+            "items": {
+              "type": "object",
+              "fields": {
+                "name": {
+                  "type": "string",
+                  "required": true
+                },
+                "members": {
+                  "type": "array",
+                  "required": true,
+                  "items": {
+                    "type": "object",
+                    "fields": {
+                      "name": {
+                        "type": "string",
+                        "required": true
                       }
                     }
                   }
                 }
               }
             }
-          },
-          "fragment": {
-            "rootIds": [
-              "table"
-            ],
-            "nodes": {
-              "table": {
-                "id": "table",
-                "type": "table",
-                "props": {
-                  "headerRowCount": 0,
-                  "repeatHeaderRows": false
-                },
-                "columns": [
-                  {
-                    "width": {
-                      "value": 400,
-                      "unit": "pt"
-                    }
-                  }
-                ],
-                "rowIds": [
-                  "before",
-                  "company",
-                  "labels",
-                  "member",
-                  "empty",
-                  "after"
-                ]
-              },
-              "before": {
-                "id": "before",
-                "type": "table-row",
-                "props": {
-                  "allowBreak": true
-                },
-                "cellIds": [
-                  "beforeCell"
-                ]
-              },
-              "beforeCell": {
-                "id": "beforeCell",
-                "type": "table-cell",
-                "props": {},
-                "childIds": [
-                  "beforeText"
-                ]
-              },
-              "beforeText": {
-                "id": "beforeText",
-                "type": "text-block",
-                "role": {
-                  "role": "paragraph"
-                },
-                "props": {
-                  "textStyleId": "body"
-                },
-                "children": [
-                  {
-                    "id": "beforeLeaf",
-                    "type": "text",
-                    "text": "before"
-                  }
-                ]
-              },
-              "company": {
-                "id": "company",
-                "type": "table-row",
-                "props": {
-                  "allowBreak": true
-                },
-                "cellIds": [
-                  "companyCell"
-                ]
-              },
-              "companyCell": {
-                "id": "companyCell",
-                "type": "table-cell",
-                "props": {},
-                "childIds": [
-                  "companyText"
-                ]
-              },
-              "companyText": {
-                "id": "companyText",
-                "type": "text-block",
-                "role": {
-                  "role": "paragraph"
-                },
-                "props": {
-                  "textStyleId": "body"
-                },
-                "children": [
-                  {
-                    "id": "companyLeaf",
-                    "type": "field-ref",
-                    "scope": "group",
-                    "key": "name"
-                  }
-                ]
-              },
-              "labels": {
-                "id": "labels",
-                "type": "table-row",
-                "props": {
-                  "allowBreak": true
-                },
-                "cellIds": [
-                  "labelsCell"
-                ]
-              },
-              "labelsCell": {
-                "id": "labelsCell",
-                "type": "table-cell",
-                "props": {},
-                "childIds": [
-                  "labelsText"
-                ]
-              },
-              "labelsText": {
-                "id": "labelsText",
-                "type": "text-block",
-                "role": {
-                  "role": "paragraph"
-                },
-                "props": {
-                  "textStyleId": "body"
-                },
-                "children": [
-                  {
-                    "id": "labelsLeaf",
-                    "type": "text",
-                    "text": "labels"
-                  }
-                ]
-              },
-              "member": {
-                "id": "member",
-                "type": "table-row",
-                "props": {
-                  "allowBreak": true
-                },
-                "cellIds": [
-                  "memberCell"
-                ]
-              },
-              "memberCell": {
-                "id": "memberCell",
-                "type": "table-cell",
-                "props": {},
-                "childIds": [
-                  "memberText"
-                ]
-              },
-              "memberText": {
-                "id": "memberText",
-                "type": "text-block",
-                "role": {
-                  "role": "paragraph"
-                },
-                "props": {
-                  "textStyleId": "body"
-                },
-                "children": [
-                  {
-                    "id": "memberLeaf",
-                    "type": "field-ref",
-                    "scope": "item",
-                    "key": "name"
-                  }
-                ]
-              },
-              "empty": {
-                "id": "empty",
-                "type": "table-row",
-                "props": {
-                  "allowBreak": true
-                },
-                "cellIds": [
-                  "emptyCell"
-                ]
-              },
-              "emptyCell": {
-                "id": "emptyCell",
-                "type": "table-cell",
-                "props": {},
-                "childIds": [
-                  "emptyText"
-                ]
-              },
-              "emptyText": {
-                "id": "emptyText",
-                "type": "text-block",
-                "role": {
-                  "role": "paragraph"
-                },
-                "props": {
-                  "textStyleId": "body"
-                },
-                "children": [
-                  {
-                    "id": "emptyLeaf",
-                    "type": "text",
-                    "text": "empty"
-                  }
-                ]
-              },
-              "after": {
-                "id": "after",
-                "type": "table-row",
-                "props": {
-                  "allowBreak": true
-                },
-                "cellIds": [
-                  "afterCell"
-                ]
-              },
-              "afterCell": {
-                "id": "afterCell",
-                "type": "table-cell",
-                "props": {},
-                "childIds": [
-                  "afterText"
-                ]
-              },
-              "afterText": {
-                "id": "afterText",
-                "type": "text-block",
-                "role": {
-                  "role": "paragraph"
-                },
-                "props": {
-                  "textStyleId": "body"
-                },
-                "children": [
-                  {
-                    "id": "afterLeaf",
-                    "type": "text",
-                    "text": "after"
-                  }
-                ]
-              }
-            }
-          },
-          "repeats": [],
-          "rowGroups": [
-            {
-              "id": "companies",
-              "tableId": "table",
-              "rowTemplateIds": [
-                "company",
-                "labels",
-                "member",
-                "empty"
-              ],
-              "source": {
-                "scope": "local",
-                "key": "companies"
-              },
-              "memberRepeat": {
-                "rowTemplateId": "member",
-                "source": {
-                  "scope": "group",
-                  "key": "members"
-                },
-                "emptyRowTemplateId": "empty"
-              },
-              "pagination": {
-                "keepStart": true
-              }
-            }
-          ]
+          }
         }
-      }
+      },
+      "fragment": {
+        "rootIds": [
+          "table"
+        ],
+        "nodes": {
+          "table": {
+            "id": "table",
+            "type": "table",
+            "props": {
+              "headerRowCount": 0,
+              "repeatHeaderRows": false
+            },
+            "columns": [
+              {
+                "width": {
+                  "value": 400,
+                  "unit": "pt"
+                }
+              }
+            ],
+            "rowIds": [
+              "before",
+              "company",
+              "labels",
+              "member",
+              "empty",
+              "after"
+            ]
+          },
+          "before": {
+            "id": "before",
+            "type": "table-row",
+            "props": {
+              "allowBreak": true
+            },
+            "cellIds": [
+              "beforeCell"
+            ]
+          },
+          "beforeCell": {
+            "id": "beforeCell",
+            "type": "table-cell",
+            "props": {},
+            "childIds": [
+              "beforeText"
+            ]
+          },
+          "beforeText": {
+            "id": "beforeText",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "beforeLeaf",
+                "type": "text",
+                "text": "before"
+              }
+            ]
+          },
+          "company": {
+            "id": "company",
+            "type": "table-row",
+            "props": {
+              "allowBreak": true
+            },
+            "cellIds": [
+              "companyCell"
+            ]
+          },
+          "companyCell": {
+            "id": "companyCell",
+            "type": "table-cell",
+            "props": {},
+            "childIds": [
+              "companyText"
+            ]
+          },
+          "companyText": {
+            "id": "companyText",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "companyLeaf",
+                "type": "field-ref",
+                "scope": "group",
+                "key": "name"
+              }
+            ]
+          },
+          "labels": {
+            "id": "labels",
+            "type": "table-row",
+            "props": {
+              "allowBreak": true
+            },
+            "cellIds": [
+              "labelsCell"
+            ]
+          },
+          "labelsCell": {
+            "id": "labelsCell",
+            "type": "table-cell",
+            "props": {},
+            "childIds": [
+              "labelsText"
+            ]
+          },
+          "labelsText": {
+            "id": "labelsText",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "labelsLeaf",
+                "type": "text",
+                "text": "labels"
+              }
+            ]
+          },
+          "member": {
+            "id": "member",
+            "type": "table-row",
+            "props": {
+              "allowBreak": true
+            },
+            "cellIds": [
+              "memberCell"
+            ]
+          },
+          "memberCell": {
+            "id": "memberCell",
+            "type": "table-cell",
+            "props": {},
+            "childIds": [
+              "memberText"
+            ]
+          },
+          "memberText": {
+            "id": "memberText",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "memberLeaf",
+                "type": "field-ref",
+                "scope": "item",
+                "key": "name"
+              }
+            ]
+          },
+          "empty": {
+            "id": "empty",
+            "type": "table-row",
+            "props": {
+              "allowBreak": true
+            },
+            "cellIds": [
+              "emptyCell"
+            ]
+          },
+          "emptyCell": {
+            "id": "emptyCell",
+            "type": "table-cell",
+            "props": {},
+            "childIds": [
+              "emptyText"
+            ]
+          },
+          "emptyText": {
+            "id": "emptyText",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "emptyLeaf",
+                "type": "text",
+                "text": "empty"
+              }
+            ]
+          },
+          "after": {
+            "id": "after",
+            "type": "table-row",
+            "props": {
+              "allowBreak": true
+            },
+            "cellIds": [
+              "afterCell"
+            ]
+          },
+          "afterCell": {
+            "id": "afterCell",
+            "type": "table-cell",
+            "props": {},
+            "childIds": [
+              "afterText"
+            ]
+          },
+          "afterText": {
+            "id": "afterText",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "afterLeaf",
+                "type": "text",
+                "text": "after"
+              }
+            ]
+          }
+        }
+      },
+      "repeats": [],
+      "rowGroups": [
+        {
+          "id": "companies",
+          "tableId": "table",
+          "rowTemplateIds": [
+            "company",
+            "labels",
+            "member",
+            "empty"
+          ],
+          "source": {
+            "scope": "local",
+            "key": "companies"
+          },
+          "memberRepeat": {
+            "rowTemplateId": "member",
+            "source": {
+              "scope": "group",
+              "key": "members"
+            },
+            "emptyRowTemplateId": "empty"
+          },
+          "pagination": {
+            "keepStart": true
+          }
+        }
+      ],
+      "key": "meeting",
+      "ownerAreaId": "main-content"
     }
-  ]
+  }
 }

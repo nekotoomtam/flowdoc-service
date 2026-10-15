@@ -4,34 +4,40 @@
   "data": {
     "projectName": "SRS ทดลองตาราง"
   },
-  "content": [
-    {
-      "format": "section-note",
+  "sections": {
+    "main": {
       "data": {
-        "text": "ข้อความก่อนตาราง"
-      }
-    },
-    {
-      "format": "requirement-list",
-      "data": {
-        "items": [
+        "content": [
           {
-            "code": "REQ-001",
-            "detail": "สร้างเอกสาร PDF จากข้อมูลที่ส่งมา",
-            "remark": "ผ่าน"
+            "format": "section-note",
+            "data": {
+              "text": "ข้อความก่อนตาราง"
+            }
           },
           {
-            "code": "REQ-002",
-            "detail": "แสดงข้อความภาษาไทยและภาษาอังกฤษได้ถูกต้อง"
+            "format": "requirement-list",
+            "data": {
+              "items": [
+                {
+                  "code": "REQ-001",
+                  "detail": "สร้างเอกสาร PDF จากข้อมูลที่ส่งมา",
+                  "remark": "ผ่าน"
+                },
+                {
+                  "code": "REQ-002",
+                  "detail": "แสดงข้อความภาษาไทยและภาษาอังกฤษได้ถูกต้อง"
+                }
+              ]
+            }
+          },
+          {
+            "format": "section-note",
+            "data": {
+              "text": "ข้อความหลังตาราง"
+            }
           }
         ]
       }
-    },
-    {
-      "format": "section-note",
-      "data": {
-        "text": "ข้อความหลังตาราง"
-      }
     }
-  ]
+  }
 }

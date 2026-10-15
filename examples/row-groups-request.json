@@ -3,30 +3,32 @@
   "data": {},
   "sections": {
     "main": {
-      "content": [
-        {
-          "format": "meeting",
-          "data": {
-            "companies": [
-              {
-                "name": "Company A",
-                "members": [
-                  {
-                    "name": "Person A"
-                  },
-                  {
-                    "name": "Person B"
-                  }
-                ]
-              },
-              {
-                "name": "Company B",
-                "members": []
-              }
-            ]
+      "data": {
+        "content": [
+          {
+            "format": "meeting",
+            "data": {
+              "companies": [
+                {
+                  "name": "Company A",
+                  "members": [
+                    {
+                      "name": "Person A"
+                    },
+                    {
+                      "name": "Person B"
+                    }
+                  ]
+                },
+                {
+                  "name": "Company B",
+                  "members": []
+                }
+              ]
+            }
           }
-        }
-      ]
+        ]
+      }
     }
   }
 }

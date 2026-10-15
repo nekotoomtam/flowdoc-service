@@ -10,8 +10,7 @@ import {createUploads} from '../dist/uploads/service.js';
 import {createResourceFiles} from '../dist/storage/resource-files.js';
 import {readUploadConfig} from '../dist/uploads/config.js';
 import {loadTemplate} from '../dist/templates/registry.js';
-import {decompose} from '../dist/templates/assembly.js';
-import {prepareGeneration,validateTemplate} from '@flowdoc/core';
+import {validateTemplate} from '@flowdoc/core';
 const db=isolatedDatabase();let files,time=Date.now();
 beforeAll(async()=>{await db.setup();expect((await migrate(db.pool)).ok).toBe(true);files=await createResourceFiles(await mkdtemp(join(tmpdir(),'upload-acceptance-')));});
 afterAll(()=>db.close());
@@ -65,13 +64,17 @@ it('migration 004 preserves a populated 0.1.0 database exactly',async()=>{
   const dir=await mkdtemp(join(tmpdir(),'upload-upgrade-'));
   for(const n of await readdir('migrations'))if(/^00[1-3]_/.test(n))await copyFile(join('migrations',n),join(dir,n));
   expect((await migrate(old.pool,dir)).ok).toBe(true);
-  const template=JSON.parse(await readFile('examples/srs-template.json','utf8'));
+  const template=JSON.parse(await readFile('tests/fixtures/model4-template.json','utf8'));
   // Seed only columns present in 001–003. The current registrar deliberately
   // requires the latest schema and cannot represent a historical deployment.
-  const valid=validateTemplate(template);expect(valid.ok).toBe(true);
-  const record=decompose(template,randomUUID),versionId=randomUUID();
+  expect(validateTemplate(template).ok).toBe(false);
+  // Historical SQL seed only: production decomposition must reject model4.
+  const {globalSchema,formats,version,...payload}=template;
+  const record={payload,formats:[],schemas:[],variables:[]},versionId=randomUUID();
+  const addSchema=(definition,formatId)=>{const id=randomUUID();record.schemas.push({id,formatId});const fields=(values,parentId=null)=>{Object.entries(values).forEach(([key,value],position)=>{const id=randomUUID(),{type,items,...payload}=value;record.variables.push({id,schemaId:record.schemas.at(-1).id,parentId,key,typeId:{string:110001,object:110002,array:110003}[type],position,payload});if(items)fields(items.fields,id);});};fields(definition.fields);};
+  addSchema(globalSchema,null);Object.entries(formats).forEach(([key,f],position)=>{const id=randomUUID(),{inputSchema,...payload}=f;record.formats.push({id,key,position,payload});addSchema(inputSchema,id);});
   await old.pool.query('INSERT INTO templates(id,doc_key,name) VALUES($1,$2,$3)',[template.templateId,template.docKey,template.name]);
-  await old.pool.query('INSERT INTO template_versions(id,template_id,version,definition_json,fingerprint) VALUES($1,$2,$3,$4,$5)',[versionId,template.templateId,template.version,JSON.stringify(template),valid.value.fingerprint]);
+  await old.pool.query('INSERT INTO template_versions(id,template_id,version,definition_json,fingerprint) VALUES($1,$2,$3,$4,$5)',[versionId,template.templateId,template.version,JSON.stringify(template),'a'.repeat(64)]);
   await old.pool.query('INSERT INTO template_current(template_id,payload) VALUES($1,$2)',[template.templateId,JSON.stringify(record.payload)]);
   await old.pool.query('INSERT INTO template_snapshots(version_id,payload) VALUES($1,$2)',[versionId,JSON.stringify(record.payload)]);
   const ids=new Map([...record.formats,...record.schemas,...record.variables].map(r=>[r.id,randomUUID()]));
@@ -88,12 +91,12 @@ it('migration 004 preserves a populated 0.1.0 database exactly',async()=>{
    await old.pool.query('INSERT INTO variable_versions(id,schema_version_id,source_variable_id,parent_version_id,key,type_id,position,payload) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[ids.get(v.id),ids.get(v.schemaId),v.id,v.parentId?ids.get(v.parentId):null,v.key,v.typeId,v.position,JSON.stringify(v.payload)]);
   }
   const input=JSON.parse(await readFile('examples/srs-request.json','utf8'));
-  const prepared=prepareGeneration(valid.value,input);expect(prepared.ok).toBe(true);
+  const prepared={value:{nodeModelVersion:4,template:{templateId:template.templateId,docKey:template.docKey,version:template.version,fingerprint:'a'.repeat(64)},data:input.data,content:[],warnings:[],skippedContentIndices:[]}};
   const job=randomUUID();await old.pool.query('INSERT INTO generation_jobs(id,template_version_id,original_input,prepared_input,warnings_json,skipped_indices) VALUES($1,$2,$3,$4,$5,$6)',[job,versionId,JSON.stringify(input),JSON.stringify(prepared.value),JSON.stringify(prepared.value.warnings),JSON.stringify(prepared.value.skippedContentIndices)]);
   const tables=(await old.pool.query("SELECT tablename FROM pg_tables WHERE schemaname=current_schema() AND tablename<>'schema_migrations' ORDER BY tablename")).rows.map(r=>r.tablename);
   const snapshot=async()=>Object.fromEntries(await Promise.all(tables.map(async t=>[t,JSON.stringify((await old.pool.query('SELECT * FROM "'+t+'" ORDER BY 1')).rows)])));
   const before=await snapshot();const uploadDir=await mkdtemp(join(tmpdir(),'upload-only-'));for(const n of await readdir('migrations'))if(/^00[1-4]_/.test(n))await copyFile(join('migrations',n),join(uploadDir,n));expect(await migrate(old.pool,uploadDir)).toMatchObject({ok:true,value:{applied:['004_upload_staging.sql']}});expect(await snapshot()).toEqual(before);
-  expect(await migrate(old.pool)).toMatchObject({ok:true,value:{applied:['005_image_variable_type.sql','006_upload_job_claims.sql','007_job_processing.sql','008_link_variable_type.sql','009_area_ownership.sql','010_page_band_schemas.sql','011_section_ownership.sql','012_page_numbering.sql','013_row_groups.sql']}});
+  expect(await migrate(old.pool)).toMatchObject({ok:true,value:{applied:['005_image_variable_type.sql','006_upload_job_claims.sql','007_job_processing.sql','008_link_variable_type.sql','009_area_ownership.sql','010_page_band_schemas.sql','011_section_ownership.sql','012_page_numbering.sql','013_row_groups.sql','014_area_document.sql','015_authoring_previews.sql']}});
   const upgraded=await snapshot(),types=JSON.parse(upgraded.variable_types);
   for(const [id,code] of [[110004,'image'],[110005,'link'],[110006,'area']])expect(types.find(x=>x.id===id).code).toBe(code);
   // Later migrations intentionally add columns/masters; every historical row,
@@ -104,6 +107,6 @@ it('migration 004 preserves a populated 0.1.0 database exactly',async()=>{
    expect(retained).toHaveLength(original.length);
    expect(retained.map((r,i)=>Object.fromEntries(Object.keys(original[i]).map(k=>[k,r[k]])))).toEqual(original);
   }
-  expect((await loadTemplate(old.pool,template.docKey)).ok).toBe(true);expect((await old.pool.query('SELECT id FROM generation_jobs WHERE id=$1',[job])).rowCount).toBe(1);
+  expect(await loadTemplate(old.pool,template.docKey)).toMatchObject({ok:false,issues:[{code:'STORAGE_FAILED'}]});expect((await old.pool.query('SELECT id FROM generation_jobs WHERE id=$1',[job])).rowCount).toBe(1);
  }finally{await old.close();}
 });

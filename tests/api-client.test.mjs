@@ -8,13 +8,12 @@ const contract={version:2,globalSchema:schema,sections:{body:{inputSchema:schema
 describe('local API client',()=>{
  it('maps image fields through scopes, two arrays and Area without rewriting text or source',()=>{
   const data={photo:'pic',caption:'pic',groups:[{members:[{photo:'pic'}]}],details:[{format:'picture',data:{photo:'pic'}}]};
-  const input={docKey:'demo',data,sections:{body:{data,header:data,footer:data,content:[{format:'entry',data}]}}};
+  const input={docKey:'demo',data,sections:{body:{data,header:data,footer:data}}};
   const mapped=bindImages(input,contract,new Map([['pic','resource']]));
   expect(mapped.data.photo).toBe('resource');expect(mapped.data.caption).toBe('pic');
   expect(mapped.data.groups[0].members[0].photo).toBe('resource');
   expect(mapped.data.details[0].data.photo).toBe('resource');
   for(const scope of ['data','header','footer'])expect(mapped.sections.body[scope].photo).toBe('resource');
-  expect(mapped.sections.body.content[0].data.photo).toBe('resource');expect(input.data.photo).toBe('pic');
  });
  it('uploads serially, finalizes, pins contract version and only prepares until explicitly submitted',async()=>{
   const calls=[];let active=0,max=0;

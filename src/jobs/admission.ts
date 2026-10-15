@@ -28,6 +28,7 @@ export async function submitJob(pool:Pool,input:unknown,imagesEnabled=false,maxO
    const ids=imageNodes.map(n=>n.props.resourceId).filter(Boolean);
    if(ids.length||uploadId!==undefined){
     if(typeof uploadId!=='string')throw new OperationError('INVALID_UPLOAD','uploadId','A finalized upload is required');
+    if(/^[0-9a-f-]{36}$/i.test(uploadId)&&(await pool.query('SELECT 1 FROM upload_sessions WHERE id=$1 AND authoring_principal IS NOT NULL',[uploadId])).rowCount)throw new OperationError('UPLOAD_NOT_FOUND','uploadId','Upload not found');
     const claimed=await enqueueWithUpload(pool,{uploadId,versionId:selected.value.versionId,originalInput:input,preparedInput:p,resourceIds:ids},Date.now(),maxOutstanding);
     return getJob(pool,claimed.jobId);
    }

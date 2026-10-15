@@ -8,7 +8,7 @@ const fixture=()=>JSON.parse(readFileSync('examples/row-groups-template.json','u
 it('round trips two array levels and rowGroups with independent variable IDs',()=>{
  const t=fixture(),r=decompose(t,randomUUID);expect(assemble(r,1)).toEqual(t);expect(validateTemplate(assemble(r,1)).ok).toBe(true);
  const outer=r.variables.find(v=>v.key==='companies'),inner=r.variables.find(v=>v.key==='members');expect(inner.parentId).toBe(outer.id);expect(r.variables.filter(v=>v.parentId===inner.id).map(v=>v.key)).toEqual(['name']);
- const c=templateContract(assemble(r,1));expect(c.sections.main.formats.meeting.inputSchema.fields.companies.items.fields.members.type).toBe('array');expect(JSON.stringify(c)).not.toContain('rowTemplateIds');
+ const c=templateContract(assemble(r,1));expect(c.areaFormats.meeting.inputSchema.fields.companies.items.fields.members.type).toBe('array');expect(JSON.stringify(c)).not.toContain('rowTemplateIds');
 });
 it('rejects third arrays, cycles, cross-schema parents and old-version nested records',()=>{
  const base=decompose(fixture(),randomUUID),inner=base.variables.find(v=>v.key==='members'),leaf=base.variables.find(v=>v.parentId===inner.id);
