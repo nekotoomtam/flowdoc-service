@@ -4,9 +4,8 @@
     "projectName": "รายงานผลการทดสอบระบบงาน",
     "photo": "22222222-2222-4222-8222-222222222222"
   },
-  "content": [
-    {
-      "format": "merged",
+  "sections": {
+    "merged": {
       "data": {
         "details": [
           {
@@ -21,18 +20,74 @@
             }
           }
         ]
+      },
+      "header": {
+        "projectName": "บริษัทตัวอย่าง — หัวกระดาษ",
+        "logo": ""
+      },
+      "footer": {
+        "contact": "ข้อมูลติดต่อ — ท้ายกระดาษ"
       }
     },
-    {
-      "format": "summary",
-      "data": {}
+    "summary": {
+      "data": {},
+      "header": {
+        "projectName": "บริษัทตัวอย่าง — หัวกระดาษ",
+        "logo": ""
+      },
+      "footer": {
+        "contact": "ข้อมูลติดต่อ — ท้ายกระดาษ"
+      }
+    },
+    "introduction": {
+      "data": {},
+      "header": {
+        "projectName": "บริษัทตัวอย่าง — หัวกระดาษ",
+        "logo": ""
+      },
+      "footer": {
+        "contact": "ข้อมูลติดต่อ — ท้ายกระดาษ"
+      }
+    },
+    "contents": {
+      "data": {},
+      "header": {
+        "projectName": "บริษัทตัวอย่าง — หัวกระดาษ",
+        "logo": ""
+      },
+      "footer": {
+        "contact": "ข้อมูลติดต่อ — ท้ายกระดาษ"
+      }
+    },
+    "evidence": {
+      "data": {},
+      "header": {
+        "projectName": "บริษัทตัวอย่าง — หัวกระดาษ",
+        "logo": ""
+      },
+      "footer": {
+        "contact": "ข้อมูลติดต่อ — ท้ายกระดาษ"
+      }
+    },
+    "intentional-blank": {
+      "data": {},
+      "header": {
+        "projectName": "บริษัทตัวอย่าง — หัวกระดาษ",
+        "logo": ""
+      },
+      "footer": {
+        "contact": "ข้อมูลติดต่อ — ท้ายกระดาษ"
+      }
+    },
+    "closing": {
+      "data": {},
+      "header": {
+        "projectName": "บริษัทตัวอย่าง — หัวกระดาษ",
+        "logo": ""
+      },
+      "footer": {
+        "contact": "ข้อมูลติดต่อ — ท้ายกระดาษ"
+      }
     }
-  ],
-  "header": {
-    "projectName": "บริษัทตัวอย่าง — หัวกระดาษ",
-    "logo": ""
-  },
-  "footer": {
-    "contact": "ข้อมูลติดต่อ — ท้ายกระดาษ"
   }
 }

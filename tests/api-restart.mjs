@@ -10,7 +10,7 @@ const pool=new Pool({connectionString:process.env.DATABASE_URL});
 const ok=r=>{if(!r.ok)throw Error(JSON.stringify(r));return r.value;};
 try{
  const input=JSON.parse(readFileSync('examples/srs-request.json','utf8'));
- input.content.push({format:'missing',data:{}});
+ input.sections.main.data.restartWarning='undeclared field preserves warning coverage';
  const queued=ok(await submitJob(pool,input)),running=ok(await submitJob(pool,input)),succeeded=ok(await submitJob(pool,input));
  await pool.query("UPDATE generation_jobs SET status='running',started_at=now() WHERE id=$1",[running.jobId]);
  const template=ok(await loadTemplate(pool,input.docKey,1)).template;

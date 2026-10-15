@@ -1,10 +1,9 @@
 {
   "name": "@flowdoc/core",
-  "version": "0.2.15-area.5",
-  "file": "flowdoc-core-0.2.15-area.5.tgz",
-  "sha256": "8cdb4c692d2066583f2626d5c86009c039e3fe3e3106099b6bfa0243b315926f",
-  "sourceCommit": null,
-  "sourceArtifact": "flowdoc-service/artifacts/stacked-mark-fix-20261014",
-  "runtime": "linux-x64 glibc, Node24, Python3.11, fontTools4.58.2",
-  "candidate": "area.4 candidate plus fde34a9 measured-line fix; native resources unchanged; not release evidence"
+  "version": "0.3.0",
+  "file": "flowdoc-core-0.3.0.tgz",
+  "sha256": "d2f2d23ea42072f0f5fe1f702445c4384c686a371ea76fbcc7b96c5a77594380",
+  "sourceCommit": "f21ab6a",
+  "sourceArtifact": "flowdoc-core/artifacts/release030/packed",
+  "runtime": "linux-x64 glibc, Node24, Python3.11, fontTools4.58.2"
 }

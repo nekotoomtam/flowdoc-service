@@ -1,6 +1,6 @@
 import {it,expect} from 'vitest';
 import {readFileSync,readdirSync} from 'node:fs';
-import {createHash} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {isolatedDatabase} from './isolatedDatabase.mjs';
 import {migrate} from '../dist/db/migrate.js';
 import {importCurrent,loadCurrent,saveCurrent} from '../dist/templates/current.js';
@@ -11,10 +11,11 @@ it('upgrades populated012, preserves locked versions and remaps every nested par
  const db=isolatedDatabase();await db.setup();try{
   await db.pool.query('CREATE TABLE schema_migrations(name text PRIMARY KEY,checksum text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now())');
   for(const name of readdirSync('migrations').filter(n=>/^(00[1-9]|01[012])_/.test(n)).sort()){const sql=readFileSync('migrations/'+name,'utf8');await db.pool.query(sql);await db.pool.query('INSERT INTO schema_migrations(name,checksum) VALUES($1,$2)',[name,createHash('sha256').update(sql).digest('hex')]);}
-  const old=JSON.parse(readFileSync('examples/page-numbering-template.json','utf8'));ok(await importCurrent(db.pool,JSON.stringify(old)));ok(await publishCurrent(db.pool,{templateId:old.templateId,requestId:'old'}));
-  const before=ok(await loadCurrent(db.pool,old.templateId)),locked=ok(await loadTemplate(db.pool,old.docKey,1));
+  const old=JSON.parse(readFileSync('tests/fixtures/model4-template.json','utf8')),versionId=randomUUID();
+  await db.pool.query('INSERT INTO templates(id,doc_key,name) VALUES($1,$2,$3)',[old.templateId,old.docKey,old.name]);await db.pool.query('INSERT INTO template_current(template_id,payload) VALUES($1,$2)',[old.templateId,JSON.stringify(old)]);await db.pool.query('INSERT INTO template_versions(id,template_id,version,definition_json,fingerprint) VALUES($1,$2,1,$3,$4)',[versionId,old.templateId,JSON.stringify(old),'a'.repeat(64)]);await db.pool.query('INSERT INTO template_snapshots(version_id,payload) VALUES($1,$2)',[versionId,JSON.stringify(old)]);
+  const before=(await db.pool.query('SELECT * FROM template_current')).rows,locked=(await db.pool.query('SELECT * FROM template_versions')).rows;
   expect(ok(await migrate(db.pool)).applied).toEqual(['013_row_groups.sql','014_area_document.sql','015_authoring_previews.sql']);expect(ok(await migrate(db.pool)).applied).toEqual([]);
-  expect(ok(await loadCurrent(db.pool,old.templateId))).toEqual(before);expect(ok(await loadTemplate(db.pool,old.docKey,1))).toEqual(locked);
+  expect((await db.pool.query('SELECT * FROM template_current')).rows).toEqual(before);expect((await db.pool.query('SELECT * FROM template_versions')).rows).toEqual(locked);expect((await loadTemplate(db.pool,old.docKey,1)).ok).toBe(false);
   const t=JSON.parse(readFileSync('examples/row-groups-template.json','utf8'));let current=ok(await importCurrent(db.pool,JSON.stringify(t)));
   const v1=ok(await publishCurrent(db.pool,{templateId:t.templateId,requestId:'first'})),original=ok(await loadTemplate(db.pool,t.docKey,1));
   current.formats[0].payload.label='Changed';current.variables.find(v=>v.key==='name'&&current.variables.find(p=>p.id===v.parentId)?.key==='members').payload.description='Member name';

@@ -6,7 +6,7 @@ import {decompose,assemble,checkRecord} from '../dist/templates/assembly.js';
 const original=JSON.parse(readFileSync('examples/srs-template.json','utf8'));
 it('round trips the Core envelope with scoped stable IDs and item children',()=>{
  const r=decompose(original,randomUUID);expect(assemble(r,1)).toEqual(original);
- expect(r.schemas).toHaveLength(3);expect(r.variables.some(v=>v.parentId)).toBe(true);
+ expect(r.schemas).toHaveLength(4);expect(r.variables.some(v=>v.parentId)).toBe(true);
  expect(validateTemplate(assemble(r,1)).value.fingerprint).toBe(validateTemplate(original).value.fingerprint);
  const v=r.variables[0],id=v.id;v.key='renamed';expect(v.id).toBe(id);expect(assemble(r,1).globalSchema.fields.renamed).toBeDefined();
 });

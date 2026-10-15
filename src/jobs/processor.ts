@@ -40,7 +40,7 @@ async function claimAndStartRender(deps:Dependencies,signal:AbortSignal){
  try{
     const row=job.versionId?(await pool.query('SELECT definition_json,fingerprint FROM template_versions WHERE id=$1',[job.versionId])).rows[0]:{definition_json:job.previewDefinition,fingerprint:job.previewFingerprint};
     const valid=validateTemplate(row?.definition_json);if(!valid.ok||valid.value.fingerprint!==row.fingerprint)throw Error('Invalid pinned template');
-    if(valid.value.definition.nodeModelVersion>=11){
+    {
      if(!job.originalInput||typeof job.originalInput!=='object'||Array.isArray(job.originalInput))throw Error('Invalid original input');
      const {uploadId,...original}=job.originalInput as Record<string,unknown>;
      const fresh=prepareGeneration(valid.value,original);if(!fresh.ok)throw Error('Invalid original input');

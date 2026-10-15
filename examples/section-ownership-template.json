@@ -69,7 +69,7 @@
       "lineHeightPt": 22
     }
   },
-  "nodeModelVersion": 15,
+  "nodeModelVersion": 18,
   "globalSchema": {
     "type": "object",
     "fields": {
