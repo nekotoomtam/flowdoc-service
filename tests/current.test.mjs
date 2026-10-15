@@ -1,14 +1,14 @@
 import {beforeAll,afterAll,it,expect} from 'vitest';
-import {Pool} from 'pg';
+import {isolatedDatabase} from './isolatedDatabase.mjs';
 import {readFileSync} from 'node:fs';
 import {migrate} from '../dist/db/migrate.js';
 import {importCurrent,loadCurrent,saveCurrent} from '../dist/templates/current.js';
 import {publishCurrent} from '../dist/templates/publish.js';
 import {loadTemplate} from '../dist/templates/registry.js';
-const pool=new Pool({connectionString:process.env.DATABASE_URL});
+const db=isolatedDatabase(),pool=db.pool;
 const source=JSON.parse(readFileSync('examples/srs-template.json','utf8'));
 const ok=r=>{expect(r.ok,JSON.stringify(r)).toBe(true);return r.value;};
-beforeAll(async()=>ok(await migrate(pool)));afterAll(()=>pool.end());
+beforeAll(async()=>{await db.setup();ok(await migrate(pool));});afterAll(()=>db.close());
 it('edits current, clones independently, retries and preserves old versions',async()=>{
  const t={...source,templateId:'tpl-current',docKey:'current'};
  let r=ok(await importCurrent(pool,JSON.stringify(t)));
@@ -18,8 +18,7 @@ it('edits current, clones independently, retries and preserves old versions',asy
  expect(ok(await publishCurrent(pool,{templateId:t.templateId,requestId:'first'})).versionId).toBe(a.versionId);
  const pair=await Promise.all(['second','third'].map(requestId=>publishCurrent(pool,{templateId:t.templateId,requestId})));expect(pair.map(x=>ok(x).version).sort()).toEqual([2,3]);
  const old=ok(await loadTemplate(pool,'current',1));expect(old.template.definition.globalSchema.fields.projectName.label).toBe(source.globalSchema.fields.projectName.label);
- const root=r.variables.find(v=>v.key==='projectName');r.variables=r.variables.filter(v=>v.id!==root.id);ok(await saveCurrent(pool,r,r.revision));
- expect((await publishCurrent(pool,{templateId:t.templateId,requestId:'bad'})).ok).toBe(false);
+ const root=r.variables.find(v=>v.key==='projectName');r.variables=r.variables.filter(v=>v.id!==root.id);expect((await saveCurrent(pool,r,r.revision)).ok).toBe(false);
  expect(ok(await loadTemplate(pool,'current',1)).versionId).toBe(a.versionId);
  expect((await saveCurrent(pool,r,r.revision)).ok).toBe(false);
  const rows=await pool.query('SELECT id FROM variable_versions');expect(rows.rows.some(x=>x.id===id)).toBe(false);

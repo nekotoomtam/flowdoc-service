@@ -1,0 +1,34 @@
+{
+  "docKey": "area-document",
+  "data": {},
+  "sections": {
+    "main": {
+      "data": {
+        "details": [
+          {
+            "format": "meeting",
+            "data": {
+              "companies": [
+                {
+                  "name": "Company A",
+                  "members": [
+                    {
+                      "name": "Person A"
+                    },
+                    {
+                      "name": "Person B"
+                    }
+                  ]
+                },
+                {
+                  "name": "Company B",
+                  "members": []
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

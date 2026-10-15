@@ -4,9 +4,8 @@
     "projectName": "รายงานผลการทดสอบระบบงาน",
     "photo": "22222222-2222-4222-8222-222222222222"
   },
-  "content": [
-    {
-      "format": "merged",
+  "sections": {
+    "merged": {
       "data": {
         "details": [
           {
@@ -23,9 +22,8 @@
         ]
       }
     },
-    {
-      "format": "summary",
+    "summary": {
       "data": {}
     }
-  ]
+  }
 }

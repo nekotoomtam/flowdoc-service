@@ -1,5 +1,5 @@
 import {beforeAll,afterAll,it,expect} from 'vitest';
-import {Pool} from 'pg';
+import {isolatedDatabase} from './isolatedDatabase.mjs';
 import {readFileSync,mkdtempSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -8,14 +8,14 @@ import {prepareGeneration} from '@flowdoc/core';
 import {migrate} from '../dist/db/migrate.js';
 import {registerTemplate,loadTemplate} from '../dist/templates/registry.js';
 if(!process.env.DATABASE_URL)throw Error('DATABASE_URL must name an isolated test database');
-const pool=new Pool({connectionString:process.env.DATABASE_URL});
+const db=isolatedDatabase(),pool=db.pool;
 const original=JSON.parse(readFileSync('examples/srs-template.json','utf8'));
 const make=(key,version=1)=>({...structuredClone(original),templateId:'tpl-'+key,docKey:key,version});
 const register=t=>registerTemplate(pool,JSON.stringify(t));
 const unwrap=r=>{expect(r.ok,JSON.stringify(r)).toBe(true);return r.value;};
-beforeAll(async()=>{unwrap(await migrate(pool));});
-afterAll(()=>pool.end());
-it('replays checksummed migrations without duplicate domain tables',async()=>{expect(unwrap(await migrate(pool)).applied).toEqual([]);const r=await pool.query("SELECT tablename FROM pg_tables WHERE schemaname='public'");expect(r.rows.map(r=>r.tablename).sort()).toEqual(['document_outputs','formats','format_versions','generation_jobs','job_processing','publication_receipts','schema_migrations','sections','section_versions','template_current','template_snapshots','template_versions','templates','upload_sessions','upload_items','upload_job_claims','variable_schema_versions','variable_schemas','variable_types','variable_versions','variables'].sort());});
+beforeAll(async()=>{await db.setup();unwrap(await migrate(pool));});
+afterAll(()=>db.close());
+it('replays checksummed migrations without duplicate domain tables',async()=>{expect(unwrap(await migrate(pool)).applied).toEqual([]);const r=await pool.query("SELECT tablename FROM pg_tables WHERE schemaname=current_schema()");expect(r.rows.map(r=>r.tablename).sort()).toEqual(['authoring_audit','authoring_receipts','authoring_templates','document_outputs','formats','format_versions','generation_jobs','job_processing','publication_receipts','schema_migrations','sections','section_versions','template_current','template_snapshots','template_versions','templates','upload_sessions','upload_items','upload_job_claims','variable_schema_versions','variable_schemas','variable_types','variable_versions','variables'].sort());});
 it('registers raw JSON, loads exact/latest and preserves previous definitions',async()=>{
  const t=make('versions');const v1=unwrap(await register(t));expect(v1.created).toBe(true);expect(unwrap(await register(t))).toMatchObject({created:false,versionId:v1.versionId});
  const second={...t,version:2,name:'New revision'};unwrap(await register(second));
@@ -25,7 +25,7 @@ it('registers raw JSON, loads exact/latest and preserves previous definitions',a
 });
 it('rejects raw duplicate keys, invalid definitions and invalid examples before writes',async()=>{
  const t=make('invalid');const raw=JSON.stringify(t);expect(await registerTemplate(pool,raw.slice(0,-1)+',"docKey":"overwritten"}')).toMatchObject({ok:false,issues:[{code:'INVALID_TEMPLATE'}]});
- t.examples=[{name:'bad',request:{docKey:t.docKey,version:1,data:{},content:[]}}];expect((await register(t)).ok).toBe(false);expect((await pool.query('SELECT id FROM templates WHERE doc_key=$1',[t.docKey])).rowCount).toBe(0);
+ t.examples=[{name:'bad',request:{docKey:t.docKey,version:1,data:{},sections:{main:{data:{content:[]}}}}}];expect((await register(t)).ok).toBe(false);expect((await pool.query('SELECT id FROM templates WHERE doc_key=$1',[t.docKey])).rowCount).toBe(0);
 });
 it('rejects identity collisions without creating orphan templates',async()=>{
  const t=make('identity');unwrap(await register(t));expect(await register({...t,templateId:'other-id'})).toMatchObject({ok:false,issues:[{code:'TEMPLATE_IDENTITY_CONFLICT'}]});expect(await register({...t,docKey:'different-key'})).toMatchObject({ok:false,issues:[{code:'TEMPLATE_IDENTITY_CONFLICT'}]});expect((await pool.query('SELECT id FROM templates WHERE id=$1',['other-id'])).rowCount).toBe(0);

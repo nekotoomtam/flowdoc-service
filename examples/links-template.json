@@ -1,34 +1,13 @@
 {
   "schemaVersion": 1,
-  "nodeModelVersion": 7,
+  "nodeModelVersion": 18,
   "templateId": "tpl-links",
   "docKey": "links-trial",
   "version": 1,
   "name": "Links trial",
   "book": {
-    "page": {
-      "size": "A4",
-      "orientation": "portrait",
-      "margin": {
-        "top": {
-          "value": 20,
-          "unit": "mm"
-        },
-        "right": {
-          "value": 20,
-          "unit": "mm"
-        },
-        "bottom": {
-          "value": 20,
-          "unit": "mm"
-        },
-        "left": {
-          "value": 20,
-          "unit": "mm"
-        }
-      }
-    },
-    "contentSlot": "body"
+    "contentSlot": "body",
+    "defaultPageLayoutId": "normal"
   },
   "globalSchema": {
     "type": "object",
@@ -53,7 +32,68 @@
       "lineHeightPt": 18
     }
   },
-  "formats": {
+  "examples": [],
+  "pageLayouts": {
+    "normal": {
+      "page": {
+        "size": "A4",
+        "orientation": "portrait",
+        "margin": {
+          "top": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "right": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "bottom": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "left": {
+            "value": 20,
+            "unit": "mm"
+          }
+        }
+      }
+    }
+  },
+  "sections": [
+    {
+      "id": "main",
+      "key": "main",
+      "source": {
+        "kind": "authored",
+        "repeats": [],
+        "fragment": {
+          "rootIds": [
+            "area"
+          ],
+          "nodes": {
+            "area": {
+              "id": "area",
+              "type": "area",
+              "props": {
+                "areaId": "main-content"
+              }
+            }
+          }
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "fields": {
+          "content": {
+            "type": "area",
+            "areaId": "main-content"
+          }
+        }
+      },
+      "formats": {}
+    }
+  ],
+  "areaFormats": {
     "section": {
       "inputSchema": {
         "type": "object",
@@ -167,8 +207,9 @@
             ]
           }
         }
-      }
+      },
+      "key": "section",
+      "ownerAreaId": "main-content"
     }
-  },
-  "examples": []
+  }
 }

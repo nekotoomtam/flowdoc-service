@@ -28,7 +28,7 @@ beforeAll(async()=>{
  app=createServer({pool:db.pool,uploads,outputs:createOutputs(db.pool,files,24),isReady:processor.isReady,imagesEnabled:true});
 });
 afterAll(async()=>{await app?.close();await processor?.stop();await uploads?.stop();await db.close();});
-const request=items=>({docKey:'cell-repeat',version,data:{},content:[{format:'evidence',data:{evidenceList:items}}]});
+const request=items=>({docKey:'cell-repeat',version,data:{},sections:{main:{data:{content:[{format:'evidence',data:{evidenceList:items}}]}}}});
 async function upload(bytes){
  const u=ok((await app.inject({method:'POST',url:'/uploads',payload:{requestKey:randomUUID(),items:bytes.map((b,i)=>({key:'p'+i,source:'upload',mediaType:'image/jpeg',byteSize:b.length}))}})).json());
  for(let i=0;i<bytes.length;i++)expect((await app.inject({method:'PUT',url:`/uploads/${u.uploadId}/items/${u.items[i].resourceId}/content`,headers:{'content-type':'application/octet-stream'},payload:bytes[i]})).statusCode).toBe(200);
@@ -42,10 +42,10 @@ it('keeps version1 array children and repeat declaration independent of current/
  r.variables.find(v=>v.key==='caption').payload.default='V2 caption';r.formats.find(f=>f.key==='evidence').payload.cellRepeats[0].id='v2-repeat';
  ok(await saveCurrent(db.pool,r,r.revision));const v2=ok(await publishCurrent(db.pool,{templateId:r.templateId,requestId:'repeat-v2'}));
  expect(v2.version).toBe(2);const unchanged=ok(await loadTemplate(db.pool,'cell-repeat',version));expect(unchanged.template).toEqual(old.template);
- const latest=ok(await loadTemplate(db.pool,'cell-repeat',2));expect(latest.template.definition.formats.evidence.cellRepeats[0].id).toBe('v2-repeat');
- expect(latest.template.definition.formats.evidence.inputSchema.fields.evidenceList.items.fields.caption.default).toBe('V2 caption');
+ const latest=ok(await loadTemplate(db.pool,'cell-repeat',2));expect(latest.template.definition.areaFormats.evidence.cellRepeats[0].id).toBe('v2-repeat');
+ expect(latest.template.definition.areaFormats.evidence.inputSchema.fields.evidenceList.items.fields.caption.default).toBe('V2 caption');
  const versions=await db.pool.query('SELECT id FROM variable_versions');const currentIds=new Set(initial.variables.map(v=>v.id));expect(versions.rows.every(v=>!currentIds.has(v.id))).toBe(true);
- const d=ok(composeDocument(old.template,ok(prepareGeneration(old.template,request([])))));expect(d.nodes['content-0~cell'].childIds).toEqual(['content-0~heading','content-0~footer']);
+ const d=ok(composeDocument(old.template,ok(prepareGeneration(old.template,request([])))));expect(d.nodes['section-main~area-main-content~entry-0~format-evidence~cell'].childIds).toEqual(['section-main~area-main-content~entry-0~format-evidence~heading','section-main~area-main-content~entry-0~format-evidence~footer']);
 });
 it('renders array images, reuses resources, warns on bad image and preserves input',async()=>{
  const good=await sharp({create:{width:800,height:400,channels:3,background:'#2870a0'}}).jpeg().toBuffer(),u=await upload([good,Buffer.from('bad-image')]);
@@ -56,7 +56,7 @@ it('renders array images, reuses resources, warns on bad image and preserves inp
 },60000);
 it('rejects invalid item data before enqueue and renders empty list without upload',async()=>{
  const before=Number((await db.pool.query('SELECT count(*) FROM generation_jobs')).rows[0].count);
- for(const item of [{caption:'missing'},{photo:42}]){const response=await app.inject({method:'POST',url:'/jobs',payload:request([item])});expect(response.statusCode).toBeGreaterThanOrEqual(400);expect(response.json().issues.some(i=>i.path==='content[0].data.evidenceList[0].photo')).toBe(true);}
+ for(const item of [{caption:'missing'},{photo:42}]){const response=await app.inject({method:'POST',url:'/jobs',payload:request([item])});expect(response.statusCode).toBeGreaterThanOrEqual(400);expect(response.json().issues.some(i=>i.path==='sections.main.data.content[0].data.evidenceList[0].photo')).toBe(true);}
  expect(Number((await db.pool.query('SELECT count(*) FROM generation_jobs')).rows[0].count)).toBe(before);
  const {pdf}=await finish(request([]));expect(pdf.statusCode).toBe(200);expect(pdf.rawPayload.toString('latin1')).not.toContain('/Subtype /Image');
 },60000);

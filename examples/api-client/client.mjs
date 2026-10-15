@@ -13,14 +13,11 @@ export function bindImages(input,contract,ids){
   }
   return value;
  }
- function content(items,formats){if(Array.isArray(items))for(const item of items)if(item&&typeof item==='object')item.data=visit(item.data,Object.hasOwn(formats??{},item.format)?formats[item.format].inputSchema:undefined);}
  result.data=visit(result.data,contract.globalSchema);
- result.header=visit(result.header,contract.header);result.footer=visit(result.footer,contract.footer);
- content(result.content,contract.formats);
  for(const [key,section] of Object.entries(result.sections??{})){
   const scope=Object.hasOwn(contract.sections??{},key)?contract.sections[key]:undefined;
   if(!scope||!section||typeof section!=='object')continue;
-  section.data=visit(section.data,scope.inputSchema);section.header=visit(section.header,scope.header);section.footer=visit(section.footer,scope.footer);content(section.content,scope.formats);
+  section.data=visit(section.data,scope.inputSchema);section.header=visit(section.header,scope.header);section.footer=visit(section.footer,scope.footer);
  }
  return result;
 }

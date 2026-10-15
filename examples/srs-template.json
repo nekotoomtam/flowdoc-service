@@ -1,34 +1,13 @@
 {
   "schemaVersion": 1,
-  "nodeModelVersion": 4,
+  "nodeModelVersion": 18,
   "templateId": "tpl-srs-table-trial",
   "docKey": "srs-table-trial",
   "version": 1,
   "name": "SRS table export trial",
   "book": {
-    "page": {
-      "size": "A4",
-      "orientation": "portrait",
-      "margin": {
-        "top": {
-          "value": 20,
-          "unit": "mm"
-        },
-        "right": {
-          "value": 20,
-          "unit": "mm"
-        },
-        "bottom": {
-          "value": 20,
-          "unit": "mm"
-        },
-        "left": {
-          "value": 20,
-          "unit": "mm"
-        }
-      }
-    },
-    "contentSlot": "body"
+    "contentSlot": "body",
+    "defaultPageLayoutId": "normal"
   },
   "globalSchema": {
     "type": "object",
@@ -52,7 +31,68 @@
       "lineHeightPt": 20
     }
   },
-  "formats": {
+  "examples": [],
+  "pageLayouts": {
+    "normal": {
+      "page": {
+        "size": "A4",
+        "orientation": "portrait",
+        "margin": {
+          "top": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "right": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "bottom": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "left": {
+            "value": 20,
+            "unit": "mm"
+          }
+        }
+      }
+    }
+  },
+  "sections": [
+    {
+      "id": "main",
+      "key": "main",
+      "source": {
+        "kind": "authored",
+        "repeats": [],
+        "fragment": {
+          "rootIds": [
+            "area"
+          ],
+          "nodes": {
+            "area": {
+              "id": "area",
+              "type": "area",
+              "props": {
+                "areaId": "main-content"
+              }
+            }
+          }
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "fields": {
+          "content": {
+            "type": "area",
+            "areaId": "main-content"
+          }
+        }
+      },
+      "formats": {}
+    }
+  ],
+  "areaFormats": {
     "section-note": {
       "label": "ข้อความประกอบหัวข้อ",
       "inputSchema": {
@@ -108,7 +148,9 @@
           }
         }
       },
-      "repeats": []
+      "repeats": [],
+      "key": "section-note",
+      "ownerAreaId": "main-content"
     },
     "requirement-list": {
       "label": "ตารางข้อกำหนด",
@@ -369,8 +411,9 @@
             "key": "items"
           }
         }
-      ]
+      ],
+      "key": "requirement-list",
+      "ownerAreaId": "main-content"
     }
-  },
-  "examples": []
+  }
 }

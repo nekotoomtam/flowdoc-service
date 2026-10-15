@@ -1,34 +1,13 @@
 {
   "schemaVersion": 1,
-  "nodeModelVersion": 10,
+  "nodeModelVersion": 18,
   "templateId": "cell-repeat",
   "docKey": "cell-repeat",
   "version": 1,
   "name": "Array image evidence",
   "book": {
-    "page": {
-      "size": "A4",
-      "orientation": "portrait",
-      "margin": {
-        "top": {
-          "value": 20,
-          "unit": "mm"
-        },
-        "right": {
-          "value": 20,
-          "unit": "mm"
-        },
-        "bottom": {
-          "value": 20,
-          "unit": "mm"
-        },
-        "left": {
-          "value": 20,
-          "unit": "mm"
-        }
-      }
-    },
-    "contentSlot": "body"
+    "contentSlot": "body",
+    "defaultPageLayoutId": "normal"
   },
   "globalSchema": {
     "type": "object",
@@ -45,7 +24,68 @@
       "lineHeightPt": 22
     }
   },
-  "formats": {
+  "examples": [],
+  "pageLayouts": {
+    "normal": {
+      "page": {
+        "size": "A4",
+        "orientation": "portrait",
+        "margin": {
+          "top": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "right": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "bottom": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "left": {
+            "value": 20,
+            "unit": "mm"
+          }
+        }
+      }
+    }
+  },
+  "sections": [
+    {
+      "id": "main",
+      "key": "main",
+      "source": {
+        "kind": "authored",
+        "repeats": [],
+        "fragment": {
+          "rootIds": [
+            "area"
+          ],
+          "nodes": {
+            "area": {
+              "id": "area",
+              "type": "area",
+              "props": {
+                "areaId": "main-content"
+              }
+            }
+          }
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "fields": {
+          "content": {
+            "type": "area",
+            "areaId": "main-content"
+          }
+        }
+      },
+      "formats": {}
+    }
+  ],
+  "areaFormats": {
     "contents": {
       "inputSchema": {
         "type": "object",
@@ -65,7 +105,9 @@
             }
           }
         }
-      }
+      },
+      "key": "contents",
+      "ownerAreaId": "main-content"
     },
     "evidence": {
       "inputSchema": {
@@ -263,7 +305,9 @@
             "key": "evidenceList"
           }
         }
-      ]
+      ],
+      "key": "evidence",
+      "ownerAreaId": "main-content"
     },
     "merged": {
       "inputSchema": {
@@ -538,7 +582,9 @@
             "key": "evidenceList"
           }
         }
-      ]
+      ],
+      "key": "merged",
+      "ownerAreaId": "main-content"
     },
     "summary": {
       "inputSchema": {
@@ -579,8 +625,9 @@
             ]
           }
         }
-      }
+      },
+      "key": "summary",
+      "ownerAreaId": "main-content"
     }
-  },
-  "examples": []
+  }
 }
