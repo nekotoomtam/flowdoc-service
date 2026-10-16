@@ -107,8 +107,29 @@ retain their original font. Reactivation keeps retired eligibility during a new
 review of the immutable original set. Activated members remain immutable forever.
 Deletion tombstones only never-active preparing releases without review/reference
 history; it preserves audit, shared files and version reservation. Admin reads
-include bounded review/audit summaries. No CLI, MCP, Editor UI or deployment is
-established by this local candidate.
+include bounded review/audit summaries. The font administrator CLI is `node dist/fonts/cli.js <command> --request <json-file>`.
+Set FONT_ADMIN_BASE_URL and FONT_ADMIN_TOKEN in the operator environment; never
+put tokens in arguments. Commands: import, import-inspect, family-create,
+release-stage, release-edit, review-submit, review-withdraw, review-run,
+review-approve, activate, retire, reactivation-review, default-set, release-delete,
+show. Use id for the action target; show also needs entity=release/import/review.
+Import uses files/licenseFiles entries {clientKey,path}; the client computes
+actual length/hash, streams bytes, and returns the intake receipt. Source evidence
+remains explicit. Inspect separately, then bind returned asset/evidence IDs.
+A retry after inspection returns the original import identity; show reads current
+state. Other action fields follow the administrator HTTP contract above.
+
+The authenticated authoring catalog GET /authoring/fonts accepts cursor, limit
+(1–100) and familyId. It returns active releases, exact available faces and
+nextCursor. Defaults never rewrite document selections. The authoring MCP adds
+get_font_catalog, get_draft_font_readiness and clone_template_draft only; it
+contains no administrator commands. POST /authoring/drafts/:id/font-readiness
+accepts expectedRevision and optional sampleRequest, resolves the owned saved
+revision and server-held retained rights, and returns readiness separately.
+Run `node scripts/checkFontTools.mjs` with FLOWDOCMAKE_PROJECT_ROOT pointing at
+the candidate Project Control checkout for real CLI/API/installed-candidate MCP,
+PDF and isolated database checks. The same operator review/approval requirement
+applies. No Editor UI or deployment is established by this local candidate.
 
 
 Changing a variable key keeps its ID. The existing Core key/path references in

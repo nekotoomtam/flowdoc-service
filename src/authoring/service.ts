@@ -95,6 +95,14 @@ export function createAuthoring(pool:Pool,principal:string,options:{maxOutstandi
     await audit(c,target,principal,1,'clone',{sourceId:id,sourceRevision:source.revision,sourceReferenceSetId:refs?.id??null});return view(c,target);
    });
   })),
+  fontReadiness:(id:string,raw:unknown)=>safe(()=>transaction(pool,async c=>{
+   const input=fields(raw,['expectedRevision','sampleRequest']);await owned(c,principal,id);const draft=await view(c,id);revision(input.expectedRevision,draft.revision);
+   if(!draft.definition)throw new OperationError('DRAFT_EMPTY','draft','Save a definition before checking fonts');
+   const v=validateTemplate(draft.definition);if(!v.ok)throw new AuthoringIssues(v);const refs=await readReferences(c,id,draft.revision);verifyReferences(draft.definition,draft.fingerprint!,refs);
+   let actual;
+   if(input.sampleRequest!==undefined){const request=object(input.sampleRequest),{uploadId,...coreInput}=request;const p=prepareGeneration(v.value,coreInput);if(!p.ok)throw new AuthoringIssues(p);const d=composeDocument(v.value,p.value);if(!d.ok)throw new AuthoringIssues(d);actual={document:d.value,input:request};}
+   return {templateId:id,revision:draft.revision,fontReadiness:await checkFontReadiness(c,draft.definition,draft.fingerprint!,refs,actual)};
+  })),
   validate:async(raw:unknown)=>{const warnings:import('@flowdoc/core').Issue[]=[];const result=await safe(()=>transaction(pool,async c=>{
    const input=fields(raw,['definition','sampleRequest']),v=validateTemplate(input.definition);if(!v.ok)throw new AuthoringIssues(v);if(v.value.definition.nodeModelVersion!==18)invalid('nodeModelVersion');
    let refs=null;
