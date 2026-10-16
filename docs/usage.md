@@ -534,3 +534,22 @@ UPLOAD_GONE จึงยังไม่ใช่หลักฐาน same-revis
 ให้ถูกต้องแล้วออกแม่แบบรุ่นถัดไป; ใช้ผลตรวจของชุดส่งมอบยืนยัน ไม่แก้ validation
 ของผลิตภัณฑ์เพื่อให้ตัวทดสอบเก่าผ่าน.
 ใช้ผลล่าสุดของ candidate ที่จะออกรุ่นตัดสินตามเกณฑ์รับงาน ไม่ขยายผลจากการตรวจเอกสาร.
+
+### 8.2 ขอเสนอและยืนยันขนาด (development candidate 0.4.1-dev.font-height.1)
+
+POST `/authoring/drafts/:id/font-height-adjustments` รับ expectedRevision/styleId/
+targetFont/idempotencyKey. ใช้ credential เจ้าของ; metric และ pt อ่านจาก draft กับ
+profile ที่ผู้ดูแลตรวจแล้วเท่านั้น. คืน proposedFontSizePt และ layoutCheck=not_checked;
+ยังไม่เปลี่ยน draft. ยกเลิกได้โดยไม่ confirm.
+POST `/authoring/drafts/:id/font-height-adjustments/:proposalId/confirm` รับเพียง
+expectedRevision/idempotencyKey หลังเจ้าของเลือกใช้; บันทึก font+pt ใน transaction เดียว
+ผ่าน write/reference/audit เดียวกับ save และคง lineHeightPt. Shared style มีผลต่อทุก node
+ที่อ้าง style นั้น. ต้องตรวจ readiness และ preview ต่อ; save ไม่รับรอง layout.
+
+ข้อเสนออายุ 15 นาที. TTL/revision/fingerprint/profile/assignment/review เปลี่ยนให้ขอใหม่;
+retry key/body เดิมคืนผลเดิม ไม่เพิ่ม revision หรือยืดอายุ. key เดิมต่าง body เป็น conflict.
+active หรือ retired exact tuple ที่ draft retained เท่านั้น. ไม่มี profile หรือ schema1
+Sarabun คืน unavailable และยังใช้ ordinary pt/save/preview/clone ตามเดิม ไม่ migrate เอง.
+Catalog heightProfile เป็นข้อมูล review เบื้องต้น; propose/confirm ตรวจ binding/files/สิทธิ์ซ้ำ.
+Migration 020 เพิ่มตารางข้อเสนอเท่านั้น; ไม่แก้ schema1 definitions หรือ migration เดิม.
+ใช้ฐานทดสอบแยกก่อน upgrade; รุ่นนี้ยังไม่อนุญาต install/deploy จากผลตรวจ development.

@@ -4,10 +4,11 @@
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Package version: 0.4.0. Its release identity is the matching annotated tag on the
+Package version: 0.4.1-dev.font-height.1. Its release identity is the matching annotated tag on the
 snapshot branch; a package version alone does not establish release acceptance.
 This development candidate pins Core 0.4.1-dev.font-height.1 for its opt-in pure
-font-height calculation API. It is untagged and not an installed Service release.
+font-height calculation API and revision-bound proposal/confirmation endpoints.
+It is untagged and not an installed Service release.
 The local HTTP API includes a serial export processor,
 temporary PDF lifecycle and JPEG/PNG resource preparation. Release/tag promotion
 is separate. Font administration uses the CLI and scoped administrator permission;
