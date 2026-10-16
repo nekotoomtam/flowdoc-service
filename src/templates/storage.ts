@@ -1,3 +1,4 @@
+import {readReferences,writeReferences,verifyReferences,type ReferenceSet} from '../fonts/retention.js';
 import type {PoolClient} from 'pg';
 import {validateTemplate} from '@flowdoc/core';
 import {assemble,decompose,checkRecord,schemaScope} from './assembly.js';
@@ -18,8 +19,11 @@ export async function readRecord(c:PoolClient,id:string,version=false):Promise<C
  const record:CurrentRecord={sections,templateId:head.rows[0].payload.templateId,revision:head.rows[0].revision,payload:head.rows[0].payload,formats,schemas,variables};
  checkRecord(record);return record;
 }
-export async function writeCurrent(c:PoolClient,r:CurrentRecord):Promise<void>{
+export async function writeCurrent(c:PoolClient,r:CurrentRecord,inherited:ReferenceSet|null=null):Promise<void>{
  checkRecord(r);
+ const prior=(await c.query('SELECT revision FROM template_current WHERE template_id=$1',[r.templateId])).rows[0];
+ const previous=prior?await readReferences(c,r.templateId,prior.revision):inherited;
+ if(prior){const old=validateTemplate(assemble(await readRecord(c,r.templateId),1));if(!old.ok)throw new OperationError('STORAGE_FAILED','draft','Stored draft failed validation');verifyReferences(old.value.definition,old.value.fingerprint,previous);}
  // Retain original creation times when replacing an ID-bearing current graph.
  const times=new Map<string,Date>();for(const row of (await c.query('SELECT id,created_at FROM sections WHERE template_id=$1 UNION ALL SELECT id,created_at FROM formats WHERE template_id=$1 UNION ALL SELECT id,created_at FROM variable_schemas WHERE template_id=$1 UNION ALL SELECT v.id,v.created_at FROM variables v JOIN variable_schemas s ON s.id=v.schema_id WHERE s.template_id=$1',[r.templateId])).rows)times.set(row.id,row.created_at);
  await c.query('INSERT INTO template_current(template_id,payload) VALUES($1,$2) ON CONFLICT(template_id) DO UPDATE SET payload=$2,revision=template_current.revision+1,updated_at=now()',[r.templateId,JSON.stringify(r.payload)]);
@@ -29,9 +33,18 @@ export async function writeCurrent(c:PoolClient,r:CurrentRecord):Promise<void>{
  for(const s of r.schemas)await c.query('INSERT INTO variable_schemas(id,template_id,format_id,created_at,scope,section_id) VALUES($1,$2,$3,COALESCE($4,now()),$5,$6)',[s.id,r.templateId,s.formatId,times.get(s.id)??null,schemaScope(s),s.sectionId??null]);
  for(const v of r.variables)await c.query('INSERT INTO variables(id,schema_id,parent_id,key,type_id,position,payload,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,COALESCE($8,now()))',[v.id,v.schemaId,v.parentId,v.key,v.typeId,v.position,JSON.stringify(v.payload),times.get(v.id)??null]);
  await c.query('UPDATE templates SET name=$2,updated_at=now() WHERE id=$1',[r.templateId,r.payload.name]);
+ const after=validateTemplate(assemble(r,1));if(!after.ok)throw new OperationError('INVALID_DATA','definition','Invalid definition');
+ const revision=(await c.query('SELECT revision FROM template_current WHERE template_id=$1',[r.templateId])).rows[0].revision;
+ await writeReferences(c,after.value.definition,after.value.fingerprint,revision,previous);
 }
 export async function writeSnapshot(c:PoolClient,r:CurrentRecord,versionId:string,detachedSource=false):Promise<void>{
- checkRecord(r);const rows=[...(r.sections??[]),...r.formats,...r.schemas,...r.variables],ids=(await c.query<{id:string}>('SELECT uuidv7() AS id FROM generate_series(1,$1)',[rows.length])).rows;
+ checkRecord(r);
+ const version=(await c.query('SELECT version FROM template_versions WHERE id=$1',[versionId])).rows[0].version;
+ const validated=validateTemplate(assemble(r,version));if(!validated.ok)throw new OperationError('INVALID_DATA','definition','Invalid definition');
+ const previous=detachedSource?null:await readReferences(c,r.templateId,r.revision);
+ if(!detachedSource){const current=validateTemplate(assemble(r,1));if(current.ok)verifyReferences(current.value.definition,current.value.fingerprint,previous);}
+ await writeReferences(c,validated.value.definition,validated.value.fingerprint,0,previous,versionId);
+ const rows=[...(r.sections??[]),...r.formats,...r.schemas,...r.variables],ids=(await c.query<{id:string}>('SELECT uuidv7() AS id FROM generate_series(1,$1)',[rows.length])).rows;
  const map=new Map(rows.map((row,i)=>[row.id,ids[i]!.id]));
  await c.query('INSERT INTO template_snapshots(version_id,payload) VALUES($1,$2)',[versionId,JSON.stringify(r.payload)]);
  for(const s of r.sections??[])await c.query('INSERT INTO section_versions(id,template_version_id,source_section_id,source_definition_id,key,label,position,payload) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[map.get(s.id),versionId,detachedSource?null:s.id,s.sourceDefinitionId,s.key,s.label??null,s.position,JSON.stringify(s.payload)]);
@@ -45,3 +58,15 @@ export async function backfill(c:PoolClient):Promise<void>{
  for(const t of (await c.query('SELECT t.id,v.definition_json FROM templates t JOIN LATERAL (SELECT definition_json FROM template_versions WHERE template_id=t.id ORDER BY version DESC LIMIT 1) v ON true LEFT JOIN template_current c ON c.template_id=t.id WHERE c.template_id IS NULL')).rows)await writeCurrent(c,await freshRecord(c,t.definition_json));
 }
 export async function verifySnapshot(c:PoolClient,id:string,version:number,fingerprint:string){const valid=validateTemplate(assemble(await readRecord(c,id,true),version));if(!valid.ok||valid.value.fingerprint!==fingerprint)throw new OperationError('STORAGE_FAILED','template','Stored snapshot failed validation');return valid.value;}
+
+/** Forward migration records verified legacy provenance without rewriting old definitions. */
+export async function backfillLegacyFontReferences(c:PoolClient){
+ for(const row of (await c.query("SELECT template_id,revision FROM template_current WHERE payload->>'schemaVersion'='1'")).rows){
+  if(await readReferences(c,row.template_id,row.revision))continue;
+  try{const definition=assemble(await readRecord(c,row.template_id),1),v=validateTemplate(definition);if(v.ok)await writeReferences(c,v.value.definition,v.value.fingerprint,row.revision,null);}catch(e){if(e instanceof OperationError)continue;throw e;}
+ }
+ for(const row of (await c.query("SELECT id,definition_json,fingerprint FROM template_versions WHERE definition_json->>'schemaVersion'='1'")).rows){
+  if(await readReferences(c,'',0,row.id))continue;
+  const v=validateTemplate(row.definition_json);if(v.ok&&v.value.fingerprint===row.fingerprint)await writeReferences(c,v.value.definition,v.value.fingerprint,0,null,row.id);
+ }
+}

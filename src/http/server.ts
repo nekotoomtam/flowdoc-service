@@ -1,3 +1,5 @@
+import {registerFontsAdmin,checkFontAdminAccess,type FontAdminAccess} from './fonts-admin.js';
+import {fontRoot} from '../fonts/snapshot.js';
 import {templateContract} from '../templates/contract.js';
 import {readGenerationJson} from '@flowdoc/core';
 import {buildAreaContract} from '../templates/areaContract.js';
@@ -13,8 +15,9 @@ import type {Uploads} from '../uploads/service.js';
 import {registerUploads} from './uploads.js';
 import {registerAuthoring,checkAuthoringAccess,type AuthoringAccess} from './authoring.js';
 const status=(code:string)=>({QUEUE_FULL:503,UNKNOWN_SECTION:422,UNKNOWN_FORMAT:422,INVALID_JOB_ID:400,INVALID_DATA:422,TYPE_MISMATCH:422,MISSING_REQUIRED:422,EMPTY_CONTENT:422,EXPANSION_LIMIT:422,IMAGE_JOBS_UNAVAILABLE:422,INVALID_UPLOAD:422,INVALID_RESOURCE:422,UPLOAD_NOT_FOUND:404,UPLOAD_GONE:410,UPLOAD_CONFLICT:409,UPLOAD_INCOMPLETE:409,TEMPLATE_NOT_FOUND:404,VERSION_NOT_FOUND:404,JOB_NOT_FOUND:404,OUTPUT_GONE:410}[code]??503);
-export function createServer(deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean;bodyLimit?:number;uploads?:Uploads;imagesEnabled?:boolean;maxOutstanding?:number;authoring?:AuthoringAccess}){
+export function createServer(deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean;bodyLimit?:number;uploads?:Uploads;imagesEnabled?:boolean;maxOutstanding?:number;authoring?:AuthoringAccess;fontAdmin?:FontAdminAccess;fontStorageRoot?:string}){
  if(deps.authoring)checkAuthoringAccess(deps.authoring);
+ if(deps.fontAdmin)checkFontAdminAccess(deps.fontAdmin,deps.authoring?.token);
  const maxOutstanding=validateMaxOutstanding(deps.maxOutstanding??DEFAULT_MAX_OUTSTANDING);
  const app=Fastify({logger:false,forceCloseConnections:true,bodyLimit:deps.bodyLimit??2097152});
  if(deps.authoring)app.register(async routes=>registerAuthoring(routes,{pool:deps.pool,outputs:deps.outputs,isReady:deps.isReady,maxOutstanding,imagesEnabled:deps.imagesEnabled??false,access:deps.authoring!,...(deps.uploads?{uploads:deps.uploads}:{})}));
@@ -25,6 +28,7 @@ export function createServer(deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean
    pending.push(...Object.values(v));
   }}done(null,r.value);
  });
+ if(deps.fontAdmin)app.register(async routes=>registerFontsAdmin(routes,{pool:deps.pool,root:deps.fontStorageRoot??fontRoot(),access:deps.fontAdmin!,isReady:deps.isReady,...(deps.authoring?{authoringToken:deps.authoring.token}:{})}));
  if(deps.uploads)app.register(async routes=>{
   routes.addHook('onRequest',async(req,reply)=>{const id=(req.params as any)?.id;if(typeof id==='string'&&validJobId(id)&&(await deps.pool.query('SELECT 1 FROM upload_sessions WHERE id=$1 AND authoring_principal IS NOT NULL',[id])).rowCount)return reply.code(404).send(failure(new OperationError('UPLOAD_NOT_FOUND','uploadId','Upload not found')));});
   routes.addHook('onRequest',async(_req,reply)=>{if(!deps.isReady())return reply.code(503).send(failure(new OperationError('UNAVAILABLE','service','Service unavailable')));});

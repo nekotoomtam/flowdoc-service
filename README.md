@@ -4,19 +4,23 @@
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Version 0.3.0 provides a local HTTP API, serial export processor,
+Package version: 0.4.0. Its release identity is the matching annotated tag on the
+snapshot branch; a package version alone does not establish release acceptance.
+The local HTTP API includes a serial export processor,
 temporary PDF lifecycle and JPEG/PNG resource preparation. Release/tag promotion
-is separate. UI, permissions and production scaling remain out of scope.
+is separate. Font administration uses the CLI and scoped administrator permission;
+an administrator UI and production scaling remain outside this slice.
 
 Start with the Thai [usage guide](docs/usage.md): first PDF, draft publication,
-API requests, uploads, Area examples and file lifetime. It covers 0.3.0; shared release status remains in Project Control.
+API requests, uploads, Area examples, font administration/readiness and backup/upgrade.
+It describes package 0.4.0; shared release status remains in Project Control.
 
 ## Local setup and acceptance
 
 Install dependencies with `npm ci --ignore-scripts`; build with `npm run build`.
 With Docker Desktop's Linux engine ready, run `npm run check:database`.
 It uses a fresh isolated PostgreSQL18 volume/internal network, pinned images and
-Core 0.3.0 tarball, without published DB ports or host source mounts. It verifies
+the manifest-pinned Core tarball, without published DB ports or host source mounts. It verifies
 fresh migration, populated R3 upgrade/rollback, constraints, publication concurrency,
 CLI editing, source-versus-snapshot PDF equality and restart persistence.
 Results are in `artifacts/<run>/result.json`. Success stops the environment but
@@ -26,8 +30,11 @@ retains its volume/network/images. Failures leave inspection data. Generated
 fixtures/isolated schemas and temporarily alter constraints; never use shared data.
 
 For a persistent local registry, copy .env.example to .env and choose a random
-URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.3.0` explicitly
-to label the image with the current code version. Run:
+URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.4.0` explicitly
+to identify the image built from this candidate; verify its image ID separately.
+Apply migrations through 018 before
+starting this package. For fonts/authoring, add the environment override in the
+usage guide; base Compose does not pass those secrets to the API. Run:
 
 ```text
 docker compose build registry
@@ -49,6 +56,88 @@ repeat import reports CURRENT_EXISTS so it cannot accidentally replace IDs.
 Raw template import/registration use Core duplicate-key-aware validation.
 ID-bearing draft-save also uses duplicate-key-aware parsing. Preserve unique
 decoded JSON keys in raw template, draft and HTTP request input.
+
+## Font-aware draft and job candidate
+
+This candidate vendors Core 0.4.0 with its verified checksum in `vendor/manifest.json`.
+Schema 1 retains the four verified Sarabun hashes. Schema 2 uses exact library
+release/weight/style references. Save/get/validate return `fontReadiness` separately
+from the saved revision: `ready`, `blocked` or `incomplete`, with `checkedScope`
+of `styles` or `actual_input`. A saved draft may remain blocked; malformed font
+grammar, ownership, revision and idempotency errors still reject the operation.
+`POST /authoring/drafts/:id/clone` accepts sourceRevision, name, docKey and
+idempotencyKey; retained font rights come from server-held revision provenance.
+
+Admission checks actual composed characters through a temporary Core font specimen;
+authored pagination remains the worker's responsibility. Jobs persist immutable
+definition/input/renderer/font/license identities in the admission transaction.
+Workers use those exact hashes even after retirement and check file bytes again.
+An identical upload/preview retry returns its original job. Font failures cross
+the child boundary as bounded codes without server paths. Font assets are read
+from `FONT_STORAGE_DIR` (default `staging/fonts`); API and worker must share this
+directory. Automatic fallback remains disabled; defaults never rewrite document references.
+
+Run `npm run build` and `node scripts/checkFontLifecycle.mjs` for isolated DB/container
+checks, queue persistence across DB restart and legacy rendering fixtures. Optional
+`FONT_FIXTURE_DIR` points to the supplied IBM_Plex_Sans_Thai/Pridi/Sarabun folder.
+Results and local test credentials are separate under `artifacts/<run>`; share only
+the result/PDF files. Shared stage acceptance remains in Project Control.
+
+The administrator HTTP candidate requires migrations through 018 and both
+`FONT_ADMIN_TOKEN` (32–512 characters) and `FONT_ADMIN_PRINCIPAL`. Without them
+admin routes stay disabled; a partial configuration or a token equal to
+`AUTHORING_TOKEN` rejects startup. The authoring token receives 403 on admin
+routes. Actor identity comes from configuration, never request JSON.
+
+Under `/admin/fonts`, create families/imports/releases (201), stream each declared
+TTF/license via PUT imports/:id/files/:clientKey, then inspect. Mutations use
+requestId/reason and expectedRevision of the release; family default uses its own
+revision. Full candidate PATCH permits preparing/needs_changes only. An optional
+face conflictResolution contains reason/sourceWeight/approvedWeight; Service
+records the reviewer while preserving immutable source metadata.
+
+Submit-review requires a resolved normal 400 and the current manifestDigest.
+Run/approve requests carry that digest and the parent release revision. Every
+face produces a real Thai/English specimen according to languageScope, with
+original hash/license checks and pinned renderer/test-suite identities. Read the
+report and its authenticated `/reviews/:id/artifacts/:hash` PDFs; approve with
+reportDigest and all artifactHashes only after visual/source/license review.
+Rendering alone leaves in_review. Approval makes ready; explicit activate makes
+active. Any withdrawal/edit invalidates the previous result. Review preview uses
+`/reviews/:id/previews` with purpose=font-review, reviewId and manifestDigest;
+ordinary authoring previews cannot render preparing/in_review/ready releases.
+
+Set family defaults explicitly to an active same-family release or null. Retiring
+a current default requires expectedFamilyRevision and exactly one replacement
+release or clearDefault=true in the same transaction. Existing references/jobs
+retain their original font. Reactivation keeps retired eligibility during a new
+review of the immutable original set. Activated members remain immutable forever.
+Deletion tombstones only never-active preparing releases without review/reference
+history; it preserves audit, shared files and version reservation. Admin reads
+include bounded review/audit summaries. The font administrator CLI is `node dist/fonts/cli.js <command> --request <json-file>`.
+Set FONT_ADMIN_BASE_URL and FONT_ADMIN_TOKEN in the operator environment; never
+put tokens in arguments. Commands: import, import-inspect, family-create,
+release-stage, release-edit, review-submit, review-withdraw, review-run,
+review-approve, activate, retire, reactivation-review, default-set, release-delete,
+show. Use id for the action target; show also needs entity=release/import/review.
+Import uses files/licenseFiles entries {clientKey,path}; the client computes
+actual length/hash, streams bytes, and returns the intake receipt. Source evidence
+remains explicit. Inspect separately, then bind returned asset/evidence IDs.
+A retry after inspection returns the original import identity; show reads current
+state. Other action fields follow the administrator HTTP contract above.
+
+The authenticated authoring catalog GET /authoring/fonts accepts cursor, limit
+(1–100) and familyId. It returns active releases, exact available faces and
+nextCursor. Defaults never rewrite document selections. The authoring MCP adds
+get_font_catalog, get_draft_font_readiness and clone_template_draft only; it
+contains no administrator commands. POST /authoring/drafts/:id/font-readiness
+accepts expectedRevision and optional sampleRequest, resolves the owned saved
+revision and server-held retained rights, and returns readiness separately.
+Run `node scripts/checkFontTools.mjs` with FLOWDOCMAKE_PROJECT_ROOT pointing at
+the candidate Project Control checkout for real CLI/API/installed-candidate MCP,
+PDF and isolated database checks. The same operator review/approval requirement
+applies. No Editor UI or deployment is established by this local candidate.
+
 
 Changing a variable key keeps its ID. The existing Core key/path references in
 fragments must also be updated by the author. Save allows unresolved content
@@ -102,7 +191,7 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.3.0 is installed solely from `vendor/flowdoc-core-0.3.0.tgz`.
+Core 0.4.0 is installed solely from `vendor/flowdoc-core-0.4.0.tgz`.
 Its SHA256 and source commit are pinned in `vendor/manifest.json`;
 `node scripts/verifyVendor.mjs` verifies the checksum. The package supports only Area model 18.
 The lockfile pins dependencies. Linux runtime includes Node24, Python3.11/fontTools
@@ -110,16 +199,32 @@ and the Core-owned resources. Do not copy or fork Core validation/rendering logi
 
 ## Release branches
 
+Before preparing or promoting a release, follow the shared
+[release rules and gates](../flowdoc-project-control/docs/domains/flowdoc-export-working-release-rules-draft-2026-10-09.md).
+They also record the owner-authorized 2026-10-16 history repair; that exception
+does not permit moving tags during normal releases.
+
 `release` contains one snapshot commit per accepted version, identified by an
 annotated `v<version>` tag. Never move released tags or replace published artifacts.
 Development branches retain their detailed history. The first release has its own
-root; subsequent snapshots must parent the previous release commit. Record the
+root; subsequent snapshots must parent only the previous release commit. Never
+merge or fast-forward development history into `release`; every reachable commit
+must have its version tag on the remote, including commits through any additional parent. Record the
 development source commit, verify candidate/release tree equality, and promote only
 reviewed changes; do not merge unrelated histories blindly. Changes start on the
 development branch and become a new release after affected checks pass.
 Service versions are independent of Core versions. Every Service release pins the
 exact Core artifact and checksum; changing Core requires verification of its Service
-consumer. Local release branches/tags do not publish images or deploy a public API.
+consumer. Send the snapshot branch and its annotated tag atomically, then verify
+both remote targets. A development package version or a successful local installation
+does not establish a release. Local release branches/tags do not publish images or deploy a public API.
+
+Prepare this repo's `README.md` and `docs/usage.md` with the actual version,
+Core pin, migrations, administrator setup, backup/recovery and post-install checks
+before freezing the delivery candidate. Verify the vendored tarball with
+`node scripts/verifyVendor.mjs`; retain its manifest/checksum with acceptance results.
+The usage guide's upgrade procedure is preparation, not evidence that a new
+deployment has passed. Complete the affected container/DB/PDF checks before promotion.
 
 
 ## Local export API
@@ -308,7 +413,7 @@ for its one/two/six-request flow and failed-job handling.
 
 Prepared jobs send only the document and required image input to the child.
 Core validation and immutable snapshot integrity checks remain in place.
-Apply migrations through 015 using the matching CLI before starting the API.
+Apply migrations through 018 using the matching CLI before starting the API.
 
 ## Candidate Area18 authoring tools
 
@@ -316,7 +421,7 @@ This local setup section describes the candidate implementation only. Shared
 scope and acceptance: ../flowdoc-project-control/docs/domains/flowdoc-template-authoring-tools-plan.md.
 It does not establish a connected AI host or release readiness.
 
-After building and applying migrations through 015 to the intended development
+After building and applying migrations through 018 to the intended development
 database, start the Service with its existing database/output configuration plus
 AUTHORING_TOKEN (a secret of at least 32 characters) and AUTHORING_PRINCIPAL
 (a stable owner name; default local-owner). Authoring stays disabled without a
