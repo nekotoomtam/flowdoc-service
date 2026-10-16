@@ -18,3 +18,7 @@ Keep HTTP, repository SQL, job processing and file storage responsibilities apar
 Tests must use isolated named databases/volumes; never clear user data to pass.
 Commit after build and affected real-database/container checks pass. Keep shared
 plans in Project Control; no docs/superpowers plans or synthetic Work registries.
+
+Before release preparation or Git promotion, read the shared
+[release rules and gates](../flowdoc-project-control/docs/domains/flowdoc-export-working-release-rules-draft-2026-10-09.md).
+Keep development history on development branches; `release` is a tagged snapshot chain.

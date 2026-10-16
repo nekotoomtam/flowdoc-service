@@ -4,9 +4,11 @@
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Version 0.3.0 provides a local HTTP API, serial export processor,
+The development package is 0.4.0; the accepted `release` snapshot remains 0.3.0.
+The local HTTP API includes a serial export processor,
 temporary PDF lifecycle and JPEG/PNG resource preparation. Release/tag promotion
-is separate. UI, permissions and production scaling remain out of scope.
+is separate. Font administration uses the CLI and scoped administrator permission;
+an administrator UI and production scaling remain outside this slice.
 
 Start with the Thai [usage guide](docs/usage.md): first PDF, draft publication,
 API requests, uploads, Area examples and file lifetime. It covers 0.3.0; shared release status remains in Project Control.
@@ -192,16 +194,25 @@ and the Core-owned resources. Do not copy or fork Core validation/rendering logi
 
 ## Release branches
 
+Before preparing or promoting a release, follow the shared
+[release rules and gates](../flowdoc-project-control/docs/domains/flowdoc-export-working-release-rules-draft-2026-10-09.md).
+They also record the owner-authorized 2026-10-16 history repair; that exception
+does not permit moving tags during normal releases.
+
 `release` contains one snapshot commit per accepted version, identified by an
 annotated `v<version>` tag. Never move released tags or replace published artifacts.
 Development branches retain their detailed history. The first release has its own
-root; subsequent snapshots must parent the previous release commit. Record the
+root; subsequent snapshots must parent only the previous release commit. Never
+merge or fast-forward development history into `release`; every reachable commit
+must have its version tag on the remote, including commits through any additional parent. Record the
 development source commit, verify candidate/release tree equality, and promote only
 reviewed changes; do not merge unrelated histories blindly. Changes start on the
 development branch and become a new release after affected checks pass.
 Service versions are independent of Core versions. Every Service release pins the
 exact Core artifact and checksum; changing Core requires verification of its Service
-consumer. Local release branches/tags do not publish images or deploy a public API.
+consumer. Send the snapshot branch and its annotated tag atomically, then verify
+both remote targets. A development package version or a successful local installation
+does not establish a release. Local release branches/tags do not publish images or deploy a public API.
 
 
 ## Local export API
