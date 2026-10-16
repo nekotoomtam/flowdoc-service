@@ -443,6 +443,41 @@ job ตรึงฟอนต์/ไฟล์/license ที่รับไว้
 ไฟล์หายหรือ hash ไม่ตรงต้องแก้ storage ไม่ข้ามการตรวจ. Sarabun schema 1 ยังใช้
 ไฟล์ชุดเดิม; ไม่แก้เอกสารเดิมให้กลายเป็น schema 2 เพื่อให้ผ่าน.
 
+### 8.1 ตัวช่วยความสูงฟอนต์: วัดและเก็บผล (development candidate หลัง 0.4.0)
+
+ส่วนนี้อธิบายโค้ดช่วง 1 ที่ยังไม่ออก tag/ติดตั้ง; ไม่ใช่คำสั่งของ release 0.4.0 เดิม.
+ข้อตกลงร่วมอยู่ Project Control
+`docs/domains/flowdoc-font-height-adjustment-design-plan-2026-10-16.md` ข้อ 7.
+ยังไม่มีการคำนวณ/เปลี่ยน pt ของเอกสารหรือเครื่องมือผู้เขียนสำหรับปรับความสูง.
+
+ใช้ `node dist/fonts/cli.js <command> --request <file.json>` กับ FONT_ADMIN_BASE_URL/
+FONT_ADMIN_TOKEN เดิม. Author token เรียก API เหล่านี้ไม่ได้; actor มาจาก auth.
+
+| command | JSON เพิ่มจาก requestId/reason | ผล |
+| --- | --- | --- |
+| height-measure | id=releaseId, expectedRevision=release revision, manifestDigest | วัด Regular 400 จริงและคืน profile; request ซ้ำได้ผลเดิม |
+| height-approve / height-revoke | id=profileId, expectedRevision=release revision, profileDigest | เพิ่มประวัติยืนยัน/ถอนผลวัด ไม่เปลี่ยนสถานะ release |
+| height-assign | id=releaseId, expectedRevision=assignment revision (ครั้งแรก 0), profileId, profileDigest | ตั้งผลวัดที่อนุมัติเป็น current pointer ด้วย CAS |
+| height-show | id=profileId เท่านั้น | อ่าน profile/hash/ผลวัดและ reviewStatus |
+
+ผลวัดใช้ method `thai-bo-baseline-top-v1`: baseline ถึงยอดเส้นโค้งจริงของ บ,
+unhinted รวม composite. topDesign เก็บ decimal string; ไม่รวมสระ/วรรณยุกต์.
+ผลวัดแยกจาก immutable asset metadata และ release manifest; การอ่าน metadata ปกติ
+ยังคืน shape เดิมเพื่อให้ review/re-activation ของฟอนต์ที่เก็บไว้แล้วทำงานต่อได้.
+ไม่มี บ/Regular คืน unavailable diagnostic ที่อนุมัติไม่ได้ ไม่ใช่ font readiness blocker ใหม่.
+reviewStatus ที่อ่านได้เป็นประวัติ review ไม่ใช่การรับรองไฟล์/manifest ปัจจุบัน;
+การ assign ตรวจ binding/hash และประวัติล่าสุดซ้ำ. active/retired เดิมแนบผลวัดได้.
+
+custom family ใช้ sourceIdentity `{provider:'custom',providerFamilyKey:'thsarabunnew'}`.
+custom sourceEvidence ต้องมี providerFamilyKey เดียวกัน พร้อม provenance
+`{sourceName,sourceVersion,obtainedFrom,rightsNote}`; metadataHash เป็น SHA-256 ของ
+canonical JSON (sort keys) ของ provenance, fileHashBinding เป็น SHA-256 ของ TTF จริง.
+locator ใช้ HTTPS ที่มาจริงหรือ `urn:flowdoc:custom:thsarabunnew`; ไม่ใส่พาธหรือ credentials.
+แนบ license text UTF-8 ที่ถูกต้องผ่าน licenseFiles/licenseClientKeys เหมือนเดิม;
+TH Sarabun New ใช้ข้อความ license ของตัวเอง ไม่ใช้ OFL ของ Google แทน.
+sourceWeight ไม่ทราบใช้ null แล้วบันทึก conflictResolution ของ approvedWeight ตามกฎเดิม.
+dedup bytes ไม่ลบที่มา/ใบอนุญาตของแต่ละ import; ไม่เปิด custom upload ให้ผู้เขียนทั่วไป.
+
 ## 9. เตรียมอัปเกรด สำรอง และตรวจหลังติดตั้ง
 
 ส่วนนี้เป็นคู่มือปฏิบัติ ไม่ใช่คำสั่งให้ deploy ทันที. ก่อนอัปเกรดระบบที่มีข้อมูล:

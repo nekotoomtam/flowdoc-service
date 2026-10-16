@@ -1,4 +1,5 @@
 import {timingSafeEqual} from 'node:crypto';
+import {createFontHeightProfiles} from '../fonts/heightProfiles.js';
 import type {FastifyInstance} from 'fastify';
 import type {Pool} from 'pg';
 import {failure,OperationError} from '../errors.js';
@@ -12,7 +13,13 @@ export async function registerFontsAdmin(app:FastifyInstance,deps:{pool:Pool;roo
  checkFontAdminAccess(deps.access,deps.authoringToken);
  app.addHook('onRequest',async(req,reply)=>{const h=req.headers.authorization,token=typeof h==='string'&&h.startsWith('Bearer ')?h.slice(7):'';if(!equal(token,deps.access.token)){const forbidden=!!deps.authoringToken&&equal(token,deps.authoringToken);return reply.code(forbidden?403:401).send(failure(new OperationError(forbidden?'FORBIDDEN':'UNAUTHORIZED','authorization','Font administrator access required')));}if(!deps.isReady())return reply.code(503).send(failure(new OperationError('UNAVAILABLE','service','Service unavailable')));});
  const lib=await createFontLibrary({pool:deps.pool,root:deps.root,principal:deps.access.principal}),life=createFontLifecycle({pool:deps.pool,root:deps.root,principal:deps.access.principal});
- const handler=(run:(req:any)=>Promise<unknown>,success=200)=>async(req:any,reply:any)=>{try{const value=await run(req);reply.code(success);return {ok:true,value,warnings:[]};}catch(error){const result=failure(error),code=result.ok?'UNAVAILABLE':result.issues[0]?.code??'UNAVAILABLE';const status=/NOT_FOUND$/.test(code)?404:code==='FONT_REVIEW_FAILED'?422:/STALE|CONFLICT|DEFAULT_DECISION/.test(code)?409:/LIMIT|TOO_LARGE/.test(code)?413:/^INVALID_|PROVENANCE_REQUIRED|UPLOAD_INCOMPLETE/.test(code)?422:503;reply.code(status);return result;}};
+ const handler=(run:(req:any)=>Promise<unknown>,success=200)=>async(req:any,reply:any)=>{try{const value=await run(req);reply.code(success);return {ok:true,value,warnings:[]};}catch(error){const result=failure(error),code=result.ok?'UNAVAILABLE':result.issues[0]?.code??'UNAVAILABLE';const status=/NOT_FOUND$/.test(code)?404:code==='FONT_REVIEW_FAILED'?422:/STALE|CONFLICT|DEFAULT_DECISION/.test(code)?409:/LIMIT|TOO_LARGE/.test(code)?413:/^INVALID_|PROVENANCE_REQUIRED|UPLOAD_INCOMPLETE|^FONT_HEIGHT_PROFILE_/.test(code)?422:503;reply.code(status);return result;}};
+ const height=createFontHeightProfiles({pool:deps.pool,root:deps.root,principal:deps.access.principal});
+ app.post('/admin/fonts/releases/:id/height-profiles',handler(r=>height.measure(r.params.id,r.body)));
+ app.get('/admin/fonts/height-profiles/:id',handler(r=>height.get(r.params.id)));
+ app.post('/admin/fonts/height-profiles/:id/approve',handler(r=>height.approve(r.params.id,r.body)));
+ app.post('/admin/fonts/height-profiles/:id/revoke',handler(r=>height.revoke(r.params.id,r.body)));
+ app.put('/admin/fonts/releases/:id/height-profile',handler(r=>height.assign(r.params.id,r.body)));
  app.post('/admin/fonts/families',handler(r=>lib.createFamily(r.body),201));
  app.post('/admin/fonts/imports',handler(r=>lib.createImport(r.body),201));
  app.get('/admin/fonts/imports/:id',handler(async r=>({...await lib.getImport(r.params.id),audit:(await deps.pool.query(`SELECT actor,action,reason,created_at AS "createdAt",summary FROM font_audit_events WHERE summary->>'importId'=$1 AND actor=$2 ORDER BY created_at DESC LIMIT 20`,[r.params.id,deps.access.principal])).rows})));

@@ -6,6 +6,7 @@ import {FONT_LIMITS,type ImportInput,type FamilyInput,type Mutation,type Release
 import {createFontFiles,UUID,SHA} from './files.js';
 import {inspectFont} from './inspection.js';
 import {audit,receipt,fingerprint,fontError,lockHash,canonical} from './repository.js';
+import {validateSource,customKey} from './provenance.js';
 function object(v:unknown,allowed:string[]):asserts v is Record<string,unknown>{
  if(!v||typeof v!=='object'||Array.isArray(v)||![Object.prototype,null].includes(Object.getPrototypeOf(v)))fontError('INVALID_FONT_INPUT');
  if(Object.entries(Object.getOwnPropertyDescriptors(v)).some(([k,d])=>!allowed.includes(k)||!Object.hasOwn(d,'value')))fontError('INVALID_FONT_INPUT');
@@ -27,8 +28,9 @@ function importInput(input:ImportInput){
  if(total>FONT_LIMITS.setBytes)fontError('FONT_LIMIT_EXCEEDED');
  const sources=new Set<string>();
  for(const s of input.sourceEvidence){
-  object(s,['clientKey','provider','locator','retrievedAt','metadataHash','fileHashBinding','sourceWeight','licenseClientKeys']);
-  if(sources.has(s.clientKey)||s.provider!=='google-fonts'||!text(s.locator,2048)||!s.locator.startsWith('https://')||!text(s.retrievedAt)||!/^\d{4}-\d\d-\d\dT.*Z$/.test(s.retrievedAt)||!Number.isFinite(Date.parse(s.retrievedAt))||!SHA.test(s.metadataHash)||!SHA.test(s.fileHashBinding)||!weight(s.sourceWeight)||!Array.isArray(s.licenseClientKeys)||!s.licenseClientKeys.length)fontError('INVALID_FONT_INPUT');
+  object(s,['clientKey','provider','locator','retrievedAt','metadataHash','fileHashBinding','sourceWeight','licenseClientKeys',...(s.provider==='custom'?['providerFamilyKey','provenance']:[])]);
+  if(sources.has(s.clientKey)||!text(s.locator,2048)||!text(s.retrievedAt)||!/^\d{4}-\d\d-\d\dT.*Z$/.test(s.retrievedAt)||!Number.isFinite(Date.parse(s.retrievedAt))||!SHA.test(s.metadataHash)||!SHA.test(s.fileHashBinding)||!weight(s.sourceWeight)||!Array.isArray(s.licenseClientKeys)||!s.licenseClientKeys.length)fontError('INVALID_FONT_INPUT');
+  validateSource(s);
   const file=input.files.find(f=>f.clientKey===s.clientKey);if(!file||file.sha256!==s.fileHashBinding||new Set(s.licenseClientKeys).size!==s.licenseClientKeys.length||s.licenseClientKeys.some(k=>!input.licenseFiles.some(l=>l.clientKey===k)))fontError('FONT_PROVENANCE_REQUIRED');
   sources.add(s.clientKey);
  }
@@ -54,7 +56,7 @@ export async function createFontLibrary(options:{pool:Pool;root:string;principal
   files,
   async createFamily(input:FamilyInput){
    object(input,['requestId','reason','displayName','internalNames','sourceIdentity']);mutation(input);object(input.sourceIdentity,['provider','providerFamilyKey']);
-   if(!text(input.displayName)||!Array.isArray(input.internalNames)||!input.internalNames.length||input.internalNames.some(n=>!text(n))||input.sourceIdentity.provider!=='google-fonts'||!text(input.sourceIdentity.providerFamilyKey))fontError('INVALID_FONT_INPUT');
+   if(!text(input.displayName)||!Array.isArray(input.internalNames)||!input.internalNames.length||input.internalNames.some(n=>!text(n))||!['google-fonts','custom'].includes(input.sourceIdentity.provider)||!text(input.sourceIdentity.providerFamilyKey)||(input.sourceIdentity.provider==='custom'&&!customKey(input.sourceIdentity.providerFamilyKey)))fontError('INVALID_FONT_INPUT');
    return transaction(pool,c=>receipt(c,principal,'family','',input,async()=>{
     await c.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',['font-family:'+canonical(input.sourceIdentity)]);
     const previous=(await c.query("SELECT * FROM font_families WHERE source_identity->>'provider'=$1 AND source_identity->>'providerFamilyKey'=$2",[input.sourceIdentity.provider,input.sourceIdentity.providerFamilyKey])).rows[0];
@@ -143,6 +145,7 @@ export async function createFontLibrary(options:{pool:Pool;root:string;principal
      const row=(await c.query('SELECT a.*,e.metadata AS source FROM font_assets a JOIN font_source_evidence e ON e.asset_id=a.id WHERE a.id=$1 AND e.id=$2 AND e.import_id=$3',[b.assetId,b.sourceEvidenceId,input.importId])).rows[0];
      if(!row||row.format!=='ttf-static')fontError('FONT_PROVENANCE_REQUIRED');
      const m=row.parsed_metadata as FontMetadata,s=row.source as SourceEvidence&{licenseAssetIds:string[]};
+     if(s.provider!==family.source_identity.provider||(s.provider==='custom'&&s.providerFamilyKey!==family.source_identity.providerFamilyKey))fontError('FONT_BINDING_CONFLICT');
      if(m.style!==b.style||s.sourceWeight!==b.sourceWeight||!family.internal_names.includes(m.names.family))fontError('FONT_BINDING_CONFLICT');
      if(!await files.verify(row.storage_key,row.sha256,row.byte_length))fontError('FONT_ASSET_UNAVAILABLE');
      if(b.approvedWeight!==null){const slot=b.approvedWeight+':'+b.style;if(slots.has(slot))fontError('FONT_FACE_CONFLICT');slots.add(slot);}
