@@ -1,9 +1,9 @@
 {
   "name": "@flowdoc/core",
-  "version": "0.4.0",
-  "file": "flowdoc-core-0.4.0.tgz",
-  "sha256": "6e8b71976de35456eed8cdb88a3c42305947e20e900944e3108cb0cc5c36d7e8",
-  "sourceCommit": "e652a9e969b4fb53aec191929a5f72caa794acac",
-  "sourceArtifact": "font-release-040/core-evidence/1792151305082",
+  "version": "0.4.1-dev.font-height.1",
+  "file": "flowdoc-core-0.4.1-dev.font-height.1.tgz",
+  "sha256": "26b1dcae3ed34bd60db2cbe1f088d06ce2ad1309941657c029ac47844ca231c4",
+  "sourceCommit": "b8abb8d405b5711f364ec2ac22baea7d7669a453",
+  "sourceArtifact": "font-height-stage2/package",
   "runtime": "linux-x64 glibc, Node24, Python3.11, fontTools4.58.2"
 }

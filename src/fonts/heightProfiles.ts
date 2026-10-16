@@ -1,11 +1,12 @@
 import {randomUUID} from 'node:crypto';
+import {FONT_HEIGHT_METHOD} from '@flowdoc/core';
 import type {Pool,PoolClient} from 'pg';
 import {transaction} from '../db/connection.js';
 import {createFontFiles,UUID,SHA} from './files.js';
 import {inspectFont} from './inspection.js';
 import {audit,receipt,fingerprint,fontError} from './repository.js';
 import type {FontHeightMetric,Mutation} from './types.js';
-export const HEIGHT_METHOD='thai-bo-baseline-top-v1' as const;
+export const HEIGHT_METHOD=FONT_HEIGHT_METHOD;
 export const HEIGHT_REFERENCE=Object.freeze({id:'th-sarabun-new-1.35-regular',methodId:HEIGHT_METHOD,
  sha256:'b248f824f3d7a8576bc396826a4d898070c1420564f6ce6aa716aa8ad24f824a'});
 function validate(id:string,input:Mutation,extra:string[]){

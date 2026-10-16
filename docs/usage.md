@@ -448,7 +448,10 @@ job ตรึงฟอนต์/ไฟล์/license ที่รับไว้
 ส่วนนี้อธิบายโค้ดช่วง 1 ที่ยังไม่ออก tag/ติดตั้ง; ไม่ใช่คำสั่งของ release 0.4.0 เดิม.
 ข้อตกลงร่วมอยู่ Project Control
 `docs/domains/flowdoc-font-height-adjustment-design-plan-2026-10-16.md` ข้อ 7.
-ยังไม่มีการคำนวณ/เปลี่ยน pt ของเอกสารหรือเครื่องมือผู้เขียนสำหรับปรับความสูง.
+ช่วง 2 ตรึง Core `0.4.1-dev.font-height.1` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
+Core export `calculateFontHeightAdjustment` เป็น pure API รับ pt และ metric ต้นทาง/ปลายทาง
+แล้วคืน pt ที่ปัด half-up หกตำแหน่ง หรือ error; ไม่เขียน draft และไม่เปลี่ยน renderer.
+ยังไม่มีเครื่องมือผู้เขียน propose/confirm หรือการเปลี่ยน pt ของเอกสาร (ช่วง 3).
 
 ใช้ `node dist/fonts/cli.js <command> --request <file.json>` กับ FONT_ADMIN_BASE_URL/
 FONT_ADMIN_TOKEN เดิม. Author token เรียก API เหล่านี้ไม่ได้; actor มาจาก auth.

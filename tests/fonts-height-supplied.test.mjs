@@ -1,4 +1,5 @@
 import {beforeAll,afterAll,it,expect} from 'vitest';
+import {calculateFontHeightAdjustment,FONT_HEIGHT_METHOD} from '@flowdoc/core';
 import {readFile,mkdtemp,rm} from 'node:fs/promises';
 import {join,dirname} from 'node:path';
 import {tmpdir} from 'node:os';
@@ -41,7 +42,10 @@ it.runIf(!!process.env.HEIGHT_SUPPLIED_DIR)('imports the supplied TH custom set 
   if(custom)expect(profile.referenceId).toBe('th-sarabun-new-1.35-regular');
   await profiles.approve(profile.id,m(release.revision,{profileDigest:profile.profileDigest}));await profiles.assign(release.id,m(0,{profileId:profile.id,profileDigest:profile.profileDigest}));
   expect((await pool.query('SELECT * FROM font_releases WHERE id=$1',[release.id])).rows).toEqual(before);
-  summary.push({family:set.key,faces:bytes.length,top:profile.topDesign,hash:profile.sha256,profileId:profile.id});
+  const adjusted=calculateFontHeightAdjustment({fontSizePt:16,sourceMetric:{methodId:FONT_HEIGHT_METHOD,unitsPerEm:1000,topDesign:'400'},targetMetric:{methodId:profile.methodId,unitsPerEm:profile.unitsPerEm,topDesign:profile.topDesign}});
+  const expected={thsarabunnew:16,sarabun:10.921502,'ibm-plex-sans-thai':11.721612,pridi:11.764706,'noto-sans-thai-looped':11.3879,'noto-serif-thai':11.552347,prompt:11.962617};
+  expect(adjusted).toEqual({ok:true,value:{fontSizePt:expected[set.key],methodId:FONT_HEIGHT_METHOD}});
+  summary.push({family:set.key,faces:bytes.length,top:profile.topDesign,hash:profile.sha256,profileId:profile.id,adjustedPt:adjusted.value.fontSizePt});
  }
  console.log(JSON.stringify({suppliedHeightProfiles:summary}));
 },120000);
