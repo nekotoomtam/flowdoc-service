@@ -19,17 +19,17 @@ export async function readReferences(c:Pick<PoolClient,'query'>,templateId:strin
  const bindings=(await c.query('SELECT release_id AS "releaseId",weight,style FROM font_reference_bindings WHERE reference_set_id=$1',[r.id])).rows;
  return {id:r.id,definitionFingerprint:r.definition_fingerprint,bindings,legacyBindings:r.legacy_bindings};
 }
-export async function writeReferences(c:PoolClient,definition:any,definitionFingerprint:string,revision:number,previous:ReferenceSet|null,versionId?:string){
+export async function writeReferences(c:PoolClient,definition:any,definitionFingerprint:string,revision:number,previous:ReferenceSet|null,versionId?:string,additionalInherited:ReferenceSet[]=[]){
  if(!(await c.query("SELECT to_regclass('font_reference_sets') AS present")).rows[0]?.present){if(definition.schemaVersion===2)fontError('FONT_CHECK_UNAVAILABLE');return null;}
  const tuples=fontTuples(definition),ids=[...new Set(tuples.map(t=>t.releaseId))].sort();
  // State transitions and selection serialize on the same release rows.
  if(ids.length)await c.query('SELECT id FROM font_releases WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',[ids]);
  const id=randomUUID();await c.query('INSERT INTO font_reference_sets(id,owner_kind,template_id,version_id,revision,definition_fingerprint,legacy_bindings) VALUES($1,$2,$3,$4,$5,$6,$7)',[id,versionId?'template_version':'draft_revision',definition.templateId,versionId??null,versionId?null:revision,definitionFingerprint,JSON.stringify(definition.schemaVersion===1?LEGACY_SARABUN:[])]);
  for(const t of tuples){
-  const inherited=previous?.bindings.some(b=>tupleKey(b)===tupleKey(t));
+  const source=[...(previous?[previous]:[]),...additionalInherited].find(r=>r.bindings.some(b=>tupleKey(b)===tupleKey(t))),inherited=!!source;
   const active=(await c.query("SELECT 1 FROM font_releases r JOIN font_faces f ON f.release_id=r.id WHERE r.id=$1 AND r.state='active' AND r.ever_activated_at IS NOT NULL AND f.approved_weight=$2 AND f.style=$3",[t.releaseId,t.weight,t.style])).rowCount;
   if(!inherited&&!active)continue;
-  await c.query('INSERT INTO font_reference_bindings(reference_set_id,release_id,weight,style,origin,source_reference_set_id,source_binding_key) VALUES($1,$2,$3,$4,$5,$6,$7)',[id,t.releaseId,t.weight,t.style,inherited?'inherited':'active_selection',inherited?previous!.id:null,inherited?tupleKey(t):null]);
+  await c.query('INSERT INTO font_reference_bindings(reference_set_id,release_id,weight,style,origin,source_reference_set_id,source_binding_key) VALUES($1,$2,$3,$4,$5,$6,$7)',[id,t.releaseId,t.weight,t.style,inherited?'inherited':'active_selection',inherited?source!.id:null,inherited?tupleKey(t):null]);
  }
  return readReferences(c,definition.templateId,revision,versionId);
 }

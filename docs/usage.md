@@ -1,4 +1,15 @@
-# คู่มือใช้งาน FlowDoc Service 0.4.1
+# คู่มือใช้งาน FlowDoc Service 0.4.2-dev.1
+
+Section19 ช่วง1: candidate นี้เพิ่ม `create_draft_section` และ
+`import_draft_sections` ตาม `/authoring/drafts/:id/sections[/import]`.
+ต่อ/แยกสำเนาลง draft ก่อนส่งข้อมูล `sections:[{id,data,header?,footer?}]`;
+ลำดับพิมพ์ตาม definition และ clone/import จัด ID ใหม่พร้อม sectionIdMap.
+ต้องตรวจสิทธิ์ทั้งต้นทาง/ปลายทางและ revision; retry ใช้ key/body เดิม.
+Migration021 เพิ่มประวัติ ID กันใช้ ID ที่ลบกลับมาใหม่ และขยาย job pin/ownership
+สำหรับ19 โดยไม่ rewrite ข้อมูล18. Model18 ยังใช้ object input และ clone เดิม.
+Area cover/scoped TOC และการแปลง18→19ยังไม่เปิดในช่วงนี้. ใช้ package/hash จาก
+README และ vendor/manifest.json ปัจจุบัน; ส่วนคู่มือคลังฟอนต์ด้านล่างเก็บบริบท
+candidate0.4.1 เดิมไว้และไม่ใช่คำอนุญาตติดตั้งอัตโนมัติ.
 
 ## Authority Boundary
 
