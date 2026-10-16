@@ -1,3 +1,4 @@
+import {checkFontAdminAccess} from './http/fonts-admin.js';
 import {loadBundledResources} from '@flowdoc/core';
 import {resolve,join} from 'node:path';
 import {mkdir} from 'node:fs/promises';
@@ -19,6 +20,9 @@ async function main(){
  const jobConfig=readJobConfig(process.env);
  const authoring=process.env.AUTHORING_TOKEN?{token:process.env.AUTHORING_TOKEN,principal:process.env.AUTHORING_PRINCIPAL??'local-owner'}:undefined;
  if(authoring)checkAuthoringAccess(authoring);
+ if(!!process.env.FONT_ADMIN_TOKEN!==!!process.env.FONT_ADMIN_PRINCIPAL)throw Error('Incomplete font administrator configuration');
+ const fontAdmin=process.env.FONT_ADMIN_TOKEN?{token:process.env.FONT_ADMIN_TOKEN,principal:process.env.FONT_ADMIN_PRINCIPAL!}:undefined;
+ if(fontAdmin)checkFontAdminAccess(fontAdmin,authoring?.token);
  const policy=readFilePolicy(process.env);
  const uploadConfig=readUploadConfig(process.env);
  const deadline=integer('render deadline',process.env.EXPORT_RENDER_TIMEOUT_MS,120000,3600000);
@@ -35,7 +39,7 @@ async function main(){
  try{
   const files=await createPdfFiles(process.env.EXPORT_OUTPUT_DIR??'output'),outputs=createOutputs(pool,files,policy.tempHours);
   processor=await startProcessor({pool,files,policy,resources:{files:resourceFiles,config:uploadConfig},initialize:async()=>{await cleanupRenderTemps(renderRoot);await outputs.cleanup();await uploads.recover();},render:(p,t,s,images)=>renderPinnedJob(p,t,s,deadline,maxBytes,renderRoot,images)});
-  app=createServer({pool,outputs,uploads,isReady:()=>!closing&&processor!.isReady(),bodyLimit,imagesEnabled:true,maxOutstanding:jobConfig.maxOutstanding,...(authoring?{authoring}:{})});
+  app=createServer({pool,outputs,uploads,isReady:()=>!closing&&processor!.isReady(),bodyLimit,imagesEnabled:true,maxOutstanding:jobConfig.maxOutstanding,...(authoring?{authoring}:{}),...(fontAdmin?{fontAdmin}:{})});
   await app.listen({host,port});
   timer=setInterval(()=>{if(cleanup)return;cleanup=Promise.all([outputs.cleanup(),uploads.cleanup()]).then(()=>{}).catch(()=>{}).finally(()=>{cleanup=undefined;});},60000);
   process.once('SIGTERM',()=>{void stop();});process.once('SIGINT',()=>{void stop();});

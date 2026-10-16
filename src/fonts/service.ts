@@ -46,8 +46,8 @@ export async function createFontLibrary(options:{pool:Pool;root:string;principal
  const live=(r:any)=>{if(new Date(r.expires_at).getTime()<=Date.now())fontError('FONT_IMPORT_EXPIRED');};
  async function getReleaseIn(c:PoolClient,id:string){
   if(!UUID.test(id))fontError('FONT_RELEASE_NOT_FOUND');
-  const r=(await c.query('SELECT * FROM font_releases WHERE id=$1',[id])).rows[0];if(!r)fontError('FONT_RELEASE_NOT_FOUND');
-  const faces=(await c.query('SELECT id,asset_id AS "assetId",source_evidence_id AS "sourceEvidenceId",raw_weight AS "rawWeight",source_weight AS "sourceWeight",approved_weight AS "approvedWeight",style FROM font_faces WHERE release_id=$1 ORDER BY approved_weight NULLS FIRST,style,asset_id',[id])).rows;
+  const r=(await c.query('SELECT * FROM font_releases WHERE id=$1 AND deleted_at IS NULL',[id])).rows[0];if(!r)fontError('FONT_RELEASE_NOT_FOUND');
+  const faces=(await c.query('SELECT id,asset_id AS "assetId",source_evidence_id AS "sourceEvidenceId",raw_weight AS "rawWeight",source_weight AS "sourceWeight",approved_weight AS "approvedWeight",style,conflict_resolution AS "conflictResolution" FROM font_faces WHERE release_id=$1 ORDER BY approved_weight NULLS FIRST,style,asset_id',[id])).rows;
   return {id:r.id,familyId:r.family_id,version:r.version,state:r.state,revision:r.revision,manifestDigest:r.manifest_digest,languageScope:r.language_scope,issues:r.issues,faces,createdAt:r.created_at.toISOString()};
  }
  return {
@@ -129,12 +129,14 @@ export async function createFontLibrary(options:{pool:Pool;root:string;principal
     }
    });
   },
-  async stageRelease(input:ReleaseInput){
+  async stageRelease(input:ReleaseInput,edit?:{id:string;expectedRevision:number}){
    object(input,['requestId','reason','familyId','version','importId','languageScope','faceBindings']);mutation(input);
    if(!UUID.test(input.familyId)||!UUID.test(input.importId)||!Number.isSafeInteger(input.version)||input.version<1||input.version>2147483647||!Array.isArray(input.languageScope)||!input.languageScope.length||input.languageScope.some(x=>!['th','en'].includes(x))||new Set(input.languageScope).size!==input.languageScope.length||!Array.isArray(input.faceBindings)||!input.faceBindings.length||input.faceBindings.length>FONT_LIMITS.files)fontError('INVALID_FONT_INPUT');
-   for(const b of input.faceBindings){object(b,['assetId','sourceEvidenceId','sourceWeight','approvedWeight','style']);if(!UUID.test(b.assetId)||!UUID.test(b.sourceEvidenceId)||!weight(b.sourceWeight)||!weight(b.approvedWeight)||!['normal','italic'].includes(b.style))fontError('INVALID_FONT_INPUT');}
-   return transaction(pool,c=>receipt(c,principal,'stage',input.familyId,input,async()=>{
+   for(const b of input.faceBindings){object(b,['assetId','sourceEvidenceId','sourceWeight','approvedWeight','style','conflictResolution']);if(!UUID.test(b.assetId)||!UUID.test(b.sourceEvidenceId)||!weight(b.sourceWeight)||!weight(b.approvedWeight)||!['normal','italic'].includes(b.style))fontError('INVALID_FONT_INPUT');}
+   return transaction(pool,c=>receipt(c,principal,edit?'edit':'stage',edit?.id??input.familyId,{...input,...(edit?{edit}:{})},async()=>{
+    if(edit){const hint=(await c.query('SELECT family_id FROM font_releases WHERE id=$1',[edit.id])).rows[0];if(!hint||hint.family_id!==input.familyId)fontError('FONT_BINDING_CONFLICT');}
     const family=(await c.query('SELECT * FROM font_families WHERE id=$1 FOR UPDATE',[input.familyId])).rows[0];if(!family)fontError('FONT_FAMILY_NOT_FOUND');
+    if(edit){if(!UUID.test(edit.id))fontError('FONT_RELEASE_NOT_FOUND');const old=(await c.query('SELECT * FROM font_releases WHERE id=$1 FOR UPDATE',[edit.id])).rows[0];if(!old||old.deleted_at)fontError('FONT_RELEASE_NOT_FOUND');revision(edit.expectedRevision,old.revision);if(old.ever_activated_at||!['preparing','needs_changes'].includes(old.state))fontError('FONT_STATE_CONFLICT');if(old.family_id!==input.familyId||old.version!==input.version)fontError('FONT_BINDING_CONFLICT');}
     const imported=await owned(c,input.importId);if(imported.state!=='inspected')fontError('FONT_UPLOAD_INCOMPLETE');
     const faces:any[]=[],issues:{code:string;path:string}[]=[],slots=new Set<string>(),assetIds=new Set<string>();
     for(const [index,b] of input.faceBindings.entries()){
@@ -145,18 +147,21 @@ export async function createFontLibrary(options:{pool:Pool;root:string;principal
      if(!await files.verify(row.storage_key,row.sha256,row.byte_length))fontError('FONT_ASSET_UNAVAILABLE');
      if(b.approvedWeight!==null){const slot=b.approvedWeight+':'+b.style;if(slots.has(slot))fontError('FONT_FACE_CONFLICT');slots.add(slot);}
      if(assetIds.has(b.assetId))fontError('FONT_FACE_CONFLICT');assetIds.add(b.assetId);
-     if(b.approvedWeight===null||b.sourceWeight===null||m.rawWeight!==b.sourceWeight||b.approvedWeight!==b.sourceWeight)issues.push({code:'FONT_WEIGHT_REVIEW_REQUIRED',path:'/faceBindings/'+index});
+     if(b.conflictResolution){object(b.conflictResolution,['reason','sourceWeight','approvedWeight']);if(!text(b.conflictResolution.reason,500)||b.approvedWeight===null||b.conflictResolution.approvedWeight!==b.approvedWeight||b.conflictResolution.sourceWeight!==b.sourceWeight)fontError('INVALID_FONT_INPUT');}
+     if(b.approvedWeight===null||((b.sourceWeight===null||m.rawWeight!==b.sourceWeight||b.approvedWeight!==b.sourceWeight)&&!b.conflictResolution))issues.push({code:'FONT_WEIGHT_REVIEW_REQUIRED',path:'/faceBindings/'+index});
      faces.push({...b,rawWeight:m.rawWeight,sha256:row.sha256,source:s});
     }
     if(!slots.has('400:normal'))issues.push({code:'FONT_REGULAR_400_REQUIRED',path:'/faceBindings'});
-    const manifest={familyId:input.familyId,languageScope:[...input.languageScope].sort(),faces:faces.map(f=>({sha256:f.sha256,rawWeight:f.rawWeight,sourceWeight:f.sourceWeight,approvedWeight:f.approvedWeight,style:f.style,source:{provider:f.source.provider,locator:f.source.locator,metadataHash:f.source.metadataHash,fileHashBinding:f.source.fileHashBinding,licenseAssetIds:[...f.source.licenseAssetIds].sort()}})).sort((a,b)=>canonical(a)<canonical(b)?-1:1)};
-    const digest=fingerprint(manifest),prior=(await c.query('SELECT id,manifest_digest FROM font_releases WHERE family_id=$1 AND version=$2',[input.familyId,input.version])).rows[0];
-    if(prior&&prior.manifest_digest!==digest)fontError('FONT_RELEASE_CONFLICT');
-    const same=(await c.query('SELECT id FROM font_releases WHERE family_id=$1 AND manifest_digest=$2',[input.familyId,digest])).rows[0];
-    if(same){await audit(c,principal,'release-reuse',input,{releaseId:same.id},same.id);return {...await getReleaseIn(c,same.id),existing:true};}
-    const id=randomUUID();await c.query('INSERT INTO font_releases(id,family_id,version,manifest_digest,language_scope,issues) VALUES($1,$2,$3,$4,$5,$6)',[id,input.familyId,input.version,digest,JSON.stringify(input.languageScope),JSON.stringify(issues)]);
-    for(const f of faces)await c.query('INSERT INTO font_faces(id,release_id,asset_id,source_evidence_id,raw_weight,source_weight,approved_weight,style) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[randomUUID(),id,f.assetId,f.sourceEvidenceId,f.rawWeight,f.sourceWeight,f.approvedWeight,f.style]);
-    await audit(c,principal,'release-stage',input,{manifestDigest:digest},id);return {...await getReleaseIn(c,id),existing:false};
+    const manifest={familyId:input.familyId,languageScope:[...input.languageScope].sort(),faces:faces.map(f=>({sha256:f.sha256,rawWeight:f.rawWeight,sourceWeight:f.sourceWeight,approvedWeight:f.approvedWeight,style:f.style,...(f.conflictResolution?{conflictResolution:f.conflictResolution}:{}),source:{provider:f.source.provider,locator:f.source.locator,metadataHash:f.source.metadataHash,fileHashBinding:f.source.fileHashBinding,licenseAssetIds:[...f.source.licenseAssetIds].sort()}})).sort((a,b)=>canonical(a)<canonical(b)?-1:1)};
+    const digest=fingerprint(manifest),prior=(await c.query('SELECT id,manifest_digest,deleted_at FROM font_releases WHERE family_id=$1 AND version=$2',[input.familyId,input.version])).rows[0];
+    if(prior&&(prior.deleted_at||prior.id!==edit?.id&&prior.manifest_digest!==digest))fontError('FONT_RELEASE_CONFLICT');
+    const same=(await c.query('SELECT id FROM font_releases WHERE family_id=$1 AND manifest_digest=$2 AND deleted_at IS NULL',[input.familyId,digest])).rows[0];
+    if(same&&same.id!==edit?.id){if(edit)fontError('FONT_RELEASE_CONFLICT');await audit(c,principal,'release-reuse',input,{releaseId:same.id},same.id);return {...await getReleaseIn(c,same.id),existing:true};}
+    const id=edit?.id??randomUUID();
+    if(edit){await c.query("UPDATE font_releases SET state='preparing',revision=revision+1,manifest_digest=$2,language_scope=$3,issues=$4,updated_at=now() WHERE id=$1",[id,digest,JSON.stringify(input.languageScope),JSON.stringify(issues)]);await c.query("UPDATE font_reviews SET status='withdrawn',updated_at=now() WHERE release_id=$1 AND status<>'withdrawn'",[id]);await c.query('DELETE FROM font_faces WHERE release_id=$1',[id]);}
+    else await c.query('INSERT INTO font_releases(id,family_id,version,manifest_digest,language_scope,issues) VALUES($1,$2,$3,$4,$5,$6)',[id,input.familyId,input.version,digest,JSON.stringify(input.languageScope),JSON.stringify(issues)]);
+    for(const f of faces)await c.query('INSERT INTO font_faces(id,release_id,asset_id,source_evidence_id,raw_weight,source_weight,approved_weight,style,conflict_resolution) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[randomUUID(),id,f.assetId,f.sourceEvidenceId,f.rawWeight,f.sourceWeight,f.approvedWeight,f.style,f.conflictResolution?JSON.stringify({...f.conflictResolution,reviewer:principal}):null]);
+    await audit(c,principal,edit?'release-edit':'release-stage',input,{manifestDigest:digest},id);return {...await getReleaseIn(c,id),existing:false};
    }));
   },
   async getRelease(id:string){return transaction(pool,c=>getReleaseIn(c,id));},

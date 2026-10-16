@@ -11,6 +11,6 @@ export interface SourceEvidence {
 }
 export interface ImportInput {requestId:string;reason:string;files:FileDeclaration[];licenseFiles:FileDeclaration[];sourceEvidence:SourceEvidence[]}
 export interface Mutation {requestId:string;reason:string;expectedRevision:number}
-export interface FaceBinding {assetId:string;sourceEvidenceId:string;sourceWeight:number|null;approvedWeight:number|null;style:'normal'|'italic'}
+export interface FaceBinding {assetId:string;sourceEvidenceId:string;sourceWeight:number|null;approvedWeight:number|null;style:'normal'|'italic';conflictResolution?:{reason:string;sourceWeight:number|null;approvedWeight:number}}
 export interface ReleaseInput {requestId:string;reason:string;familyId:string;version:number;importId:string;languageScope:('th'|'en')[];faceBindings:FaceBinding[]}
 export interface FamilyInput {requestId:string;reason:string;displayName:string;internalNames:string[];sourceIdentity:{provider:'google-fonts';providerFamilyKey:string}}

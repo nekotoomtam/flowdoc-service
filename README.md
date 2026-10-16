@@ -68,13 +68,48 @@ Workers use those exact hashes even after retirement and check file bytes again.
 An identical upload/preview retry returns its original job. Font failures cross
 the child boundary as bounded codes without server paths. Font assets are read
 from `FONT_STORAGE_DIR` (default `staging/fonts`); API and worker must share this
-directory. No activation endpoint, automatic fallback or default selection is added.
+directory. Automatic fallback remains disabled; defaults never rewrite document references.
 
-Run `npm run build` and `node scripts/checkFontJobs.mjs` for isolated DB/container
+Run `npm run build` and `node scripts/checkFontLifecycle.mjs` for isolated DB/container
 checks, queue persistence across DB restart and legacy rendering fixtures. Optional
 `FONT_FIXTURE_DIR` points to the supplied IBM_Plex_Sans_Thai/Pridi/Sarabun folder.
 Results and local test credentials are separate under `artifacts/<run>`; share only
 the result/PDF files. Shared stage acceptance remains in Project Control.
+
+The administrator HTTP candidate requires migrations through 018 and both
+`FONT_ADMIN_TOKEN` (32–512 characters) and `FONT_ADMIN_PRINCIPAL`. Without them
+admin routes stay disabled; a partial configuration or a token equal to
+`AUTHORING_TOKEN` rejects startup. The authoring token receives 403 on admin
+routes. Actor identity comes from configuration, never request JSON.
+
+Under `/admin/fonts`, create families/imports/releases (201), stream each declared
+TTF/license via PUT imports/:id/files/:clientKey, then inspect. Mutations use
+requestId/reason and expectedRevision of the release; family default uses its own
+revision. Full candidate PATCH permits preparing/needs_changes only. An optional
+face conflictResolution contains reason/sourceWeight/approvedWeight; Service
+records the reviewer while preserving immutable source metadata.
+
+Submit-review requires a resolved normal 400 and the current manifestDigest.
+Run/approve requests carry that digest and the parent release revision. Every
+face produces a real Thai/English specimen according to languageScope, with
+original hash/license checks and pinned renderer/test-suite identities. Read the
+report and its authenticated `/reviews/:id/artifacts/:hash` PDFs; approve with
+reportDigest and all artifactHashes only after visual/source/license review.
+Rendering alone leaves in_review. Approval makes ready; explicit activate makes
+active. Any withdrawal/edit invalidates the previous result. Review preview uses
+`/reviews/:id/previews` with purpose=font-review, reviewId and manifestDigest;
+ordinary authoring previews cannot render preparing/in_review/ready releases.
+
+Set family defaults explicitly to an active same-family release or null. Retiring
+a current default requires expectedFamilyRevision and exactly one replacement
+release or clearDefault=true in the same transaction. Existing references/jobs
+retain their original font. Reactivation keeps retired eligibility during a new
+review of the immutable original set. Activated members remain immutable forever.
+Deletion tombstones only never-active preparing releases without review/reference
+history; it preserves audit, shared files and version reservation. Admin reads
+include bounded review/audit summaries. No CLI, MCP, Editor UI or deployment is
+established by this local candidate.
+
 
 Changing a variable key keeps its ID. The existing Core key/path references in
 fragments must also be updated by the author. Save allows unresolved content
