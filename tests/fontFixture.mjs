@@ -1,11 +1,11 @@
 import {inspectFont} from '../dist/fonts/inspection.js';
-import {join,dirname} from 'node:path';
+import {join,dirname,isAbsolute} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createFontLibrary} from '../dist/fonts/service.js';
 import {readFile} from 'node:fs/promises';
 import {randomUUID,createHash} from 'node:crypto';
 export async function stageFont(pool,root,file='Sarabun-Regular.ttf',weight=400){
- const source=file.startsWith('/')?file:fileURLToPath(new URL('../node_modules/@flowdoc/core/assets/fonts/'+file,import.meta.url));
+ const source=isAbsolute(file)?file:fileURLToPath(new URL('../node_modules/@flowdoc/core/assets/fonts/'+file,import.meta.url));
  const metadata=await inspectFont(source);
  const lib=await createFontLibrary({pool,root,principal:'font-test-admin'}),font=await readFile(source),license=await readFile(join(dirname(source),'OFL.txt')),sha=b=>createHash('sha256').update(b).digest('hex');
  const family=await lib.createFamily({requestId:randomUUID(),reason:'Test fixture',displayName:'Test Sarabun',internalNames:[metadata.names.family],sourceIdentity:{provider:'google-fonts',providerFamilyKey:randomUUID()}});

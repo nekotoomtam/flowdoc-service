@@ -21,6 +21,7 @@ export async function createFontFiles(location:string,options:{receiveTimeoutMs?
  const remove=async(path:string)=>{try{await unlink(path);}catch(e){if((e as NodeJS.ErrnoException).code!=='ENOENT')throw e;}};
  async function digest(path:string){const s=await lstat(path);if(!s.isFile()||s.isSymbolicLink()||s.size>FONT_LIMITS.fileBytes)fail('FONT_STORAGE_FAILED');const hash=createHash('sha256');for await(const b of createReadStream(path))hash.update(b);return {sha256:hash.digest('hex'),byteLength:s.size};}
  return {
+  assetPath:storagePath,
   entryPath,
   async receive(id:string,key:string,input:AsyncIterable<Uint8Array>,expected:Pick<FileDeclaration,'byteLength'|'sha256'>,signal?:AbortSignal){
    const target=entryPath(id,key);if(!SHA.test(expected.sha256)||!Number.isSafeInteger(expected.byteLength)||expected.byteLength<1)fail('INVALID_FONT_INPUT');

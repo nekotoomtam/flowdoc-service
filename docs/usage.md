@@ -1,14 +1,14 @@
-# คู่มือใช้งาน FlowDoc Service 0.4.0
+# คู่มือใช้งาน FlowDoc Service 0.4.1
 
 ## Authority Boundary
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-แพ็กเกจ 0.4.0 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
+candidate 0.4.1 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
 
-คู่มือนี้ตาม package 0.4.0 ที่ใช้ Core 0.4.0; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
+คู่มือนี้ตาม candidate Service/Core 0.4.1 ซึ่งยังไม่ออก tag/ติดตั้ง; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
 annotated tag หลังผ่านเกณฑ์ออกรุ่น ไม่อนุมานจากชื่อ image. รองรับ Area18 ทั้ง schemaVersion 1
 (Sarabun เดิม) และ 2 (คลังฟอนต์). เลข schema, รุ่นฟอนต์, รุ่นแม่แบบ และรุ่น Service
 เป็นคนละค่า. คำสั่ง publish ด้านล่างคือเผยแพร่เวอร์ชันแม่แบบ ไม่ใช่ Git release;
@@ -54,7 +54,7 @@ proxy; ไม่เพิ่ม CORS หรือ static route ให้ product
 ## 1. เริ่มต้นและออก PDF แรก
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.4.0
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด candidate 0.4.1
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
@@ -65,7 +65,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.4.0'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.4.1'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -443,6 +443,44 @@ job ตรึงฟอนต์/ไฟล์/license ที่รับไว้
 ไฟล์หายหรือ hash ไม่ตรงต้องแก้ storage ไม่ข้ามการตรวจ. Sarabun schema 1 ยังใช้
 ไฟล์ชุดเดิม; ไม่แก้เอกสารเดิมให้กลายเป็น schema 2 เพื่อให้ผ่าน.
 
+### 8.1 ตัวช่วยความสูงฟอนต์: วัดและเก็บผล (development candidate หลัง 0.4.0)
+
+ส่วนนี้อธิบายโค้ดช่วง 1 ที่ยังไม่ออก tag/ติดตั้ง; ไม่ใช่คำสั่งของ release 0.4.0 เดิม.
+ข้อตกลงร่วมอยู่ Project Control
+`docs/domains/flowdoc-font-height-adjustment-design-plan-2026-10-16.md` ข้อ 7.
+ช่วง 2 ตรึง Core `0.4.1` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
+Core export `calculateFontHeightAdjustment` เป็น pure API รับ pt และ metric ต้นทาง/ปลายทาง
+แล้วคืน pt ที่ปัด half-up หกตำแหน่ง หรือ error; ไม่เขียน draft และไม่เปลี่ยน renderer.
+ยังไม่มีเครื่องมือผู้เขียน propose/confirm หรือการเปลี่ยน pt ของเอกสาร (ช่วง 3).
+
+ใช้ `node dist/fonts/cli.js <command> --request <file.json>` กับ FONT_ADMIN_BASE_URL/
+FONT_ADMIN_TOKEN เดิม. Author token เรียก API เหล่านี้ไม่ได้; actor มาจาก auth.
+
+| command | JSON เพิ่มจาก requestId/reason | ผล |
+| --- | --- | --- |
+| height-measure | id=releaseId, expectedRevision=release revision, manifestDigest | วัด Regular 400 จริงและคืน profile; request ซ้ำได้ผลเดิม |
+| height-approve / height-revoke | id=profileId, expectedRevision=release revision, profileDigest | เพิ่มประวัติยืนยัน/ถอนผลวัด ไม่เปลี่ยนสถานะ release |
+| height-assign | id=releaseId, expectedRevision=assignment revision (ครั้งแรก 0), profileId, profileDigest | ตั้งผลวัดที่อนุมัติเป็น current pointer ด้วย CAS |
+| height-show | id=profileId เท่านั้น | อ่าน profile/hash/ผลวัดและ reviewStatus |
+
+ผลวัดใช้ method `thai-bo-baseline-top-v1`: baseline ถึงยอดเส้นโค้งจริงของ บ,
+unhinted รวม composite. topDesign เก็บ decimal string; ไม่รวมสระ/วรรณยุกต์.
+ผลวัดแยกจาก immutable asset metadata และ release manifest; การอ่าน metadata ปกติ
+ยังคืน shape เดิมเพื่อให้ review/re-activation ของฟอนต์ที่เก็บไว้แล้วทำงานต่อได้.
+ไม่มี บ/Regular คืน unavailable diagnostic ที่อนุมัติไม่ได้ ไม่ใช่ font readiness blocker ใหม่.
+reviewStatus ที่อ่านได้เป็นประวัติ review ไม่ใช่การรับรองไฟล์/manifest ปัจจุบัน;
+การ assign ตรวจ binding/hash และประวัติล่าสุดซ้ำ. active/retired เดิมแนบผลวัดได้.
+
+custom family ใช้ sourceIdentity `{provider:'custom',providerFamilyKey:'thsarabunnew'}`.
+custom sourceEvidence ต้องมี providerFamilyKey เดียวกัน พร้อม provenance
+`{sourceName,sourceVersion,obtainedFrom,rightsNote}`; metadataHash เป็น SHA-256 ของ
+canonical JSON (sort keys) ของ provenance, fileHashBinding เป็น SHA-256 ของ TTF จริง.
+locator ใช้ HTTPS ที่มาจริงหรือ `urn:flowdoc:custom:thsarabunnew`; ไม่ใส่พาธหรือ credentials.
+แนบ license text UTF-8 ที่ถูกต้องผ่าน licenseFiles/licenseClientKeys เหมือนเดิม;
+TH Sarabun New ใช้ข้อความ license ของตัวเอง ไม่ใช้ OFL ของ Google แทน.
+sourceWeight ไม่ทราบใช้ null แล้วบันทึก conflictResolution ของ approvedWeight ตามกฎเดิม.
+dedup bytes ไม่ลบที่มา/ใบอนุญาตของแต่ละ import; ไม่เปิด custom upload ให้ผู้เขียนทั่วไป.
+
 ## 9. เตรียมอัปเกรด สำรอง และตรวจหลังติดตั้ง
 
 ส่วนนี้เป็นคู่มือปฏิบัติ ไม่ใช่คำสั่งให้ deploy ทันที. ก่อนอัปเกรดระบบที่มีข้อมูล:
@@ -496,3 +534,50 @@ UPLOAD_GONE จึงยังไม่ใช่หลักฐาน same-revis
 ให้ถูกต้องแล้วออกแม่แบบรุ่นถัดไป; ใช้ผลตรวจของชุดส่งมอบยืนยัน ไม่แก้ validation
 ของผลิตภัณฑ์เพื่อให้ตัวทดสอบเก่าผ่าน.
 ใช้ผลล่าสุดของ candidate ที่จะออกรุ่นตัดสินตามเกณฑ์รับงาน ไม่ขยายผลจากการตรวจเอกสาร.
+
+### 8.2 ขอเสนอและยืนยันขนาด (development candidate 0.4.1)
+
+POST `/authoring/drafts/:id/font-height-adjustments` รับ expectedRevision/styleId/
+targetFont/idempotencyKey. ใช้ credential เจ้าของ; metric และ pt อ่านจาก draft กับ
+profile ที่ผู้ดูแลตรวจแล้วเท่านั้น. คืน proposedFontSizePt และ layoutCheck=not_checked;
+ยังไม่เปลี่ยน draft. ยกเลิกได้โดยไม่ confirm.
+POST `/authoring/drafts/:id/font-height-adjustments/:proposalId/confirm` รับเพียง
+expectedRevision/idempotencyKey หลังเจ้าของเลือกใช้; บันทึก font+pt ใน transaction เดียว
+ผ่าน write/reference/audit เดียวกับ save และคง lineHeightPt. Shared style มีผลต่อทุก node
+ที่อ้าง style นั้น. ต้องตรวจ readiness และ preview ต่อ; save ไม่รับรอง layout.
+
+ข้อเสนออายุ 15 นาที. TTL/revision/fingerprint/profile/assignment/review เปลี่ยนให้ขอใหม่;
+retry key/body เดิมคืนผลเดิม ไม่เพิ่ม revision หรือยืดอายุ. key เดิมต่าง body เป็น conflict.
+active หรือ retired exact tuple ที่ draft retained เท่านั้น. ไม่มี profile หรือ schema1
+Sarabun คืน unavailable และยังใช้ ordinary pt/save/preview/clone ตามเดิม ไม่ migrate เอง.
+Catalog heightProfile เป็นข้อมูล review เบื้องต้น; propose/confirm ตรวจ binding/files/สิทธิ์ซ้ำ.
+Migration 020 เพิ่มตารางข้อเสนอเท่านั้น; ไม่แก้ schema1 definitions หรือ migration เดิม.
+ใช้ฐานทดสอบแยกก่อน upgrade; รุ่นนี้ยังไม่อนุญาต install/deploy จากผลตรวจ development.
+
+### 8.3 เตรียมส่งมอบตัวช่วยความสูงและการกู้คืน
+
+Candidate ใช้ Service/Core `0.4.1` กับ FlowDocMake
+`0.2.2` และ Core SHA256 ใน vendor/manifest.json.
+นี่เป็นชุด development ที่ตรวจร่วม ไม่ใช่ release/tag หรือคำอนุญาตติดตั้งจริง.
+Core schema/renderer เดิมไม่เปลี่ยน; helper ต้องยืนยันก่อนบันทึกและตรวจ PDF ทุกครั้ง.
+IBM Plex Sans Thai, Pridi, Noto Sans Thai Looped และ Noto Serif Thai ชุดที่ได้รับ
+ไม่มี italic; ห้ามนับเป็นผลผ่านของ italic หรือสร้างตัวเอียงแทน.
+
+ก่อน upgrade หลังได้รับอนุญาต: หยุดรับงาน/รอ job จบ สำรอง PostgreSQL แบบ custom dump
+และ staging/font library รวม licenses, output/temp ที่ต้องรักษา พร้อม config/secret
+แยกไว้ในที่ปลอดภัย. ใช้ image/source/Core hash ที่ตรึง สั่ง migrate ไปถึง 020;
+ห้ามแก้ bytes ของ 001–019. ตรวจ replay ไม่ apply ซ้ำ, admin/author แยก credential,
+เปิด draft เดิม, catalog/default/retired, helper และ preview/download ก่อนเปิดงาน.
+Profile/assignment/review และ proposals/receipts ต้องอยู่ใน dump เดียวกัน.
+
+กู้คืน: หยุด candidate, ใช้ image ที่ตรง backup, คืน DB และไฟล์เป็นชุดเดียวในฐาน/volume
+แยกก่อน ตรวจ ready/version/hash, draft revision/fingerprint, profile/receipt และ preview.
+ข้อเสนอที่หมดอายุไม่ถูกต่ออายุหรือ apply เอง; retry ที่สำเร็จแล้วต้องได้ receipt เดิม.
+อย่าเริ่ม binary เก่ากับ schema ใหม่หรือคืน DB โดยไม่มีไฟล์ฟอนต์ที่ตรง hash.
+ช่วง 4 ทดสอบ dump+files restore ในฐานแยกและตรวจ PDF เทียบไบต์แล้ว; การติดตั้งกับ
+ข้อมูลจริงและการย้าย stable version/tag ยังต้องผ่านกฎ release และคำอนุญาตรอบนั้น.
+
+ตรวจซ้ำแบบจำกัดขอบเขตใช้ `tests/checkFontHeightDelivery.mjs` กับ config ของฐาน
+ทดสอบที่ระบุ container ชัดเจน และ `tests/checkFontHeightPdf.py <state.json>`.
+ต้องเตรียม dependencies ตาม runtime/fontTools และ PDF tools; ไม่ใช่เครื่องมือนำเข้าฐานจริง.
+ผลอัตโนมัติแยกจาก visual review ทุกหน้า; ดูหลักฐานรอบที่ Project Control ระบุ.
