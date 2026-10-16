@@ -20,6 +20,7 @@ try{
  const registration=cli(['register','examples/srs-template.json'],'register');assert.equal(registration.ok,true);assert.equal(registration.value.created,true);
  const cliCurrent=JSON.parse(compose(['run','--rm','-T','--entrypoint','node','verification','tests/checkCurrentCli.mjs'],'current-cli'));assert.equal(cliCurrent.status,'PASS');
  const before=cli(['show','srs-table-trial','1'],'show-before');assert.equal(before.ok,true);
+ const persistenceSeed=JSON.parse(compose(['run','--rm','-T','--entrypoint','node','verification','tests/checkPersisted.mjs','write'],'persisted-write'));assert.equal(persistenceSeed.status,'PASS');
  compose(['restart','db'],'restart');compose(['up','-d','--wait','db'],'database-ready');
  const replay=cli(['migrate'],'migrate-after');assert.equal(replay.ok,true);assert.deepEqual(replay.value.applied,[]);
  const after=cli(['show','srs-table-trial','1'],'show-after');assert.deepEqual(after,before);

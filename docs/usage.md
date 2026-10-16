@@ -3,13 +3,13 @@
 ## Authority Boundary
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-ชุดพัฒนา 0.4.0 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
+แพ็กเกจ 0.4.0 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
 
-คู่มือนี้ตาม package ปัจจุบันที่ใช้ Core 0.4.0; `release` ที่ออกแล้วคงเป็น 0.3.0
-จนกว่าจะผ่านขั้นเตรียมและอนุมัติออกรุ่นแยกกัน. รองรับ Area18 ทั้ง schemaVersion 1
+คู่มือนี้ตาม package 0.4.0 ที่ใช้ Core 0.4.0; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
+annotated tag หลังผ่านเกณฑ์ออกรุ่น ไม่อนุมานจากชื่อ image. รองรับ Area18 ทั้ง schemaVersion 1
 (Sarabun เดิม) และ 2 (คลังฟอนต์). เลข schema, รุ่นฟอนต์, รุ่นแม่แบบ และรุ่น Service
 เป็นคนละค่า. คำสั่ง publish ด้านล่างคือเผยแพร่เวอร์ชันแม่แบบ ไม่ใช่ Git release;
 ผู้ดูแลต้องมีคำอนุญาตเผยแพร่แม่แบบนั้นก่อนใช้.
@@ -437,6 +437,8 @@ clone ผ่าน `POST /authoring/drafts/:id/clone` ด้วย sourceRevisio
 idempotencyKey; สิทธิ์ retired มาจาก revision ที่ server เก็บ ไม่ใช่ client แนบเอง.
 FlowDocMake ใช้ `get_font_catalog`, `get_draft_font_readiness`, `clone_template_draft`;
 ไม่มีคำสั่ง admin ในช่องทางนี้. ใช้ชุด client ที่เข้าคู่กับ Service/Core ปัจจุบัน.
+ชุดส่งมอบนี้ใช้ FlowDocMake 0.2.1 ซึ่งตรึง checksum ของ Core tarball ใน
+`vendor/manifest.json`; client 0.2.0 ตรึงแพ็กเกจก่อนปรับคู่มือและใช้แทนกันไม่ได้.
 job ตรึงฟอนต์/ไฟล์/license ที่รับไว้ แม้เปลี่ยน default หรือ retire ระหว่างรอ;
 ไฟล์หายหรือ hash ไม่ตรงต้องแก้ storage ไม่ข้ามการตรวจ. Sarabun schema 1 ยังใช้
 ไฟล์ชุดเดิม; ไม่แก้เอกสารเดิมให้กลายเป็น schema 2 เพื่อให้ผ่าน.
@@ -488,6 +490,9 @@ tests บน host ต้องระบุชุดปัจจุบันแ�
 ของแชตเดิมเคยค้าง configuration แม้ fresh launcher/file-client ผ่าน; ต้องตรวจ
 connection ที่จะใช้จริงอีกครั้ง. การ preview เอกสารเดิมที่รูปชั่วคราวหมดอายุเคยได้
 UPLOAD_GONE จึงยังไม่ใช่หลักฐาน same-revision PDF ครบทุกเอกสารเดิม.
-ชุดตรวจ CLI เดิม `tests/checkCurrentCli.mjs:11` เคยค้าง INVALID_DATA
-`invalid section document`; ไม่อ้างว่าผ่านเพียงเพราะคู่มืออัปเดต.
+ชุดตรวจ CLI เดิม `tests/checkCurrentCli.mjs` เคยคาดให้รับ draft ที่ลบตัวแปรซึ่ง
+ยังถูกใช้อยู่ จึงได้ INVALID_DATA `invalid section document` ตั้งแต่ save.
+ตัวตรวจปัจจุบันตรวจการปฏิเสธ save และยืนยันว่า draft เดิมไม่เปลี่ยน ก่อนแก้ข้อมูล
+ให้ถูกต้องแล้วออกแม่แบบรุ่นถัดไป; ใช้ผลตรวจของชุดส่งมอบยืนยัน ไม่แก้ validation
+ของผลิตภัณฑ์เพื่อให้ตัวทดสอบเก่าผ่าน.
 ใช้ผลล่าสุดของ candidate ที่จะออกรุ่นตัดสินตามเกณฑ์รับงาน ไม่ขยายผลจากการตรวจเอกสาร.

@@ -4,7 +4,8 @@
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-The development package is 0.4.0; the accepted `release` snapshot remains 0.3.0.
+Package version: 0.4.0. Its release identity is the matching annotated tag on the
+snapshot branch; a package version alone does not establish release acceptance.
 The local HTTP API includes a serial export processor,
 temporary PDF lifecycle and JPEG/PNG resource preparation. Release/tag promotion
 is separate. Font administration uses the CLI and scoped administrator permission;
@@ -12,7 +13,7 @@ an administrator UI and production scaling remain outside this slice.
 
 Start with the Thai [usage guide](docs/usage.md): first PDF, draft publication,
 API requests, uploads, Area examples, font administration/readiness and backup/upgrade.
-It describes the 0.4.0 development package; shared release status remains in Project Control.
+It describes package 0.4.0; shared release status remains in Project Control.
 
 ## Local setup and acceptance
 
@@ -29,9 +30,9 @@ retains its volume/network/images. Failures leave inspection data. Generated
 fixtures/isolated schemas and temporarily alter constraints; never use shared data.
 
 For a persistent local registry, copy .env.example to .env and choose a random
-URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:dev-0.4.0` explicitly
-to label this development build. Compose's retained 0.3.0 default image names do
-not select the current source version. Apply migrations through 018 before
+URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.4.0` explicitly
+to identify the image built from this candidate; verify its image ID separately.
+Apply migrations through 018 before
 starting this package. For fonts/authoring, add the environment override in the
 usage guide; base Compose does not pass those secrets to the API. Run:
 
