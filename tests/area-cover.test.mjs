@@ -14,9 +14,9 @@ let app,root,processor;
 beforeAll(async()=>{await db.setup();expect((await migrate(pool)).ok).toBe(true);root=await mkdtemp(join(tmpdir(),'area-cover-'));const files=await createPdfFiles(root);app=createServer({pool,isReady:()=>true,outputs:createOutputs(pool,files,24),authoring:{token:'b'.repeat(40),principal:'stage2'}});processor=await startProcessor({pool,files,policy:{retain:false,ttlHours:24,tempHours:24},pollMs:10});});
 afterAll(async()=>{await processor?.stop();await app?.close();await db.close();if(root)await rm(root,{recursive:true,force:true});});
 const call=(method,url,payload)=>app.inject({method,url,headers,...(payload?{payload}:{})});
-it('advertises only implemented Stage2 capabilities and protects discovery',async()=>{
+it('advertises only implemented Area cover capabilities and protects discovery',async()=>{
  expect((await app.inject('/authoring/contract')).statusCode).toBe(401);
- expect((await call('GET','/authoring/contract')).json().value.sectionInstances).toEqual({model:19,input:'array-by-id',assembly:'saved-definition',stage:2,coverArea:true,scopedToc:false});
+ expect((await call('GET','/authoring/contract')).json().value.sectionInstances).toEqual({model:19,input:'array-by-id',assembly:'saved-definition',stage:3,coverArea:true,scopedToc:true});
 });
 it('saves and processes a pinned single-Section Area cover through the actual packaged Core',async()=>{
  const t=JSON.parse(readFileSync('tests/fixtures/area-cover/template.json')),r=JSON.parse(readFileSync('tests/fixtures/area-cover/request.json'));
