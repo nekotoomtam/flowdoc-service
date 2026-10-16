@@ -1,3 +1,5 @@
+import type {FontSnapshot} from '../fonts/snapshot.js';
+import {fontIssue} from '../fonts/readiness.js';
 import {mkdir,mkdtemp,rm,readdir,readFile} from 'node:fs/promises';
 import {join,resolve as resolvePath} from 'node:path';
 import {tmpdir} from 'node:os';
@@ -5,7 +7,18 @@ import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import type {PreparedInput,TemplateDefinition,Result,PdfArtifact,Issue} from '@flowdoc/core';
 import type {JobImageInput} from '../images/job.js';
-export async function renderPinnedJob(prepared:PreparedInput,template:TemplateDefinition,signal?:AbortSignal,deadlineMs=120000,maxBytes=52428800,tempRoot=join(tmpdir(),'flowdoc-job-renders'),imageInput?:JobImageInput):Promise<Result<Pick<PdfArtifact,"bytes"|"mediaType">>>{
+export function renderPinnedJob(prepared:PreparedInput,template:TemplateDefinition,signal?:AbortSignal,deadlineMs=120000,maxBytes=52428800,tempRoot=join(tmpdir(),'flowdoc-job-renders'),imageInput?:JobImageInput,fontSnapshot?:FontSnapshot,fontStorageRoot?:string):Promise<Result<Pick<PdfArtifact,"bytes"|"mediaType">>>{
+ try{return renderSerializedJob({text:JSON.stringify(imageInput?{mode:'document',imageInput,fontSnapshot,fontStorageRoot}:{mode:'compose',template,prepared,fontSnapshot,fontStorageRoot})},signal,deadlineMs,maxBytes,tempRoot);}
+ catch(error){return Promise.reject(error);}
+}
+// Serialize before returning: the pending transport retains no document graph.
+export function renderDocumentJob(imageInput:JobImageInput,signal?:AbortSignal,fontSnapshot?:FontSnapshot,fontStorageRoot?:string):Promise<Result<Pick<PdfArtifact,"bytes"|"mediaType">>>{
+ try{return renderSerializedJob({text:JSON.stringify({mode:'document',imageInput,fontSnapshot,fontStorageRoot})},signal);}
+ catch(error){return Promise.reject(error);}
+}
+// Suspended async frames can retain the original argument even after reassignment.
+// Mutate a holder instead so that retained argument cannot keep the JSON alive.
+async function renderSerializedJob(payload:{text:string},signal?:AbortSignal,deadlineMs=120000,maxBytes=52428800,tempRoot=join(tmpdir(),'flowdoc-job-renders')):Promise<Result<Pick<PdfArtifact,"bytes"|"mediaType">>>{
  const root=resolvePath(tempRoot);await mkdir(root,{recursive:true});const temporary=await mkdtemp(join(root,'render-'));
  try{return await new Promise<Result<Pick<PdfArtifact,'bytes'|'mediaType'>>>(resolve=>{
   const child=spawn(process.execPath,[fileURLToPath(new URL('./render-child.js',import.meta.url))],{stdio:['pipe','pipe','ignore'],detached:process.platform!=='win32',env:{FLOWDOC_RENDER_TEMP:temporary,PATH:process.env.PATH,...(process.env.PYTHON_EXECUTABLE?{PYTHON_EXECUTABLE:process.env.PYTHON_EXECUTABLE}:{})}});
@@ -25,7 +38,9 @@ export async function renderPinnedJob(prepared:PreparedInput,template:TemplateDe
     const raw=await readFile(join(temporary,'issues.json'),'utf8');
     if(raw.length<=65536){const parsed:unknown=JSON.parse(raw);
      if(Array.isArray(parsed))for(const value of parsed.slice(0,16)){
-      if(!value||typeof value!=='object'||value.code!=='LAYOUT_FAILED')continue;
+      if(!value||typeof value!=='object')continue;
+      if(typeof value.code==='string'&&/^(FONT_(NOT_SELECTED|FACE_UNAVAILABLE|GLYPH_MISSING|SHAPING_FAILED|ASSET_UNAVAILABLE|ASSET_HASH_MISMATCH|LICENSE_UNAVAILABLE|LICENSE_HASH_MISMATCH|CHECK_UNAVAILABLE)|INVALID_FONT_FILE)$/.test(value.code)){issues.push(fontIssue(value.code));continue;}
+      if(value.code!=='LAYOUT_FAILED')continue;
       const bounded=(v:unknown):v is string=>typeof v==='string'&&v.length>0&&v.length<=2048&&!/[\x00-\x1f\x7f]/.test(v);
       if(!bounded(value.nodeId))continue;
       issues.push({code:'LAYOUT_FAILED',path:'nodes.'+value.nodeId,nodeId:value.nodeId,message:'Document content does not fit the configured layout',
@@ -38,7 +53,7 @@ export async function renderPinnedJob(prepared:PreparedInput,template:TemplateDe
   };
   // The processor validates the pinned template before composing/preparing images.
   // Send only the branch the child consumes; retain composition for direct callers.
-  child.on('error',()=>void finish(1));child.on('close',code=>void finish(code));child.stdin.on('error',()=>{});child.stdin.end(JSON.stringify(imageInput?{mode:'document',imageInput}:{mode:'compose',template,prepared}));
+  child.on('error',()=>void finish(1));child.on('close',code=>void finish(code));child.stdin.on('error',()=>{});child.stdin.end(payload.text);payload.text='';
  });}finally{await rm(temporary,{recursive:true,force:true});}
 }
 

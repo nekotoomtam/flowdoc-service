@@ -28,7 +28,7 @@ beforeAll(async()=>{
  app=createServer({pool:db.pool,uploads,outputs:createOutputs(db.pool,files,24),isReady:processor.isReady,imagesEnabled:true});
 });
 afterAll(async()=>{await app?.close();await processor?.stop();await uploads?.stop();await db.close();});
-const request=items=>({docKey:'area-demo',version,data:{},content:[{format:'evidence',data:{details:items.map(data=>({format:'evidence',data}))}}]});
+const request=items=>({docKey:'area-demo',version,data:{},sections:{evidence:{data:{details:items.map(data=>({format:'evidence',data}))}}}});
 async function upload(bytes){
  const u=ok((await app.inject({method:'POST',url:'/uploads',payload:{requestKey:randomUUID(),items:bytes.map((b,i)=>({key:'p'+i,source:'upload',mediaType:'image/jpeg',byteSize:b.length}))}})).json());
  for(let i=0;i<bytes.length;i++)expect((await app.inject({method:'PUT',url:`/uploads/${u.uploadId}/items/${u.items[i].resourceId}/content`,headers:{'content-type':'application/octet-stream'},payload:bytes[i]})).statusCode).toBe(200);
@@ -37,15 +37,14 @@ async function upload(bytes){
 async function finish(r){const response=await app.inject({method:'POST',url:'/jobs',payload:r});expect(response.statusCode,response.body).toBe(202);const job=ok(response.json());let view;
  for(let i=0;i<1200;i++){view=ok((await app.inject('/jobs/'+job.jobId)).json());if(['failed','succeeded'].includes(view.status))break;await new Promise(r=>setTimeout(r,20));}
  expect(view.status,JSON.stringify(view)).toBe('succeeded');return {job,view,pdf:await app.inject('/jobs/'+job.jobId+'/pdf')};}
-it('renders actual area images and retains skipped warnings',async()=>{
+it('renders actual area images and retains image warnings',async()=>{
  const good=await sharp({create:{width:800,height:400,channels:3,background:'#2870a0'}}).jpeg().toBuffer(),u=await upload([good,Buffer.from('bad-image')]);
  const r={...request([0,0,1].map((index,i)=>({photo:u.items[index].resourceId,caption:'AREA-'+i+'\n'+'ตรวจสอบหลักฐาน\n'.repeat(8)}))),uploadId:u.uploadId};
- r.content[0].data.details.splice(1,0,{format:'missing',data:{photo:'99999999-9999-4999-8999-999999999999'}});
- const result=await finish(r);expect(result.pdf.statusCode).toBe(200);expect(result.pdf.rawPayload.subarray(0,5).toString()).toBe('%PDF-');expect(result.view.warnings.some(w=>w.code==='AREA_ENTRY_SKIPPED')).toBe(true);expect(result.view.warnings.some(w=>w.code==='IMAGE_UNUSABLE')).toBe(true);
+ const result=await finish(r);expect(result.pdf.statusCode).toBe(200);expect(result.pdf.rawPayload.subarray(0,5).toString()).toBe('%PDF-');expect(result.view.warnings.some(w=>w.code==='IMAGE_UNUSABLE')).toBe(true);
  const raw=result.pdf.rawPayload.toString('latin1');expect((raw.match(/\/Subtype \/Image/g)??[]).length).toBe(1);
  expect((await db.pool.query('SELECT original_input FROM generation_jobs WHERE id=$1',[result.job.jobId])).rows[0].original_input).toEqual(r);
 });
-it('renders empty and all skipped without upload, rejects accepted foreign resource',async()=>{
- for(const details of [[],[{format:'missing',data:{}}]]){const r=request([]);r.content[0].data.details=details;expect((await finish(r)).pdf.statusCode).toBe(200);}
+it('renders empty Area values without upload, rejects accepted foreign resource',async()=>{
+ for(const details of [[]]){const r=request([]);r.sections.evidence.data.details=details;expect((await finish(r)).pdf.statusCode).toBe(200);}
  const bytes=await sharp({create:{width:2,height:2,channels:3,background:'#fff'}}).jpeg().toBuffer(),a=await upload([bytes]),b=await upload([bytes]);const r={...request([{photo:a.items[0].resourceId,caption:'foreign'}]),uploadId:b.uploadId};expect((await app.inject({method:'POST',url:'/jobs',payload:r})).statusCode).toBe(422);
 });

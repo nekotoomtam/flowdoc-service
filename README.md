@@ -4,19 +4,19 @@
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Version 0.2.14 provides a local HTTP API, serial export processor,
+Version 0.3.0 provides a local HTTP API, serial export processor,
 temporary PDF lifecycle and JPEG/PNG resource preparation. Release/tag promotion
 is separate. UI, permissions and production scaling remain out of scope.
 
 Start with the Thai [usage guide](docs/usage.md): first PDF, draft publication,
-API requests, uploads, Area examples and file lifetime. It covers 0.2.14; shared release status remains in Project Control.
+API requests, uploads, Area examples and file lifetime. It covers 0.3.0; shared release status remains in Project Control.
 
 ## Local setup and acceptance
 
 Install dependencies with `npm ci --ignore-scripts`; build with `npm run build`.
 With Docker Desktop's Linux engine ready, run `npm run check:database`.
 It uses a fresh isolated PostgreSQL18 volume/internal network, pinned images and
-Core 0.2.14 tarball, without published DB ports or host source mounts. It verifies
+the manifest-pinned Core tarball, without published DB ports or host source mounts. It verifies
 fresh migration, populated R3 upgrade/rollback, constraints, publication concurrency,
 CLI editing, source-versus-snapshot PDF equality and restart persistence.
 Results are in `artifacts/<run>/result.json`. Success stops the environment but
@@ -26,7 +26,7 @@ retains its volume/network/images. Failures leave inspection data. Generated
 fixtures/isolated schemas and temporarily alter constraints; never use shared data.
 
 For a persistent local registry, copy .env.example to .env and choose a random
-URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.2.14` explicitly
+URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.3.0` explicitly
 to label the image with the current code version. Run:
 
 ```text
@@ -49,6 +49,88 @@ repeat import reports CURRENT_EXISTS so it cannot accidentally replace IDs.
 Raw template import/registration use Core duplicate-key-aware validation.
 ID-bearing draft-save also uses duplicate-key-aware parsing. Preserve unique
 decoded JSON keys in raw template, draft and HTTP request input.
+
+## Font-aware draft and job candidate
+
+This candidate vendors Core 0.4.0 with its verified checksum in `vendor/manifest.json`.
+Schema 1 retains the four verified Sarabun hashes. Schema 2 uses exact library
+release/weight/style references. Save/get/validate return `fontReadiness` separately
+from the saved revision: `ready`, `blocked` or `incomplete`, with `checkedScope`
+of `styles` or `actual_input`. A saved draft may remain blocked; malformed font
+grammar, ownership, revision and idempotency errors still reject the operation.
+`POST /authoring/drafts/:id/clone` accepts sourceRevision, name, docKey and
+idempotencyKey; retained font rights come from server-held revision provenance.
+
+Admission checks actual composed characters through a temporary Core font specimen;
+authored pagination remains the worker's responsibility. Jobs persist immutable
+definition/input/renderer/font/license identities in the admission transaction.
+Workers use those exact hashes even after retirement and check file bytes again.
+An identical upload/preview retry returns its original job. Font failures cross
+the child boundary as bounded codes without server paths. Font assets are read
+from `FONT_STORAGE_DIR` (default `staging/fonts`); API and worker must share this
+directory. Automatic fallback remains disabled; defaults never rewrite document references.
+
+Run `npm run build` and `node scripts/checkFontLifecycle.mjs` for isolated DB/container
+checks, queue persistence across DB restart and legacy rendering fixtures. Optional
+`FONT_FIXTURE_DIR` points to the supplied IBM_Plex_Sans_Thai/Pridi/Sarabun folder.
+Results and local test credentials are separate under `artifacts/<run>`; share only
+the result/PDF files. Shared stage acceptance remains in Project Control.
+
+The administrator HTTP candidate requires migrations through 018 and both
+`FONT_ADMIN_TOKEN` (32–512 characters) and `FONT_ADMIN_PRINCIPAL`. Without them
+admin routes stay disabled; a partial configuration or a token equal to
+`AUTHORING_TOKEN` rejects startup. The authoring token receives 403 on admin
+routes. Actor identity comes from configuration, never request JSON.
+
+Under `/admin/fonts`, create families/imports/releases (201), stream each declared
+TTF/license via PUT imports/:id/files/:clientKey, then inspect. Mutations use
+requestId/reason and expectedRevision of the release; family default uses its own
+revision. Full candidate PATCH permits preparing/needs_changes only. An optional
+face conflictResolution contains reason/sourceWeight/approvedWeight; Service
+records the reviewer while preserving immutable source metadata.
+
+Submit-review requires a resolved normal 400 and the current manifestDigest.
+Run/approve requests carry that digest and the parent release revision. Every
+face produces a real Thai/English specimen according to languageScope, with
+original hash/license checks and pinned renderer/test-suite identities. Read the
+report and its authenticated `/reviews/:id/artifacts/:hash` PDFs; approve with
+reportDigest and all artifactHashes only after visual/source/license review.
+Rendering alone leaves in_review. Approval makes ready; explicit activate makes
+active. Any withdrawal/edit invalidates the previous result. Review preview uses
+`/reviews/:id/previews` with purpose=font-review, reviewId and manifestDigest;
+ordinary authoring previews cannot render preparing/in_review/ready releases.
+
+Set family defaults explicitly to an active same-family release or null. Retiring
+a current default requires expectedFamilyRevision and exactly one replacement
+release or clearDefault=true in the same transaction. Existing references/jobs
+retain their original font. Reactivation keeps retired eligibility during a new
+review of the immutable original set. Activated members remain immutable forever.
+Deletion tombstones only never-active preparing releases without review/reference
+history; it preserves audit, shared files and version reservation. Admin reads
+include bounded review/audit summaries. The font administrator CLI is `node dist/fonts/cli.js <command> --request <json-file>`.
+Set FONT_ADMIN_BASE_URL and FONT_ADMIN_TOKEN in the operator environment; never
+put tokens in arguments. Commands: import, import-inspect, family-create,
+release-stage, release-edit, review-submit, review-withdraw, review-run,
+review-approve, activate, retire, reactivation-review, default-set, release-delete,
+show. Use id for the action target; show also needs entity=release/import/review.
+Import uses files/licenseFiles entries {clientKey,path}; the client computes
+actual length/hash, streams bytes, and returns the intake receipt. Source evidence
+remains explicit. Inspect separately, then bind returned asset/evidence IDs.
+A retry after inspection returns the original import identity; show reads current
+state. Other action fields follow the administrator HTTP contract above.
+
+The authenticated authoring catalog GET /authoring/fonts accepts cursor, limit
+(1–100) and familyId. It returns active releases, exact available faces and
+nextCursor. Defaults never rewrite document selections. The authoring MCP adds
+get_font_catalog, get_draft_font_readiness and clone_template_draft only; it
+contains no administrator commands. POST /authoring/drafts/:id/font-readiness
+accepts expectedRevision and optional sampleRequest, resolves the owned saved
+revision and server-held retained rights, and returns readiness separately.
+Run `node scripts/checkFontTools.mjs` with FLOWDOCMAKE_PROJECT_ROOT pointing at
+the candidate Project Control checkout for real CLI/API/installed-candidate MCP,
+PDF and isolated database checks. The same operator review/approval requirement
+applies. No Editor UI or deployment is established by this local candidate.
+
 
 Changing a variable key keeps its ID. The existing Core key/path references in
 fragments must also be updated by the author. Save allows unresolved content
@@ -102,10 +184,9 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.2.14 is installed solely from `vendor/flowdoc-core-0.2.14.tgz`.
+Core 0.3.0 is installed solely from `vendor/flowdoc-core-0.3.0.tgz`.
 Its SHA256 and source commit are pinned in `vendor/manifest.json`;
-`node scripts/verifyVendor.mjs` verifies the checksum. Earlier archives remain
-unchanged. The 0.2.14 package includes incremental PDF fingerprint hashing.
+`node scripts/verifyVendor.mjs` verifies the checksum. The package supports only Area model 18.
 The lockfile pins dependencies. Linux runtime includes Node24, Python3.11/fontTools
 and the Core-owned resources. Do not copy or fork Core validation/rendering logic.
 
@@ -214,10 +295,8 @@ The current renderer/runtime requires packaged Linux x64 dependencies.
 ### Image variable master
 
 Migration 005 adds master 110004 (image), shared by current and version variables.
-Model 5 image variables bind resource UUID strings in global/local scope; URL and
-file intake remain upload sources, not separate variable types. Image variables
-inside array items require model 10; direct image cells require model 9. The registry can publish these
-templates. The configured server accepts image jobs with a finalized `uploadId`;
+Image variables bind resource UUID strings in global/local scope; URL and
+file intake remain upload sources, not separate variable types. Image variables are supported in array items and table cells. The configured server accepts image jobs with a finalized `uploadId`;
 image field values are resource IDs from that upload. Missing/wrong-set references
 are rejected before admission. Ordinary text/table jobs remain supported.
 
@@ -272,61 +351,21 @@ mount at `FLOWDOC_LIMIT_OUTPUT`, and `--entrypoint node` followed by the script 
 It records cgroup peak memory including fixture generation, not decoder-only RSS.
 This bounded serial probe is separate from the regular database suite.
 
-Model 6 templates support explicit table cells with zero-based columnIndex and
-rowSpan/colSpan (default 1). Registration and publication validate coverage and
-reject overlaps, holes and spans crossing headers or repeated rows. Cell content
-in model 6 remains TextBlocks; model 9 adds direct image cell content. See
-examples/merged-template.json for the graph shape; the
-Core package owns merged layout and continuation behavior.
+## Area 18 document contract
 
-## Model 7 links
+Only `nodeModelVersion: 18` is accepted. Models 4–17 are unsupported; there is
+no automatic conversion. Existing SQL migration files remain immutable history.
+An upgrade does not rewrite older stored definitions into supported templates.
 
-Core 0.1.4 adds url/link/reference inlines and TextBlock anchorId. Forward-only
-migration 008 registers master 110005/link; current and published schemas retain
-link object defaults, including one-level array item fields. PDF generation and
-validation remain in the pinned Core package. See examples/links-template.json.
-Model 8 adds the contents behavior below. DOCX remains unsupported.
+Sections use an authored fragment (or a cover), an `inputSchema`, and `formats: {}`.
+Reusable content belongs to a named `area` variable with formats in `areaFormats`.
+Requests provide `data` and `sections.<key>.data`; Area values are ordered arrays
+of `{format,data}` entries. Top-level and per-section `content` are rejected.
+The graph supports static text, tables, images, links, contents, scoped bands,
+page numbering and two-level arrays with row groups. Core owns validation and
+rendering. Start with `examples/area-document-template.json` and its request.
 
-## Contents example (model 8)
-
-`examples/contents-template.json` uses Core model 8: explicit TextBlock contents
-levels 1–3, unique anchor IDs, and one root contents node. Import/publish it using
-the existing template workflow, then submit a `contents` format followed by
-`section`, `section2` or `section3` items through `/jobs`. Titles and physical page
-numbers link to actual headings. Core handles layout and temporary footer numbers;
-no new variable master or database migration is needed. See the Core package
-README for limits. Current drafts and published versions remain independent.
-
-Model14 adds scoped header/footer inputs, repeated text/images/Columns and migration010. See docs/usage.md and examples/page-bands-template.json.
-
-Model15 adds per-section data/header/footer/content, relational section owners and migration011. See docs/usage.md and examples/section-ownership-template.json. Legacy models remain unchanged; there is no automatic template conversion.
-
-Model16 adds creator-authored current/total page fields and section counting policies. Callers do not supply system numbers. Migration012 extends section owner guards for model16; see docs/usage.md and examples/page-numbering-template.json.
-
-## 0.2.13: nested arrays, row groups and upgrade
-
-Core model17 supports two array levels; rowGroups define contiguous company
-prefix/member/empty rows. `pagination.keepStart` belongs to the template, not
-request JSON. Requests still contain only the pinned docKey/version and data.
-See [usage](docs/usage.md#row-groups-0213) and the checked-in
-[row-group template](examples/row-groups-template.json)/[request](examples/row-groups-request.json).
-This example enables keepStart; it uses docKey srs-basic on a fresh registry.
-
-Run migration013 with this version's CLI before starting the upgraded API.
-It extends existing Section-ownership checks to model17; no new master code or
-table is added. Existing variables use schema_id/parent_id, cloned version
-relations use newly allocated version IDs. Published definitions remain pinned
-and unchanged. New nested-array templates must explicitly select model17.
-
-Successful jobs can contain `ROW_GROUP_KEEP_START_RELAXED` when a group start
-cannot fit a page. Diagnostics retain groupId/groupIndex and source context.
-`EXPANSION_LIMIT` is HTTP422 before enqueue, not service unavailability.
-`node scripts/checkRowGroups.mjs` builds a fresh isolated DB/test environment,
-runs the Service suite, and removes its task containers/volumes/images. It does
-not benchmark production capacity. The usage guide records later bounded
-capacity observations; concurrent-worker sizing remains unverified.
-
-## 0.2.14: queue admission, API client and memory changes
+## 0.3.0: queue admission, API client and memory changes
 
 Service limits `queued` + `running` document jobs to
 `JOB_MAX_OUTSTANDING` (default10, positive safe integer). With the serial
@@ -345,13 +384,70 @@ No automatic POST retry is provided: after an ambiguous connection failure the
 first request may already have been accepted, especially for upload-free jobs
 without general idempotency. Queue capacity does not bound request preparation
 CPU, per-document RAM, queue wait time, or the size of retained historical jobs.
-Version 0.2.14 includes this policy, processor crash/failure isolation checks,
+Version 0.3.0 includes this policy, processor crash/failure isolation checks,
 and the local public-API example in `examples/api-client`. See the usage guide
 for its one/two/six-request flow and failed-job handling.
 
-Prepared jobs send only the document and required image input to the child;
-Core validation and snapshots remain. Core 0.2.14 hashes draw JSON in parts.
-These changes preserve PDF output without changing template/API contracts or
-introducing whole-system streaming. The guide includes measured RAM and its
-limits. There are no new migrations beyond001–013; upgrade with the same
-database/project and retain published template versions.
+Prepared jobs send only the document and required image input to the child.
+Core validation and immutable snapshot integrity checks remain in place.
+Apply migrations through 015 using the matching CLI before starting the API.
+
+## Candidate Area18 authoring tools
+
+This local setup section describes the candidate implementation only. Shared
+scope and acceptance: ../flowdoc-project-control/docs/domains/flowdoc-template-authoring-tools-plan.md.
+It does not establish a connected AI host or release readiness.
+
+After building and applying migrations through 015 to the intended development
+database, start the Service with its existing database/output configuration plus
+AUTHORING_TOKEN (a secret of at least 32 characters) and AUTHORING_PRINCIPAL
+(a stable owner name; default local-owner). Authoring stays disabled without a
+token. Keep HOST at 127.0.0.1 for this prototype. Do not expose the Service directly
+to the internet; this is a single configured principal, not multi-tenant login.
+
+Configure the MCP host to launch Node with the absolute path to
+ dist/tools/server.js (or npm run tools:authoring from this checkout), using
+AUTHORING_URL=http://127.0.0.1:3000 and the same AUTHORING_TOKEN in host-managed
+secret environment configuration. The adapter uses stdio; credentials are never
+tool arguments. The model host must support MCP resource reads to retrieve PDFs.
+Only grant this tool server and reference-document reads to the authoring model;
+adding MCP does not remove shell/SQL/filesystem tools already granted by its host.
+No host settings or credentials are installed by this repository change.
+
+Call get_authoring_contract first for the example definition/request and limits.
+The required sequence is create_template_draft({name,docKey,idempotencyKey}) →
+receive templateId/revision0 → update_template_draft({templateId,
+expectedRevision:0,definition,idempotencyKey}) → validate_template({definition,
+sampleRequest}) → preview_template_draft({templateId,expectedRevision,
+sampleRequest,idempotencyKey}) → get_preview_status({jobId}) →
+get_preview_pdf({jobId}). Read the returned flowdoc-preview resource for PDF bytes.
+Set definition.templateId/docKey to the returned identity and definition.version=1;
+draft revision is a separate concurrency token. Include globalSchema and all
+Section/Format schemas in the complete definition. Internal database IDs are
+assigned/reconciled by Service. Whole-definition saves can remove omitted content;
+review the returned diff and reload after STALE_CURRENT.
+
+For images use create_preview_upload, upload_preview_image and
+finalize_preview_upload, then put the owned uploadId and returned resource IDs
+in sampleRequest. MCP uploads accept PNG/JPEG base64 within advertised limits;
+use a fresh upload for a changed preview. HTTP upload routes remain under the
+same authoring authentication and ownership checks.
+
+Preview jobs share the existing serial worker and outstanding-job limit. A
+preview pins revision, definition, fingerprint and sample input without creating
+a published version. Preview PDFs can be downloaded repeatedly until the existing
+output TTL expires, even with EXPORT_RETAIN_FILES=false. Expiry does not erase
+the draft. Successful authoring retry receipts/audit are retained until explicit
+administrative database cleanup; they are not pruned on PDF expiry. A replay
+returns the original job, so request a fresh preview with a new key after expiry.
+
+There is no publish tool or authoring publish route. Human approval and a future
+revision-bound publication operation are outside this implementation. Existing
+administrative CLI permissions must not be given to the model.
+
+The full Thai authoring regression is in examples/thai-authoring-template.json
+and examples/thai-authoring-request.json. tests/thai-authoring-layout.test.mjs
+uses the real renderer (requires the Linux runtime), not a mocked PDF response.
+The fixture retains the original trial text; body12 uses lineHeightPt20 and
+bold16 headings use28. The former18/24 values were below actual glyph/font height
+for this input. Validation/composition is not a substitute for rendering preview.

@@ -1,2 +1,4 @@
 *.sql text eol=lf
 *.tgz binary
+# Preserve the exact bytes of migration 014 already applied by the Area18 candidate.
+migrations/014_area_document.sql -text

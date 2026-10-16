@@ -29,63 +29,6 @@
         "contact": "FOOTER contents"
       }
     },
-    "body": {
-      "data": {
-        "title": "SECTION body"
-      },
-      "header": {
-        "projectName": "HEADER body",
-        "logo": ""
-      },
-      "footer": {
-        "contact": "FOOTER body"
-      },
-      "content": [
-        {
-          "format": "heading",
-          "data": {
-            "anchor": "H000",
-            "title": "H000 หัวข้อทดสอบ "
-          }
-        },
-        {
-          "format": "heading",
-          "data": {
-            "anchor": "H001",
-            "title": "H001 หัวข้อทดสอบ ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย ชื่อยาวภาษาไทย "
-          }
-        },
-        {
-          "format": "heading",
-          "data": {
-            "anchor": "H002",
-            "title": "H002 หัวข้อทดสอบ "
-          }
-        },
-        {
-          "format": "merged",
-          "data": {
-            "details": [
-              {
-                "format": "notice",
-                "data": {}
-              },
-              {
-                "format": "evidence",
-                "data": {
-                  "photo": "22222222-2222-4222-8222-222222222222",
-                  "caption": "รายละเอียดหลักฐาน\nรายละเอียดหลักฐาน\nจบรายการ"
-                }
-              }
-            ]
-          }
-        },
-        {
-          "format": "summary",
-          "data": {}
-        }
-      ]
-    },
     "intentional-blank": {
       "data": {
         "title": "SECTION intentional-blank"
@@ -133,6 +76,51 @@
       "footer": {
         "contact": "FOOTER closing"
       }
+    },
+    "heading": {
+      "data": {
+        "anchor": "H002",
+        "title": "H002 หัวข้อทดสอบ "
+      },
+      "header": {
+        "projectName": "รายงานผลการทดสอบระบบงาน"
+      },
+      "footer": {}
+    },
+    "merged": {
+      "data": {
+        "details": [
+          {
+            "format": "notice",
+            "data": {}
+          },
+          {
+            "format": "evidence",
+            "data": {
+              "photo": "22222222-2222-4222-8222-222222222222",
+              "caption": "รายละเอียดหลักฐาน\nรายละเอียดหลักฐาน\nจบรายการ"
+            }
+          }
+        ]
+      },
+      "header": {
+        "projectName": "รายงานผลการทดสอบระบบงาน"
+      },
+      "footer": {}
+    },
+    "summary": {
+      "data": {},
+      "header": {
+        "projectName": "รายงานผลการทดสอบระบบงาน"
+      },
+      "footer": {}
+    },
+    "evidence": {
+      "data": {},
+      "header": {
+        "projectName": "รายงานผลการทดสอบระบบงาน"
+      },
+      "footer": {}
     }
   },
   "version": 1

@@ -1,10 +1,12 @@
+import {snapshotResources,type FontSnapshot} from '../fonts/snapshot.js';
 import {loadBundledResources,createPdfEngine,composeDocument,validateTemplate} from '@flowdoc/core';
 import {readFile,writeFile} from 'node:fs/promises';
 import sharp from 'sharp';
 import type {PdfImageResources,PreparedInput,TemplateDefinition} from '@flowdoc/core';
 import type {JobImageInput} from '../images/job.js';
 import {join} from 'node:path';
-type RenderInput={mode:'document';imageInput:JobImageInput}|{mode:'compose';template:TemplateDefinition;prepared:PreparedInput};
+type FontInput={fontSnapshot?:FontSnapshot;fontStorageRoot?:string};
+type RenderInput=FontInput & ({mode:'document';imageInput:JobImageInput}|{mode:'compose';template:TemplateDefinition;prepared:PreparedInput});
 async function readInput():Promise<RenderInput>{
  // Node's decoder preserves multibyte characters split across pipe chunks.
  // Keep the temporary JSON text scoped here, not alongside the rendered document.
@@ -34,9 +36,12 @@ try{
    images[id]={kind:'rgb',width:i.width,height:i.height,bytes,alpha};
   }
  }
- const resources=await loadBundledResources({pythonExecutable:process.env.PYTHON_EXECUTABLE??'python',tempRoot:temporary});if(!resources.ok)throw Error('resources');
- const engine=await createPdfEngine(resources.value);if(!engine.ok)throw Error('engine');
- const pdf=await engine.value.generatePdf(doc.value,images);if(!pdf.ok){await writeFile(join(temporary,'issues.json'),JSON.stringify(pdf.issues.filter(i=>i.code==='LAYOUT_FAILED').slice(0,16)));throw Error('render');}
+ const snapshot=input.fontSnapshot??imageInput?.fontSnapshot;
+ const current=await (async()=>{if(snapshot)return snapshotResources(snapshot,temporary,input.fontStorageRoot??imageInput?.fontStorageRoot);
+  const r=await loadBundledResources({pythonExecutable:process.env.PYTHON_EXECUTABLE??'python',tempRoot:temporary});if(!r.ok)throw Error('resources');return r.value;})();
+ const engine=await createPdfEngine(current);if(!engine.ok){await writeFile(join(temporary,'issues.json'),JSON.stringify(engine.issues));throw Error('engine');}
+ const pdf=await engine.value.generatePdf(doc.value,images);if(!pdf.ok){await writeFile(join(temporary,'issues.json'),JSON.stringify(pdf.issues.filter(i=>i.code==='LAYOUT_FAILED'||i.code.startsWith('FONT_')).slice(0,16)));throw Error('render');}
  await writeFile(join(temporary,'warnings.json'),JSON.stringify(pdf.warnings));
+ await writeFile(join(temporary,'font-usage.json'),JSON.stringify(pdf.value.fontUsage??[]));
  process.stdout.write(pdf.value.bytes);
-}catch{process.exitCode=1;}finally{}
+}catch(e){if(typeof (e as any)?.code==='string'&&(e as any).code.startsWith('FONT_'))await writeFile(join(temporary,'issues.json'),JSON.stringify([{code:(e as any).code}]));process.exitCode=1;}finally{}

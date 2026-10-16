@@ -16,16 +16,16 @@ it('rejects invalid input without accepting a job',async()=>{
  expect(admission.submitJob).toBeTypeOf('function');
  const before=(await pool.query('select count(*) from generation_jobs')).rows[0].count;
  expect((await admission.submitJob(pool,{...input,data:{projectName:42}})).ok).toBe(false);
- expect((await admission.submitJob(pool,{...input,content:[{format:'missing',data:{}}]})).ok).toBe(false);
+ expect((await admission.submitJob(pool,{...input,sections:{main:{data:{content:[{format:'missing',data:{}}]}}}})).ok).toBe(false);
  expect((await pool.query('select count(*) from generation_jobs')).rows[0].count).toBe(before);
 });
 it('pins input, persists warnings, claims FIFO and prevents terminal overwrite',async()=>{
  expect(admission.submitJob).toBeTypeOf('function');expect(api.claimNextJob).toBeTypeOf('function');
- const request={...input,content:[...input.content,{format:'unknown',data:{}}]};
+ const request={...input,data:{...input.data,unknown:'ignored'}};
  const first=unwrap(await admission.submitJob(pool,request));
  const second=unwrap(await admission.submitJob(pool,input));
  unwrap(await registerTemplate(pool,JSON.stringify({...template,version:2})));
- const saved=unwrap(await api.getJob(pool,first.jobId));expect(saved.version).toBe(1);expect(saved.hasWarnings).toBe(true);expect(saved.skippedContentIndices).toEqual([input.content.length]);expect(saved).not.toHaveProperty('prepared_input');
+ const saved=unwrap(await api.getJob(pool,first.jobId));expect(saved.version).toBe(1);expect(saved.hasWarnings).toBe(true);expect(saved.skippedContentIndices).toEqual([]);expect(saved).not.toHaveProperty('prepared_input');
  // Other test fixtures may be queued. Drain claims, retaining the jobs owned here.
  const claimed=[];for(;;){const job=await api.claimNextJob(pool);if(!job)break;claimed.push(job);}
  expect(claimed.findIndex(j=>j.id===first.jobId)).toBeLessThan(claimed.findIndex(j=>j.id===second.jobId));

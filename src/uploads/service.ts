@@ -28,15 +28,16 @@ export function createUploads(deps:{pool:Pool;files:ResourceFiles;config:UploadC
    items:items.map(i=>({resourceId:i.id,key:i.key,source:i.source_kind,status:i.status,expectedBytes:i.expected_bytes===null?null:Number(i.expected_bytes),receivedBytes:Number(i.received_bytes),errorCode:i.error_code})),
    received:items.filter(i=>i.status==='received').length,declared:items.filter(i=>i.status==='declared').length,total:items.length};
  }
- async function create(input:unknown){
+ async function create(input:unknown,principal?:string){
   const m=validateManifest(input,config),digest=createHash('sha256').update(JSON.stringify(m)).digest('hex');
+  const requestKey=principal?'authoring:'+createHash('sha256').update(JSON.stringify([principal,m.requestKey])).digest('hex'):m.requestKey;
   const id=await transaction(pool,async c=>{
-   await lock(c);const old=(await c.query('SELECT * FROM upload_sessions WHERE request_key=$1',[m.requestKey])).rows[0];
-   if(old){usable(old);if(old.manifest_digest!==digest)throw error('UPLOAD_CONFLICT','Request key already used');return old.id;}
+   await lock(c);const old=(await c.query('SELECT * FROM upload_sessions WHERE request_key=$1',[requestKey])).rows[0];
+   if(old){if((old.authoring_principal??null)!==(principal??null))throw error('UPLOAD_CONFLICT','Request key already used');usable(old);if(old.manifest_digest!==digest)throw error('UPLOAD_CONFLICT','Request key already used');return old.id;}
    const quota=(await c.query('SELECT count(*) AS count,coalesce(sum(reserved_bytes),0) AS bytes FROM upload_sessions WHERE deleted_at IS NULL')).rows[0];
    const size=m.items.reduce((n,i)=>n+(i.source==='upload'?i.byteSize:0),0);
    if(Number(quota.count)>=config.maxSessions||Number(quota.bytes)+size>config.stagingBytes)throw error('UPLOAD_CAPACITY','Staging capacity reached');
-   const t=now(),id=(await c.query('INSERT INTO upload_sessions(request_key,manifest_digest,reserved_bytes,last_progress_at,expires_at,absolute_expires_at) VALUES($1,$2,$3,$4,$5,$6) RETURNING id',[m.requestKey,digest,size,new Date(t),new Date(t+Math.min(config.idleMs,config.absoluteMs)),new Date(t+config.absoluteMs)])).rows[0].id;
+   const t=now(),id=(await c.query('INSERT INTO upload_sessions(request_key,manifest_digest,reserved_bytes,last_progress_at,expires_at,absolute_expires_at,authoring_principal) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id',[requestKey,digest,size,new Date(t),new Date(t+Math.min(config.idleMs,config.absoluteMs)),new Date(t+config.absoluteMs),principal??null])).rows[0].id;
    for(const i of m.items)await c.query('INSERT INTO upload_items(upload_id,key,source_kind,media_type,expected_bytes,source_url,status) VALUES($1,$2,$3,$4,$5,$6,$7)',[id,i.key,i.source,i.source==='upload'?i.mediaType:null,i.source==='upload'?i.byteSize:null,i.source==='url'?i.url:null,i.source==='url'?'declared':'pending']);
    return id;
   });return {...await get(id),limits:{fileBytes:config.fileBytes,setBytes:config.setBytes,base64Bytes:config.base64Bytes}};

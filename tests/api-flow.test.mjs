@@ -16,7 +16,7 @@ beforeAll(async()=>{await db.setup();expect((await migrate(pool)).ok).toBe(true)
 afterAll(async()=>{await app?.close();await processor?.stop();await db.close();});
 it('exports three distinct real PDFs over HTTP and consumes each default result',async()=>{
  const ids=[];
- for(let i=0;i<3;i++){const r=await fetch(url+'/jobs',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...input,data:{projectName:'Project '+i},content:[...input.content,{format:'missing',data:{}}]})});expect(r.status).toBe(202);ids.push((await r.json()).value.jobId);}
+ for(let i=0;i<3;i++){const r=await fetch(url+'/jobs',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...input,data:{projectName:'Project '+i,extra:'ignored'},sections:input.sections})});expect(r.status).toBe(202);ids.push((await r.json()).value.jobId);}
  const pdfs=[];
  for(const id of ids){let view;for(let n=0;n<300;n++){view=await (await fetch(url+'/jobs/'+id)).json();if(['failed','succeeded'].includes(view.value.status))break;await new Promise(r=>setTimeout(r,20));}expect(view.value.status,JSON.stringify(view)).toBe('succeeded');expect(view.value.hasWarnings).toBe(true);const download=await fetch(url+view.value.downloadUrl);expect(download.status).toBe(200);const bytes=Buffer.from(await download.arrayBuffer());expect(bytes.subarray(0,5).toString()).toBe('%PDF-');pdfs.push(bytes);for(let n=0;n<100;n++){if(!(await (await fetch(url+'/jobs/'+id)).json()).value.outputAvailable)break;await new Promise(r=>setTimeout(r,10));}expect((await fetch(url+'/jobs/'+id+'/pdf')).status).toBe(410);}
  expect(pdfs[0].equals(pdfs[1])).toBe(false);expect(pdfs[1].equals(pdfs[2])).toBe(false);
