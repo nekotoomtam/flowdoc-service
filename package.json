@@ -11,6 +11,7 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run --no-file-parallelism",
     "check:database": "node scripts/checkDatabase.mjs",
+    "check:fonts": "node scripts/checkFonts.mjs",
     "cli": "node dist/cli.js",
     "start": "node dist/server.js",
     "tools:authoring": "node dist/tools/server.js",

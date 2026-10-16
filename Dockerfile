@@ -16,6 +16,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY vendor ./vendor
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund && pip install --no-cache-dir -r node_modules/@flowdoc/core/runtime/requirements.txt
+COPY runtime ./runtime
+RUN pip install --no-cache-dir -r runtime/python/requirements.txt
 COPY --from=build /app/dist ./dist
 COPY migrations ./migrations
 COPY examples ./examples
