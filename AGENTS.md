@@ -22,3 +22,5 @@ plans in Project Control; no docs/superpowers plans or synthetic Work registries
 Before release preparation or Git promotion, read the shared
 [release rules and gates](../flowdoc-project-control/docs/domains/flowdoc-export-working-release-rules-draft-2026-10-09.md).
 Keep development history on development branches; `release` is a tagged snapshot chain.
+Update and review this repo's `README.md` and `docs/usage.md` for the candidate
+version/Core pin, setup, migrations, backup/recovery and post-install checks before promotion.

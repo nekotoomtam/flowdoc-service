@@ -1,12 +1,18 @@
-# คู่มือใช้งาน FlowDoc Service 0.3.0
+# คู่มือใช้งาน FlowDoc Service 0.4.0
 
 ## Authority Boundary
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-รุ่น 0.3.0 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
+ชุดพัฒนา 0.4.0 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
+
+คู่มือนี้ตาม package ปัจจุบันที่ใช้ Core 0.4.0; `release` ที่ออกแล้วคงเป็น 0.3.0
+จนกว่าจะผ่านขั้นเตรียมและอนุมัติออกรุ่นแยกกัน. รองรับ Area18 ทั้ง schemaVersion 1
+(Sarabun เดิม) และ 2 (คลังฟอนต์). เลข schema, รุ่นฟอนต์, รุ่นแม่แบบ และรุ่น Service
+เป็นคนละค่า. คำสั่ง publish ด้านล่างคือเผยแพร่เวอร์ชันแม่แบบ ไม่ใช่ Git release;
+ผู้ดูแลต้องมีคำอนุญาตเผยแพร่แม่แบบนั้นก่อนใช้.
 
 ## หน้าทดลอง API ในเครื่อง
 
@@ -48,7 +54,7 @@ proxy; ไม่เพิ่ม CORS หรือ static route ให้ product
 ## 1. เริ่มต้นและออก PDF แรก
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.3.0
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.4.0
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
@@ -59,7 +65,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.3.0'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.4.0'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -77,6 +83,9 @@ docker @dc up -d api
 ของ project `flowdoc-manual` หาก port 4318 ใช้อยู่ ให้เปลี่ยนค่าก่อนเริ่ม API
 เปิด terminal ใหม่ให้กำหนด `$dc` อีกครั้ง ไม่ต้องสร้างรหัสผ่านหรือ import ซ้ำ
 `CURRENT_EXISTS` หมายถึงมีฉบับแก้ไขอยู่แล้ว ไม่ใช่คำสั่งแทนที่ข้อมูลเดิม
+`migrate` ของชุดนี้ต้องผ่าน migrations 016–018 เพิ่มจากฐาน 015; ฐานใหม่ใช้ทั้งหมด
+และการรันซ้ำที่ครบแล้วไม่ควรมีรายการ applied ใหม่. ห้ามแก้ SQL migration ที่ใช้แล้ว.
+ตัวอย่างแรกใช้ Sarabun เดิม จึงยังไม่ต้องนำเข้าคลังหรือเปิดสิทธิ์ admin.
 
 รอ `/health` ตอบสำเร็จ แล้วส่งข้อมูลตัวอย่าง:
 
@@ -251,7 +260,9 @@ PDF ใช้นโยบายแยก: `EXPORT_RETAIN_FILES=false` ลบห�
 ไฟล์ที่ยังไม่มีใครรับมี `EXPORT_TEMP_FILE_TTL_HOURS` เริ่มต้น 24 ชั่วโมง
 เปลี่ยน env แล้ว recreate API; นโยบายใหม่ใช้กับผลลัพธ์ใหม่
 
-รุ่นนี้เป็น localhost ไม่มีสิทธิ์รายคน และมี coordinator เดียว ประมวลผลเอกสารเรียงกัน
+API export ตัวอย่างนี้เป็น localhost และมี coordinator เดียว ประมวลผลเอกสารเรียงกัน.
+authoring/admin ใช้ token และ principal แยกตามส่วนคลังฟอนต์ด้านล่าง;
+ไม่ได้เพิ่มระบบบัญชีผู้ใช้หรือหน้า admin.
 หลัง restart งาน queued ทำต่อ แต่งาน running ที่ถูกตัดจบเป็น PROCESS_INTERRUPTED
 รายละเอียด configuration และการทดสอบอยู่ใน [README](../README.md)
 ยังไม่รวม DOCX, หน้าแก้ไขเอกสาร หรือ SLA งานพร้อมกันจำนวนมาก; ระบบหน้าและหัวท้ายใช้สัญญา Area18
@@ -259,7 +270,7 @@ PDF ใช้นโยบายแยก: `EXPORT_RETAIN_FILES=false` ลบห�
 
 ## รูปแบบแม่แบบ Area 18
 
-รุ่น 0.3.0 รับเฉพาะ `nodeModelVersion: 18` ไม่แปลง model4–17 อัตโนมัติ
+ตั้งแต่รุ่น 0.3.0 และในชุด 0.4.0 รับเฉพาะ `nodeModelVersion: 18` ไม่แปลง model4–17 อัตโนมัติ
 SQL migrations เดิมยังเก็บตาม checksum แต่ข้อมูลแม่แบบรุ่นเก่าไม่สามารถนำมาสร้างงานได้
 สำรองฐานข้อมูลก่อนอัปเกรดและตรวจแม่แบบที่ต้องใช้ก่อนเปลี่ยนบริการ
 
@@ -306,3 +317,177 @@ processor กลับมาทำต่อ ชุดอัปโหลดที
 เมื่อ status เป็น succeeded ให้ตรวจ outputAvailable ก่อนดาวน์โหลดตาม downloadUrl
 ไฟล์ชั่วคราวถูกลบหลังส่งสำเร็จตามค่าเริ่มต้น การดาวน์โหลดซ้ำคืน 410
 อย่าแปลว่างานสร้างล้มเหลวเพียงเพราะไฟล์ถูกใช้ไปหรือหมดอายุแล้ว
+
+## 7. เปิดคลังฟอนต์และเครื่องมือผู้ดูแลใน 0.4.0
+
+รุ่นแรกใช้เครื่องมือผู้ดูแล ยังไม่มีหน้า admin. รับเฉพาะ static TTF พร้อม license
+และหลักฐาน Google Fonts; ไฟล์อยู่ในคลังของ Service เสมอ ไม่โหลด Google Fonts
+ระหว่างสร้าง PDF. การเพิ่ม face ภายหลังเป็นรุ่นฟอนต์ใหม่ ไม่แก้ชุดที่เคยออกใช้แล้ว.
+README อธิบาย API; ส่วนนี้เป็นลำดับปฏิบัติสำหรับผู้ดูแล.
+
+Base `compose.yaml` ยังไม่ส่ง token ให้ API. สำหรับชุดทดลองใหม่ในข้อ 1 ให้เก็บ
+token คนละค่าที่มีอย่างน้อย 32 ตัวอักษรและ principal ไว้ใน `.env.manual`:
+
+```powershell
+if (Select-String -Path .env.manual -Pattern '^(AUTHORING_TOKEN|FONT_ADMIN_TOKEN)=' -Quiet) {
+  throw 'มี token แล้ว ให้ใช้ค่าเดิม ไม่สร้างทับ'
+}
+$manualAuthoringToken = [guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N')
+$manualFontAdminToken = [guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N')
+@(
+  "AUTHORING_TOKEN=$manualAuthoringToken"
+  'AUTHORING_PRINCIPAL=manual-author'
+  "FONT_ADMIN_TOKEN=$manualFontAdminToken"
+  'FONT_ADMIN_PRINCIPAL=manual-font-admin'
+) | Add-Content -Encoding utf8 .env.manual
+```
+
+เก็บไฟล์เฉพาะผู้ดูแล ไม่ commit หรือแนบรายงาน. บันทึก YAML ต่อไปนี้เป็น
+`artifacts/manual-input/fonts.compose.yaml` (สร้างโฟลเดอร์ก่อน); ไม่มีค่าลับใน YAML:
+
+```yaml
+services:
+  api:
+    environment:
+      AUTHORING_TOKEN: ${AUTHORING_TOKEN:?Set AUTHORING_TOKEN}
+      AUTHORING_PRINCIPAL: ${AUTHORING_PRINCIPAL:?Set AUTHORING_PRINCIPAL}
+      FONT_ADMIN_TOKEN: ${FONT_ADMIN_TOKEN:?Set FONT_ADMIN_TOKEN}
+      FONT_ADMIN_PRINCIPAL: ${FONT_ADMIN_PRINCIPAL:?Set FONT_ADMIN_PRINCIPAL}
+      FONT_STORAGE_DIR: /app/staging/fonts
+```
+
+```powershell
+$dc = @('compose', '--env-file', '.env.manual', '-p', 'flowdoc-manual',
+  '-f', 'compose.yaml', '-f', 'artifacts/manual-input/fonts.compose.yaml')
+docker @dc run --rm registry migrate
+docker @dc up -d api
+```
+
+ใช้ `$dc` ชุดนี้สำหรับคำสั่งต่อไปใน project เดิม. `staging` volume ของ Compose
+เก็บ `/app/staging/fonts` ด้วย จึงต้องสำรองทั้งไฟล์และ DB คู่กัน. ถ้าแยก API/worker
+ต้องอ่านคลังชุดเดียวกัน. admin config ขาดบางส่วนหรือ token ซ้ำกับ authoring
+ทำให้เริ่มบริการไม่ผ่าน; ไม่ตั้ง admin ทั้งคู่จะปิด admin routes.
+authoring token ใช้ admin routes ไม่ได้ (403); อย่าส่ง admin credential ให้ AI.
+
+เครื่องมือผู้ดูแลรันบน host หลัง `npm ci --ignore-scripts` และ `npm run build`:
+
+```powershell
+$env:FONT_ADMIN_BASE_URL = 'http://127.0.0.1:4318'
+# กำหนด FONT_ADMIN_TOKEN ใน environment จากค่าลับเดิมด้วยวิธีของผู้ดูแล
+node dist/fonts/cli.js show --request artifacts/manual-input/font-show.json
+```
+
+`font-show.json` ใช้รูปแบบ `{"entity":"release","id":"<release UUID ที่มีจริง>"}`;
+แทนค่าตัวอย่างก่อนใช้. CLI คืน `ok/value/issues`; ถ้า `ok:false` หยุดและอ่าน code.
+token ส่งใน header ไม่ใช่ argument. เรียก localhost หรือ HTTPS ตามข้อจำกัด client.
+
+| ลำดับ | คำสั่งและข้อมูลที่ต้องเตรียม |
+| --- | --- |
+| 1 | `family-create`: requestId/reason, displayName, internalNames, sourceIdentity ของ Google Fonts; ใช้ family เดิมเมื่อพบแล้ว |
+| 2 | `import`: files/licenseFiles เป็นรายการ clientKey/path บน host, sourceEvidence ผูก file hash/metadata hash/ต้นทาง/เวลารับ/น้ำหนักต้นทาง/license keys; client คำนวณ hash/ขนาดและส่งไฟล์ |
+| 3 | `import-inspect`: id ของ import, requestId/reason/expectedRevision; ใช้ asset และ sourceEvidence IDs จากผลตรวจ ไม่เดาจากชื่อไฟล์ |
+| 4 | `release-stage`: familyId/version/importId/languageScope/faceBindings พร้อม requestId/reason; แยก rawWeight, sourceWeight และ approvedWeight; บันทึก conflictResolution เมื่อขัดกัน |
+| 5 | `review-submit`, `review-run`: ใช้ manifestDigest และ revision ปัจจุบัน; อ่าน review ID กับรายงานที่คืน และเปิด specimen PDF ทุกหน้าก่อนอนุมัติ |
+| 6 | `review-approve`: review ID, manifestDigest, reportDigest, artifactHashes ครบทุก face และ revision ของ release; ต้องมี normal 400 และผ่าน license/hash/ภาษา/renderer checks |
+| 7 | `activate`: ใช้ release ID และ revision ใหม่หลัง approve; การ render หรือสถานะ ready ยังไม่ทำให้เลือกใช้ได้ |
+
+ทุก mutation ใช้ requestId/reason; action ที่แก้ release ใช้ expectedRevision
+ของ release แม้ URL ชี้ review. `default-set` ใช้ revision ของ family.
+retry หลังผลไม่ชัดใช้ requestId และเนื้อหาเดิม แล้ว `show` อ่านสถานะปัจจุบัน;
+ไม่สร้าง request ใหม่เพื่อข้าม conflict. รูปแบบ field ดู
+[input types](../src/fonts/types.ts), [CLI client](../src/fonts/client.ts) และ
+[lifecycle contract](../src/fonts/lifecycle.ts). คำสั่งอื่นได้แก่ `release-edit`,
+`review-withdraw`, `retire`, `reactivation-review`, `default-set`, `release-delete`.
+
+| สถานะ | สิ่งที่ทำได้ |
+| --- | --- |
+| preparing / needs_changes | แก้ชุดเตรียมและส่งตรวจใหม่ ยังเลือกในเอกสารไม่ได้ |
+| in_review | รันและตรวจหลักฐาน; ต้อง withdraw ก่อนแก้ชุด ไม่อนุมัติรายงานเก่า |
+| ready | ตรวจผ่านและอนุมัติแล้ว รอ activate |
+| active | เลือกใหม่ได้ ตั้งเป็น default ของ family ได้อย่างชัดเจน |
+| retired | หยุดเลือกใหม่; เอกสารเดิมและสำเนาที่ server ยืนยันสิทธิ์สืบทอดใช้ต่อได้ |
+
+การ retire default ต้องระบุ active replacement ใน family เดียวกัน หรือ
+`clearDefault=true` พร้อม expectedFamilyRevision. การเปิด retired กลับใช้ review
+ชุดเดิมที่ตรึงไว้ใหม่ก่อน activate; การลบมีได้เฉพาะ preparing ที่ไม่เคย active
+และไม่มี review/reference history ตามกฎ Service ไม่ใช่ลบไฟล์/ประวัติ audit เอง.
+
+## 8. เลือกฟอนต์ ตรวจ draft และสร้าง PDF
+
+เลือก release/weight/style ที่มีจริงจาก `GET /authoring/fonts`; หน้าอ่าน authoring
+ใช้ Bearer authoring token. ไม่เลือกตามชื่อ family ลอย ๆ หรือรุ่นล่าสุดอัตโนมัติ.
+Schema 2 ใช้ `font:{kind:'library',releaseId,weight,style}` ตามคู่มือ Core.
+default ที่เปลี่ยนภายหลังไม่เปลี่ยนเอกสาร และไม่มี fallback/ตัวหนาหรือตัวเอียงจำลอง.
+
+| ผล readiness | การจัดการ |
+| --- | --- |
+| ready | ผ่านเฉพาะ checkedScope ที่รายงาน; ต้องตรวจ actual_input ก่อนส่งงานจริง |
+| blocked | บันทึก draft ที่โครงสร้างถูกต้องค้างได้ แต่แก้ release/face/glyph/สิทธิ์ก่อนสร้าง PDF |
+| incomplete | ยังตรวจไม่ครบ อ่าน issues และตรวจใหม่ ไม่ถือว่าพร้อมออก PDF |
+
+save/get/validate คืน `fontReadiness` แยกจาก revision. ปัญหาโครงสร้างฟอนต์ผิด,
+ownership, stale revision หรือ idempotency conflict ปฏิเสธการบันทึกตามเดิม.
+`checkedScope:styles` ไม่ยืนยันอักษรทั้งหมดที่เกิดจากข้อมูลจริง; ส่ง expectedRevision
+และ sampleRequest ไป `POST /authoring/drafts/:id/font-readiness` เพื่ออ่าน actual_input.
+ตัวอย่าง code: FONT_NOT_SELECTED, FONT_FACE_UNAVAILABLE, FONT_GLYPH_MISSING,
+FONT_RELEASE_NOT_ACTIVE และ FONT_REFERENCE_NOT_RETAINED. ดู path และข้อมูลอักษร
+ที่รายงานก่อนแก้ ไม่เปลี่ยนไปใช้ฟอนต์อื่นเงียบ ๆ.
+
+clone ผ่าน `POST /authoring/drafts/:id/clone` ด้วย sourceRevision/name/docKey/
+idempotencyKey; สิทธิ์ retired มาจาก revision ที่ server เก็บ ไม่ใช่ client แนบเอง.
+FlowDocMake ใช้ `get_font_catalog`, `get_draft_font_readiness`, `clone_template_draft`;
+ไม่มีคำสั่ง admin ในช่องทางนี้. ใช้ชุด client ที่เข้าคู่กับ Service/Core ปัจจุบัน.
+job ตรึงฟอนต์/ไฟล์/license ที่รับไว้ แม้เปลี่ยน default หรือ retire ระหว่างรอ;
+ไฟล์หายหรือ hash ไม่ตรงต้องแก้ storage ไม่ข้ามการตรวจ. Sarabun schema 1 ยังใช้
+ไฟล์ชุดเดิม; ไม่แก้เอกสารเดิมให้กลายเป็น schema 2 เพื่อให้ผ่าน.
+
+## 9. เตรียมอัปเกรด สำรอง และตรวจหลังติดตั้ง
+
+ส่วนนี้เป็นคู่มือปฏิบัติ ไม่ใช่คำสั่งให้ deploy ทันที. ก่อนอัปเกรดระบบที่มีข้อมูล:
+
+1. จด image ID/คู่ Service-Core, vendor checksum, source commit, env/Compose และ
+   migrations ที่ใช้อยู่. สำรอง config/credentials แยกจากหลักฐานที่แชร์.
+2. หยุดรับงานใหม่ รอ queued/running ที่ต้องรักษาให้จบ แล้ว `docker @dc stop api`.
+   สำรอง DB และ staging/fonts/รูป/PDF ที่ยังต้องใช้ในจุดที่สอดคล้องกัน.
+3. เก็บ dump เป็นไฟล์ใน container แล้ว `docker cp` ออกมา เพื่อไม่ให้ PowerShell
+   แปลงไบต์ dump ผ่าน text pipe; ตัวอย่างสำหรับ project ทดลองที่หยุด API แล้ว:
+
+```powershell
+$backupDir = Join-Path (Get-Location) ('artifacts/backup-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $backupDir | Out-Null
+$dbContainer = (docker @dc ps -q db).Trim()
+if (!$dbContainer) { throw 'ไม่พบ DB container' }
+docker @dc exec -T db pg_dump -U flowdoc -d flowdoc -Fc -f /tmp/flowdoc-before-upgrade.dump
+if ($LASTEXITCODE -ne 0) { throw 'สำรอง DB ไม่สำเร็จ' }
+docker cp "${dbContainer}:/tmp/flowdoc-before-upgrade.dump" (Join-Path $backupDir 'database.dump')
+docker @dc cp api:/app/staging (Join-Path $backupDir 'staging')
+docker @dc cp api:/app/output (Join-Path $backupDir 'output')
+Get-FileHash (Join-Path $backupDir 'database.dump') -Algorithm SHA256
+```
+
+4. ตรวจว่าแต่ละคำสั่งสำเร็จ ตรวจ hashes และทดลอง restore dump/ไฟล์ใน DB กับ volumes
+   แยกก่อนใช้เป็นแผนกู้คืน. ไม่ทดลอง restore ทับข้อมูลจริง และไม่ใช้ `down -v`.
+5. ใช้ image ชุดใหม่ที่ตรึงไว้ รัน CLI `migrate` ให้ถึง 018 แล้วเปิด API. ไม่ย้อน SQL
+   migration หรือแก้ checksum ถ้าล้มเหลว; วิเคราะห์และกู้คืนเป็นชุด DB/files/config/
+   image ที่เข้าคู่กันจากสำรองที่ตรวจแล้ว แยกการอนุมัติก่อนกระทบข้อมูลจริง.
+6. ตรวจ `/health`, คู่รุ่นจริง, admin/authoring permissions, catalog/readiness และ
+   เปิด draft เดิมโดยไม่เปลี่ยน revision/fingerprint. ทดลอง PDF ด้วย draft ใหม่
+   ให้ครอบคลุมหลาย family/faces, default เปลี่ยน, retired เดิม/clone และ Sarabun.
+   บันทึก PDF ตรวจทุกหน้า/ข้อความ/embedded fonts; รูป upload เก่าหมดอายุให้รับรูปใหม่
+   ไม่แก้สิทธิ์ฟอนต์เพื่อข้าม UPLOAD_GONE. restart แล้วตรวจ draft/catalog คงอยู่.
+
+ผลตรวจเก่าใช้ซ้ำเฉพาะตัวโค้ด/dependencies/config/environment ที่ยังตรงกับหลักฐาน.
+คำสั่งตรวจแยกจากข้อมูลจริง: `npm run check:database`, `npm run check:fonts`,
+`node scripts/checkFontLifecycle.mjs`, `node scripts/checkFontTools.mjs`;
+ตั้ง FONT_FIXTURE_DIR และ FLOWDOCMAKE_PROJECT_ROOT ตาม README เมื่อเกี่ยวข้อง.
+tests บน host ต้องระบุชุดปัจจุบันและ DB ทดสอบแยก ไม่กวาด artifacts ที่มี tests เก่า.
+เก็บผล FAIL/skipped และข้อจำกัดตามจริง; คำสั่งในคู่มือนี้ไม่ได้รับรองว่าการ deploy
+ครั้งใหม่ผ่านแล้ว. ก่อน tag/release ใช้ [ลำดับตรวจการออกรุ่น](../../flowdoc-project-control/docs/domains/flowdoc-export-working-release-rules-draft-2026-10-09.md).
+
+ข้อจำกัดจากหลักฐานติดตั้งทดสอบที่บันทึกไว้ก่อนเตรียมคู่มือนี้: native MCP connection
+ของแชตเดิมเคยค้าง configuration แม้ fresh launcher/file-client ผ่าน; ต้องตรวจ
+connection ที่จะใช้จริงอีกครั้ง. การ preview เอกสารเดิมที่รูปชั่วคราวหมดอายุเคยได้
+UPLOAD_GONE จึงยังไม่ใช่หลักฐาน same-revision PDF ครบทุกเอกสารเดิม.
+ชุดตรวจ CLI เดิม `tests/checkCurrentCli.mjs:11` เคยค้าง INVALID_DATA
+`invalid section document`; ไม่อ้างว่าผ่านเพียงเพราะคู่มืออัปเดต.
+ใช้ผลล่าสุดของ candidate ที่จะออกรุ่นตัดสินตามเกณฑ์รับงาน ไม่ขยายผลจากการตรวจเอกสาร.

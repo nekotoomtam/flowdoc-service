@@ -11,7 +11,8 @@ is separate. Font administration uses the CLI and scoped administrator permissio
 an administrator UI and production scaling remain outside this slice.
 
 Start with the Thai [usage guide](docs/usage.md): first PDF, draft publication,
-API requests, uploads, Area examples and file lifetime. It covers 0.3.0; shared release status remains in Project Control.
+API requests, uploads, Area examples, font administration/readiness and backup/upgrade.
+It describes the 0.4.0 development package; shared release status remains in Project Control.
 
 ## Local setup and acceptance
 
@@ -28,8 +29,11 @@ retains its volume/network/images. Failures leave inspection data. Generated
 fixtures/isolated schemas and temporarily alter constraints; never use shared data.
 
 For a persistent local registry, copy .env.example to .env and choose a random
-URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.3.0` explicitly
-to label the image with the current code version. Run:
+URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:dev-0.4.0` explicitly
+to label this development build. Compose's retained 0.3.0 default image names do
+not select the current source version. Apply migrations through 018 before
+starting this package. For fonts/authoring, add the environment override in the
+usage guide; base Compose does not pass those secrets to the API. Run:
 
 ```text
 docker compose build registry
@@ -186,7 +190,7 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.3.0 is installed solely from `vendor/flowdoc-core-0.3.0.tgz`.
+Core 0.4.0 is installed solely from `vendor/flowdoc-core-0.4.0.tgz`.
 Its SHA256 and source commit are pinned in `vendor/manifest.json`;
 `node scripts/verifyVendor.mjs` verifies the checksum. The package supports only Area model 18.
 The lockfile pins dependencies. Linux runtime includes Node24, Python3.11/fontTools
@@ -213,6 +217,13 @@ exact Core artifact and checksum; changing Core requires verification of its Ser
 consumer. Send the snapshot branch and its annotated tag atomically, then verify
 both remote targets. A development package version or a successful local installation
 does not establish a release. Local release branches/tags do not publish images or deploy a public API.
+
+Prepare this repo's `README.md` and `docs/usage.md` with the actual version,
+Core pin, migrations, administrator setup, backup/recovery and post-install checks
+before freezing the delivery candidate. Verify the vendored tarball with
+`node scripts/verifyVendor.mjs`; retain its manifest/checksum with acceptance results.
+The usage guide's upgrade procedure is preparation, not evidence that a new
+deployment has passed. Complete the affected container/DB/PDF checks before promotion.
 
 
 ## Local export API
@@ -401,7 +412,7 @@ for its one/two/six-request flow and failed-job handling.
 
 Prepared jobs send only the document and required image input to the child.
 Core validation and immutable snapshot integrity checks remain in place.
-Apply migrations through 015 using the matching CLI before starting the API.
+Apply migrations through 018 using the matching CLI before starting the API.
 
 ## Candidate Area18 authoring tools
 
@@ -409,7 +420,7 @@ This local setup section describes the candidate implementation only. Shared
 scope and acceptance: ../flowdoc-project-control/docs/domains/flowdoc-template-authoring-tools-plan.md.
 It does not establish a connected AI host or release readiness.
 
-After building and applying migrations through 015 to the intended development
+After building and applying migrations through 018 to the intended development
 database, start the Service with its existing database/output configuration plus
 AUTHORING_TOKEN (a secret of at least 32 characters) and AUTHORING_PRINCIPAL
 (a stable owner name; default local-owner). Authoring stays disabled without a
