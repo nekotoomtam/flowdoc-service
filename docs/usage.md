@@ -1,14 +1,14 @@
-# คู่มือใช้งาน FlowDoc Service 0.4.0
+# คู่มือใช้งาน FlowDoc Service 0.4.1-dev.font-height.1
 
 ## Authority Boundary
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-แพ็กเกจ 0.4.0 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
+candidate 0.4.1-dev.font-height.1 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
 
-คู่มือนี้ตาม package 0.4.0 ที่ใช้ Core 0.4.0; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
+คู่มือนี้ตาม candidate Service/Core 0.4.1-dev.font-height.1 ซึ่งยังไม่ออก tag/ติดตั้ง; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
 annotated tag หลังผ่านเกณฑ์ออกรุ่น ไม่อนุมานจากชื่อ image. รองรับ Area18 ทั้ง schemaVersion 1
 (Sarabun เดิม) และ 2 (คลังฟอนต์). เลข schema, รุ่นฟอนต์, รุ่นแม่แบบ และรุ่น Service
 เป็นคนละค่า. คำสั่ง publish ด้านล่างคือเผยแพร่เวอร์ชันแม่แบบ ไม่ใช่ Git release;
@@ -54,7 +54,7 @@ proxy; ไม่เพิ่ม CORS หรือ static route ให้ product
 ## 1. เริ่มต้นและออก PDF แรก
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.4.0
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด candidate 0.4.1-dev.font-height.1
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
@@ -65,7 +65,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.4.0'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.4.1-dev.font-height.1'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -553,3 +553,31 @@ Sarabun คืน unavailable และยังใช้ ordinary pt/save/previ
 Catalog heightProfile เป็นข้อมูล review เบื้องต้น; propose/confirm ตรวจ binding/files/สิทธิ์ซ้ำ.
 Migration 020 เพิ่มตารางข้อเสนอเท่านั้น; ไม่แก้ schema1 definitions หรือ migration เดิม.
 ใช้ฐานทดสอบแยกก่อน upgrade; รุ่นนี้ยังไม่อนุญาต install/deploy จากผลตรวจ development.
+
+### 8.3 เตรียมส่งมอบตัวช่วยความสูงและการกู้คืน
+
+Candidate ใช้ Service/Core `0.4.1-dev.font-height.1` กับ FlowDocMake
+`0.2.2-dev.font-height.1` และ Core SHA256 ใน vendor/manifest.json.
+นี่เป็นชุด development ที่ตรวจร่วม ไม่ใช่ release/tag หรือคำอนุญาตติดตั้งจริง.
+Core schema/renderer เดิมไม่เปลี่ยน; helper ต้องยืนยันก่อนบันทึกและตรวจ PDF ทุกครั้ง.
+IBM Plex Sans Thai, Pridi, Noto Sans Thai Looped และ Noto Serif Thai ชุดที่ได้รับ
+ไม่มี italic; ห้ามนับเป็นผลผ่านของ italic หรือสร้างตัวเอียงแทน.
+
+ก่อน upgrade หลังได้รับอนุญาต: หยุดรับงาน/รอ job จบ สำรอง PostgreSQL แบบ custom dump
+และ staging/font library รวม licenses, output/temp ที่ต้องรักษา พร้อม config/secret
+แยกไว้ในที่ปลอดภัย. ใช้ image/source/Core hash ที่ตรึง สั่ง migrate ไปถึง 020;
+ห้ามแก้ bytes ของ 001–019. ตรวจ replay ไม่ apply ซ้ำ, admin/author แยก credential,
+เปิด draft เดิม, catalog/default/retired, helper และ preview/download ก่อนเปิดงาน.
+Profile/assignment/review และ proposals/receipts ต้องอยู่ใน dump เดียวกัน.
+
+กู้คืน: หยุด candidate, ใช้ image ที่ตรง backup, คืน DB และไฟล์เป็นชุดเดียวในฐาน/volume
+แยกก่อน ตรวจ ready/version/hash, draft revision/fingerprint, profile/receipt และ preview.
+ข้อเสนอที่หมดอายุไม่ถูกต่ออายุหรือ apply เอง; retry ที่สำเร็จแล้วต้องได้ receipt เดิม.
+อย่าเริ่ม binary เก่ากับ schema ใหม่หรือคืน DB โดยไม่มีไฟล์ฟอนต์ที่ตรง hash.
+ช่วง 4 ทดสอบ dump+files restore ในฐานแยกและตรวจ PDF เทียบไบต์แล้ว; การติดตั้งกับ
+ข้อมูลจริงและการย้าย stable version/tag ยังต้องผ่านกฎ release และคำอนุญาตรอบนั้น.
+
+ตรวจซ้ำแบบจำกัดขอบเขตใช้ `tests/checkFontHeightDelivery.mjs` กับ config ของฐาน
+ทดสอบที่ระบุ container ชัดเจน และ `tests/checkFontHeightPdf.py <state.json>`.
+ต้องเตรียม dependencies ตาม runtime/fontTools และ PDF tools; ไม่ใช่เครื่องมือนำเข้าฐานจริง.
+ผลอัตโนมัติแยกจาก visual review ทุกหน้า; ดูหลักฐานรอบที่ Project Control ระบุ.

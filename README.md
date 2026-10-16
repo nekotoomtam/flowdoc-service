@@ -16,7 +16,7 @@ an administrator UI and production scaling remain outside this slice.
 
 Start with the Thai [usage guide](docs/usage.md): first PDF, draft publication,
 API requests, uploads, Area examples, font administration/readiness and backup/upgrade.
-It describes package 0.4.0; shared release status remains in Project Control.
+It describes candidate 0.4.1-dev.font-height.1; shared release status remains in Project Control.
 
 ## Local setup and acceptance
 
@@ -33,9 +33,9 @@ retains its volume/network/images. Failures leave inspection data. Generated
 fixtures/isolated schemas and temporarily alter constraints; never use shared data.
 
 For a persistent local registry, copy .env.example to .env and choose a random
-URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.4.0` explicitly
+URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.4.1-dev.font-height.1` explicitly
 to identify the image built from this candidate; verify its image ID separately.
-Apply migrations through 018 before
+Apply migrations through 020 before
 starting this package. For fonts/authoring, add the environment override in the
 usage guide; base Compose does not pass those secrets to the API. Run:
 
@@ -62,7 +62,7 @@ decoded JSON keys in raw template, draft and HTTP request input.
 
 ## Font-aware draft and job candidate
 
-This candidate vendors Core 0.4.0 with its verified checksum in `vendor/manifest.json`.
+This candidate vendors Core 0.4.1-dev.font-height.1 with its verified checksum in `vendor/manifest.json`.
 Schema 1 retains the four verified Sarabun hashes. Schema 2 uses exact library
 release/weight/style references. Save/get/validate return `fontReadiness` separately
 from the saved revision: `ready`, `blocked` or `incomplete`, with `checkedScope`
@@ -194,7 +194,7 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.4.0 is installed solely from `vendor/flowdoc-core-0.4.0.tgz`.
+Core 0.4.1-dev.font-height.1 is installed solely from `vendor/flowdoc-core-0.4.1-dev.font-height.1.tgz`.
 Its SHA256 and source commit are pinned in `vendor/manifest.json`;
 `node scripts/verifyVendor.mjs` verifies the checksum. The package supports only Area model 18.
 The lockfile pins dependencies. Linux runtime includes Node24, Python3.11/fontTools
@@ -416,7 +416,7 @@ for its one/two/six-request flow and failed-job handling.
 
 Prepared jobs send only the document and required image input to the child.
 Core validation and immutable snapshot integrity checks remain in place.
-Apply migrations through 018 using the matching CLI before starting the API.
+Apply migrations through 020 using the matching CLI before starting the API.
 
 ## Candidate Area18 authoring tools
 
