@@ -1,3 +1,6 @@
+import {checkFontReadiness,resolveFontReadiness} from '../fonts/readiness.js';
+import {readReferences,verifyReferences,writeReferences} from '../fonts/retention.js';
+import {persistJobFonts} from '../fonts/snapshot.js';
 import {randomUUID,createHash} from 'node:crypto';
 import type {Pool,PoolClient} from 'pg';
 import {validateTemplate,prepareGeneration,composeDocument} from '@flowdoc/core';
@@ -21,7 +24,10 @@ async function view(c:PoolClient,id:string){
  const current=(await c.query('SELECT revision FROM template_current WHERE template_id=$1',[id])).rows[0];
  if(!current)return {templateId:id,docKey:t.doc_key,name:t.name,revision:0,state:'empty',definition:null,fingerprint:null};
  const definition=assemble(await readRecord(c,id),1),v=validateTemplate(definition);if(!v.ok)throw new OperationError('STORAGE_FAILED','draft','Stored draft failed validation');
- return {templateId:id,docKey:t.doc_key,name:definition.name,revision:current.revision,state:'ready',definition,fingerprint:v.value.fingerprint};
+ const refs=await readReferences(c,id,current.revision);
+ const fontReadiness=await checkFontReadiness(c,definition,v.value.fingerprint,refs);
+ if(definition.schemaVersion===2&&(!refs||refs.definitionFingerprint!==v.value.fingerprint)){fontReadiness.status='incomplete';fontReadiness.issues=[{code:'FONT_CHECK_UNAVAILABLE',path:'/font',message:'Reference provenance is unavailable',remedy:'Restore the verified reference set',styleIds:[],occurrences:[],samples:[],total:1,truncated:false}];fontReadiness.total=1;}
+ return {templateId:id,docKey:t.doc_key,name:definition.name,revision:current.revision,state:'ready',definition,fingerprint:v.value.fingerprint,fontReadiness};
 }
 async function receipt(c:PoolClient,principal:string,operation:string,target:string,input:any,run:()=>Promise<any>){
  if(typeof input.idempotencyKey!=='string'||input.idempotencyKey.length<1||input.idempotencyKey.length>200)invalid('idempotencyKey');
@@ -74,7 +80,29 @@ export function createAuthoring(pool:Pool,principal:string,options:{maxOutstandi
     const after=await view(c,id),difference=definitionDiff(before.definition,after.definition);await audit(c,id,principal,after.revision,'save',difference);return {...after,...difference};
    });
   })),
-  validate:(raw:unknown)=>{try{const input=fields(raw,['definition','sampleRequest']),v=validateTemplate(input.definition);if(!v.ok)return v;if(v.value.definition.nodeModelVersion!==18)invalid('nodeModelVersion');if(input.sampleRequest!==undefined){const p=prepareGeneration(v.value,input.sampleRequest);if(!p.ok)return p;const d=composeDocument(v.value,p.value);if(!d.ok)return d;return {ok:true,value:{fingerprint:v.value.fingerprint,composed:true},warnings:[...p.warnings,...d.warnings]};}return {ok:true,value:{fingerprint:v.value.fingerprint,composed:false},warnings:[]};}catch(e){return failure(e);}},
+  cloneDraft:(id:string,raw:unknown)=>safe(()=>transaction(pool,async c=>{
+   const input=fields(raw,['sourceRevision','name','docKey','idempotencyKey']);await owned(c,principal,id);
+   return receipt(c,principal,'clone',id,input,async()=>{
+    const source=await view(c,id);revision(input.sourceRevision,source.revision);if(!source.definition)throw new OperationError('DRAFT_EMPTY','draft','Save a definition before cloning');
+    if(typeof input.name!=='string'||!input.name.trim()||input.name.length>200||typeof input.docKey!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(input.docKey))invalid('name/docKey');
+    const refs=await readReferences(c,id,source.revision);verifyReferences(source.definition,source.fingerprint!,refs);
+    const target=randomUUID(),created=await c.query('INSERT INTO templates(id,doc_key,name) VALUES($1,$2,$3) ON CONFLICT DO NOTHING RETURNING id',[target,input.docKey,input.name]);
+    if(!created.rowCount)throw new OperationError('TEMPLATE_IDENTITY_CONFLICT','docKey','Document key already exists');
+    await c.query('INSERT INTO authoring_templates(template_id,principal) VALUES($1,$2)',[target,principal]);
+    const definition={...structuredClone(source.definition),templateId:target,docKey:input.docKey,name:input.name,version:1};
+    const valid=validateTemplate(definition);if(!valid.ok)throw new AuthoringIssues(valid);
+    await writeCurrent(c,reconcileDefinition(valid.value.definition),refs);
+    await audit(c,target,principal,1,'clone',{sourceId:id,sourceRevision:source.revision,sourceReferenceSetId:refs?.id??null});return view(c,target);
+   });
+  })),
+  validate:async(raw:unknown)=>{const warnings:import('@flowdoc/core').Issue[]=[];const result=await safe(()=>transaction(pool,async c=>{
+   const input=fields(raw,['definition','sampleRequest']),v=validateTemplate(input.definition);if(!v.ok)throw new AuthoringIssues(v);if(v.value.definition.nodeModelVersion!==18)invalid('nodeModelVersion');
+   let refs=null;
+   const owner=(await c.query('SELECT 1 FROM authoring_templates WHERE template_id=$1 AND principal=$2',[v.value.definition.templateId,principal])).rowCount;
+   if(owner){const saved=await view(c,v.value.definition.templateId);refs=await readReferences(c,saved.templateId,saved.revision);if(saved.definition)verifyReferences(saved.definition,saved.fingerprint!,refs);if(refs)refs={...refs,definitionFingerprint:v.value.fingerprint};}
+   if(input.sampleRequest!==undefined){const p=prepareGeneration(v.value,input.sampleRequest);if(!p.ok)throw new AuthoringIssues(p);const d=composeDocument(v.value,p.value);if(!d.ok)throw new AuthoringIssues(d);warnings.push(...p.warnings,...d.warnings);return {fingerprint:v.value.fingerprint,composed:true,fontReadiness:await checkFontReadiness(c,v.value.definition,v.value.fingerprint,refs,{document:d.value,input:input.sampleRequest})};}
+   return {fingerprint:v.value.fingerprint,composed:false,fontReadiness:await checkFontReadiness(c,v.value.definition,v.value.fingerprint,refs)};
+  }));return result.ok?{...result,warnings}:result;},
   preview:(id:string,raw:unknown)=>safe(()=>transaction(pool,async c=>{
    const input=fields(raw,['expectedRevision','sampleRequest','idempotencyKey']);await owned(c,principal,id);
    return receipt(c,principal,'preview',id,input,async()=>{
@@ -82,6 +110,11 @@ export function createAuthoring(pool:Pool,principal:string,options:{maxOutstandi
     const v=validateTemplate(draft.definition);if(!v.ok)throw new AuthoringIssues(v);
     const request=object(input.sampleRequest),{uploadId,...coreInput}=request;
     const p=prepareGeneration(v.value,coreInput);if(!p.ok)throw new AuthoringIssues(p);const d=composeDocument(v.value,p.value);if(!d.ok)throw new AuthoringIssues(d);
+    const retained=await readReferences(c,id,draft.revision);verifyReferences(draft.definition,draft.fingerprint!,retained);
+    const releaseIds=[...new Set(Object.values(draft.definition.styles).flatMap((s:any)=>s.font?.kind==='library'?[s.font.releaseId]:[]))].sort();
+    if(releaseIds.length)await c.query('SELECT id FROM font_releases WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',[releaseIds]);
+    const fonts=await resolveFontReadiness(c,draft.definition,draft.fingerprint!,retained,{document:d.value,input:request});
+    if(!fonts.snapshot)throw new AuthoringIssues({ok:false,issues:fonts.readiness.issues,warnings:[]});
     const refs=imageNodes(d.value).map(n=>n.props.resourceId).filter(Boolean);
     const pin={templateId:id,revision:draft.revision,definition:draft.definition,fingerprint:draft.fingerprint!};let jobId:string;
     if(refs.length||uploadId!==undefined){
@@ -93,6 +126,7 @@ export function createAuthoring(pool:Pool,principal:string,options:{maxOutstandi
      await reserveJobCapacity(c,options.maxOutstanding);
      jobId=(await c.query('INSERT INTO generation_jobs(id,template_version_id,original_input,prepared_input,warnings_json,skipped_indices,preview_template_id,preview_revision,preview_definition,preview_fingerprint) VALUES(uuidv7(),NULL,$1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',[JSON.stringify(request),JSON.stringify(p.value),JSON.stringify(p.warnings),JSON.stringify(p.value.skippedContentIndices),id,draft.revision,JSON.stringify(draft.definition),draft.fingerprint])).rows[0].id;
     }
+    await persistJobFonts(c,jobId,fonts.snapshot);
     await audit(c,id,principal,draft.revision,'preview',{jobId,fingerprint:draft.fingerprint});return {jobId,templateId:id,revision:draft.revision,fingerprint:draft.fingerprint,status:'queued',warnings:p.warnings};
    });
   })),

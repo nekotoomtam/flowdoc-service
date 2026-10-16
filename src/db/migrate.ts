@@ -6,7 +6,7 @@ import type {Pool} from 'pg';
 import type {Result} from '@flowdoc/core';
 import {transaction} from './connection.js';
 import {OperationError,failure} from '../errors.js';
-import {backfill} from '../templates/storage.js';
+import {backfill,backfillLegacyFontReferences} from '../templates/storage.js';
 const directory=fileURLToPath(new URL('../../migrations/',import.meta.url));
 export async function migrate(pool:Pool,location=directory):Promise<Result<{applied:string[]}>>{
  try{
@@ -21,6 +21,7 @@ export async function migrate(pool:Pool,location=directory):Promise<Result<{appl
    const done:string[]=[];
    for(const file of files.slice(previous.rows.length)){await client.query(file.sql);await client.query('INSERT INTO schema_migrations(name,checksum) VALUES($1,$2)',[file.name,file.checksum]);done.push(file.name);}
    if(done.includes('002_current_version.sql')||done.includes('009_area_ownership.sql'))await backfill(client);
+   if(done.includes('017_font_references_jobs.sql'))await backfillLegacyFontReferences(client);
    return done;
   });return {ok:true,value:{applied},warnings:[]};
  }catch(error){return failure(error);}

@@ -1,3 +1,9 @@
+import {LEGACY_SARABUN} from '../fonts/legacy.js';
+import {validateFontSnapshot,makeFontSnapshot,persistJobFonts,fontRoot} from '../fonts/snapshot.js';
+import {fingerprint} from '../fonts/repository.js';
+import {loadBundledResources} from '@flowdoc/core';
+import {failure} from '../errors.js';
+import {tmpdir} from 'node:os';
 import {imageNodes as collectImageNodes} from '../images/nodes.js';
 import type {Pool} from 'pg';
 import {validateTemplate,composeDocument,prepareGeneration} from '@flowdoc/core';
@@ -53,10 +59,18 @@ async function claimAndStartRender(deps:Dependencies,signal:AbortSignal){
     const composed=composeDocument(valid.value,job.preparedInput);if(!composed.ok)throw Error('Composition failed');
     const hasImages=collectImageNodes(composed.value).length>0;
     if(hasImages&&!deps.resources)throw Error('Image preparation unavailable');
-    const imageInput=hasImages?await prepareOwnedJobImages(pool,job.id,composed.value,deps.resources!,signal):{document:composed.value,images:{}};
+    let snapshot=job.fontSnapshot;
+    if(!snapshot&&valid.value.definition.schemaVersion===1){
+     const base=await loadBundledResources({pythonExecutable:process.env.PYTHON_EXECUTABLE??'python',tempRoot:tmpdir()});if(!base.ok)throw Error('Resources unavailable');
+     snapshot=makeFontSnapshot(valid.value.fingerprint,fingerprint(job.originalInput),[],LEGACY_SARABUN.map(f=>({id:f.id,sha256:f.sha256})));
+     await transaction(pool,c=>persistJobFonts(c,job.id,snapshot!));
+    }
+    const pinned=validateFontSnapshot(snapshot,valid.value.fingerprint,fingerprint(job.originalInput));
+    const imageInput:JobImageInput=hasImages?await prepareOwnedJobImages(pool,job.id,composed.value,deps.resources!,signal):{document:composed.value,images:{}};
+    imageInput.fontSnapshot=pinned;imageInput.fontStorageRoot=fontRoot();
     if(!hasImages)await processing(pool,job.id,'rendering',0,0,[]);
     const pending=deps.render?deps.render(job.preparedInput,valid.value.definition,signal,imageInput):renderDocumentJob(imageInput,signal);
     return {id:job.id,pending};
 
- }catch{await failJob(pool,job.id,[{code:'RENDER_FAILED',path:'job',message:'Document processing failed'}]);return null;}
+ }catch(e){const r=failure(e);await failJob(pool,job.id,r.ok?[]:r.issues[0]?.code.startsWith('FONT_')?r.issues:[{code:'RENDER_FAILED',path:'job',message:'Document processing failed'}]);return null;}
 }

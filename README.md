@@ -16,7 +16,7 @@ API requests, uploads, Area examples and file lifetime. It covers 0.3.0; shared 
 Install dependencies with `npm ci --ignore-scripts`; build with `npm run build`.
 With Docker Desktop's Linux engine ready, run `npm run check:database`.
 It uses a fresh isolated PostgreSQL18 volume/internal network, pinned images and
-Core 0.3.0 tarball, without published DB ports or host source mounts. It verifies
+the manifest-pinned Core tarball, without published DB ports or host source mounts. It verifies
 fresh migration, populated R3 upgrade/rollback, constraints, publication concurrency,
 CLI editing, source-versus-snapshot PDF equality and restart persistence.
 Results are in `artifacts/<run>/result.json`. Success stops the environment but
@@ -49,6 +49,32 @@ repeat import reports CURRENT_EXISTS so it cannot accidentally replace IDs.
 Raw template import/registration use Core duplicate-key-aware validation.
 ID-bearing draft-save also uses duplicate-key-aware parsing. Preserve unique
 decoded JSON keys in raw template, draft and HTTP request input.
+
+## Font-aware draft and job candidate
+
+This candidate vendors Core 0.4.0 with its verified checksum in `vendor/manifest.json`.
+Schema 1 retains the four verified Sarabun hashes. Schema 2 uses exact library
+release/weight/style references. Save/get/validate return `fontReadiness` separately
+from the saved revision: `ready`, `blocked` or `incomplete`, with `checkedScope`
+of `styles` or `actual_input`. A saved draft may remain blocked; malformed font
+grammar, ownership, revision and idempotency errors still reject the operation.
+`POST /authoring/drafts/:id/clone` accepts sourceRevision, name, docKey and
+idempotencyKey; retained font rights come from server-held revision provenance.
+
+Admission checks actual composed characters through a temporary Core font specimen;
+authored pagination remains the worker's responsibility. Jobs persist immutable
+definition/input/renderer/font/license identities in the admission transaction.
+Workers use those exact hashes even after retirement and check file bytes again.
+An identical upload/preview retry returns its original job. Font failures cross
+the child boundary as bounded codes without server paths. Font assets are read
+from `FONT_STORAGE_DIR` (default `staging/fonts`); API and worker must share this
+directory. No activation endpoint, automatic fallback or default selection is added.
+
+Run `npm run build` and `node scripts/checkFontJobs.mjs` for isolated DB/container
+checks, queue persistence across DB restart and legacy rendering fixtures. Optional
+`FONT_FIXTURE_DIR` points to the supplied IBM_Plex_Sans_Thai/Pridi/Sarabun folder.
+Results and local test credentials are separate under `artifacts/<run>`; share only
+the result/PDF files. Shared stage acceptance remains in Project Control.
 
 Changing a variable key keeps its ID. The existing Core key/path references in
 fragments must also be updated by the author. Save allows unresolved content

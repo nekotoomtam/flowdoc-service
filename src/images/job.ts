@@ -10,7 +10,7 @@ import {transaction} from '../db/connection.js';
 import {prepareImage} from './prepare.js';
 import {downloadImage} from './download.js';
 export interface RenderImage {path:string;width:number;height:number;mediaType:'image/jpeg'|'image/png'}
-export interface JobImageInput {document:ResolvedDocument;images:Record<string,RenderImage>}
+export interface JobImageInput {fontSnapshot?:import('../fonts/snapshot.js').FontSnapshot;fontStorageRoot?:string;document:ResolvedDocument;images:Record<string,RenderImage>}
 export interface ImageJobDependencies {files:ResourceFiles;config:UploadConfig}
 export async function processing(pool:Pool,id:string,stage:string,completed:number,total:number,warnings:Issue[]){
  await pool.query(`INSERT INTO job_processing(job_id,stage,completed,total,warnings_json) VALUES($1,$2,$3,$4,$5)
