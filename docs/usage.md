@@ -1,4 +1,4 @@
-# คู่มือใช้งาน FlowDoc Service 0.4.2-dev.1
+# คู่มือใช้งาน FlowDoc Service 0.4.2-dev.2
 
 Section19 ช่วง1: candidate นี้เพิ่ม `create_draft_section` และ
 `import_draft_sections` ตาม `/authoring/drafts/:id/sections[/import]`.
@@ -7,7 +7,10 @@ Section19 ช่วง1: candidate นี้เพิ่ม `create_draft_sectio
 ต้องตรวจสิทธิ์ทั้งต้นทาง/ปลายทางและ revision; retry ใช้ key/body เดิม.
 Migration021 เพิ่มประวัติ ID กันใช้ ID ที่ลบกลับมาใหม่ และขยาย job pin/ownership
 สำหรับ19 โดยไม่ rewrite ข้อมูล18. Model18 ยังใช้ object input และ clone เดิม.
-Area cover/scoped TOC และการแปลง18→19ยังไม่เปิดในช่วงนี้. ใช้ package/hash จาก
+ช่วง2 เปิด fixed-height text ใน Area ที่วางตรง flow หลักของ Section19;
+ต้องพอดีทั้งกรอบและพื้นที่ body ที่เหลือ มิฉะนั้น preview ล้มเหลวโดยไม่ย่อ/ตัด/เลื่อนกรอบ.
+Section ยังคุมหน้าและหัว–ท้าย; fixed ใน cell/repeat, Area ซ้อน, scoped TOC และ
+การแปลง18→19ยังไม่เปิดในช่วงนี้. ใช้ package/hash จาก
 README และ vendor/manifest.json ปัจจุบัน; ส่วนคู่มือคลังฟอนต์ด้านล่างเก็บบริบท
 candidate0.4.1 เดิมไว้และไม่ใช่คำอนุญาตติดตั้งอัตโนมัติ.
 
