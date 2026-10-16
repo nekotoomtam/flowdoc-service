@@ -1,14 +1,14 @@
-# คู่มือใช้งาน FlowDoc Service 0.4.1-dev.font-height.1
+# คู่มือใช้งาน FlowDoc Service 0.4.1
 
 ## Authority Boundary
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-candidate 0.4.1-dev.font-height.1 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
+candidate 0.4.1 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
 
-คู่มือนี้ตาม candidate Service/Core 0.4.1-dev.font-height.1 ซึ่งยังไม่ออก tag/ติดตั้ง; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
+คู่มือนี้ตาม candidate Service/Core 0.4.1 ซึ่งยังไม่ออก tag/ติดตั้ง; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
 annotated tag หลังผ่านเกณฑ์ออกรุ่น ไม่อนุมานจากชื่อ image. รองรับ Area18 ทั้ง schemaVersion 1
 (Sarabun เดิม) และ 2 (คลังฟอนต์). เลข schema, รุ่นฟอนต์, รุ่นแม่แบบ และรุ่น Service
 เป็นคนละค่า. คำสั่ง publish ด้านล่างคือเผยแพร่เวอร์ชันแม่แบบ ไม่ใช่ Git release;
@@ -54,7 +54,7 @@ proxy; ไม่เพิ่ม CORS หรือ static route ให้ product
 ## 1. เริ่มต้นและออก PDF แรก
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด candidate 0.4.1-dev.font-height.1
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด candidate 0.4.1
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
@@ -65,7 +65,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.4.1-dev.font-height.1'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.4.1'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -448,7 +448,7 @@ job ตรึงฟอนต์/ไฟล์/license ที่รับไว้
 ส่วนนี้อธิบายโค้ดช่วง 1 ที่ยังไม่ออก tag/ติดตั้ง; ไม่ใช่คำสั่งของ release 0.4.0 เดิม.
 ข้อตกลงร่วมอยู่ Project Control
 `docs/domains/flowdoc-font-height-adjustment-design-plan-2026-10-16.md` ข้อ 7.
-ช่วง 2 ตรึง Core `0.4.1-dev.font-height.1` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
+ช่วง 2 ตรึง Core `0.4.1` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
 Core export `calculateFontHeightAdjustment` เป็น pure API รับ pt และ metric ต้นทาง/ปลายทาง
 แล้วคืน pt ที่ปัด half-up หกตำแหน่ง หรือ error; ไม่เขียน draft และไม่เปลี่ยน renderer.
 ยังไม่มีเครื่องมือผู้เขียน propose/confirm หรือการเปลี่ยน pt ของเอกสาร (ช่วง 3).
@@ -535,7 +535,7 @@ UPLOAD_GONE จึงยังไม่ใช่หลักฐาน same-revis
 ของผลิตภัณฑ์เพื่อให้ตัวทดสอบเก่าผ่าน.
 ใช้ผลล่าสุดของ candidate ที่จะออกรุ่นตัดสินตามเกณฑ์รับงาน ไม่ขยายผลจากการตรวจเอกสาร.
 
-### 8.2 ขอเสนอและยืนยันขนาด (development candidate 0.4.1-dev.font-height.1)
+### 8.2 ขอเสนอและยืนยันขนาด (development candidate 0.4.1)
 
 POST `/authoring/drafts/:id/font-height-adjustments` รับ expectedRevision/styleId/
 targetFont/idempotencyKey. ใช้ credential เจ้าของ; metric และ pt อ่านจาก draft กับ
@@ -556,8 +556,8 @@ Migration 020 เพิ่มตารางข้อเสนอเท่าน
 
 ### 8.3 เตรียมส่งมอบตัวช่วยความสูงและการกู้คืน
 
-Candidate ใช้ Service/Core `0.4.1-dev.font-height.1` กับ FlowDocMake
-`0.2.2-dev.font-height.1` และ Core SHA256 ใน vendor/manifest.json.
+Candidate ใช้ Service/Core `0.4.1` กับ FlowDocMake
+`0.2.2` และ Core SHA256 ใน vendor/manifest.json.
 นี่เป็นชุด development ที่ตรวจร่วม ไม่ใช่ release/tag หรือคำอนุญาตติดตั้งจริง.
 Core schema/renderer เดิมไม่เปลี่ยน; helper ต้องยืนยันก่อนบันทึกและตรวจ PDF ทุกครั้ง.
 IBM Plex Sans Thai, Pridi, Noto Sans Thai Looped และ Noto Serif Thai ชุดที่ได้รับ
