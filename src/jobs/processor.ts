@@ -25,7 +25,7 @@ export async function startProcessor(deps:Dependencies){
   try{
    const job=await claimAndStartRender(deps,abort.signal);if(!job){await new Promise(r=>setTimeout(r,deps.pollMs??100));continue;}
    try{
-    const result=await job.pending;if(!result.ok){await failJob(pool,job.id,result.issues);continue;}
+    const result=await job.pending;if(!result.ok){await failJob(pool,job.id,result.issues,result.warnings);continue;}
     if(!healthy)break;
     const output=await deps.files.writePdf(job.id,result.value.bytes);
     try{await transaction(pool,async c=>{

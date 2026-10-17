@@ -1,4 +1,4 @@
-# คู่มือใช้งาน FlowDoc Service 0.4.2-dev.3
+# คู่มือใช้งาน FlowDoc Service 0.4.3-dev.1
 
 Section19 ช่วง1: candidate นี้เพิ่ม `create_draft_section` และ
 `import_draft_sections` ตาม `/authoring/drafts/:id/sections[/import]`.
@@ -597,3 +597,16 @@ Profile/assignment/review และ proposals/receipts ต้องอยู่�
 ทดสอบที่ระบุ container ชัดเจน และ `tests/checkFontHeightPdf.py <state.json>`.
 ต้องเตรียม dependencies ตาม runtime/fontTools และ PDF tools; ไม่ใช่เครื่องมือนำเข้าฐานจริง.
 ผลอัตโนมัติแยกจาก visual review ทุกหน้า; ดูหลักฐานรอบที่ Project Control ระบุ.
+
+## Format sizing development candidate
+
+Core 0.4.3-dev.1 accepts model19 Format `sizing` (auto/fixed), with independent
+fixed frames per Area entry at Section flow roots. Definitions, clones and saved
+job snapshots retain sizing. `GET /authoring/contract` advertises `formatSizing`
+v1; Area contract entries include explicitly selected sizing only. Partial PDFs
+remain succeeded with structured FORMAT_* warnings. Status and stored warnings
+retain diagnostics even if a later visible link/TOC to omitted content makes
+the job fail (`LAYOUT_FAILED`, reason `omitted-destination`). Input data remains
+complete and omission warnings are distinct from skipped input indices.
+No migration or Area/request sizing field is introduced. Existing backup,
+restore and installation steps still apply; this candidate is not installed.

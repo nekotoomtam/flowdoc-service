@@ -40,7 +40,7 @@ try{
  const current=await (async()=>{if(snapshot)return snapshotResources(snapshot,temporary,input.fontStorageRoot??imageInput?.fontStorageRoot);
   const r=await loadBundledResources({pythonExecutable:process.env.PYTHON_EXECUTABLE??'python',tempRoot:temporary});if(!r.ok)throw Error('resources');return r.value;})();
  const engine=await createPdfEngine(current);if(!engine.ok){await writeFile(join(temporary,'issues.json'),JSON.stringify(engine.issues));throw Error('engine');}
- const pdf=await engine.value.generatePdf(doc.value,images);if(!pdf.ok){await writeFile(join(temporary,'issues.json'),JSON.stringify(pdf.issues.filter(i=>i.code==='LAYOUT_FAILED'||i.code.startsWith('FONT_')).slice(0,16)));throw Error('render');}
+ const pdf=await engine.value.generatePdf(doc.value,images);if(!pdf.ok){await writeFile(join(temporary,'warnings.json'),JSON.stringify(pdf.warnings));await writeFile(join(temporary,'issues.json'),JSON.stringify(pdf.issues.filter(i=>i.code==='LAYOUT_FAILED'||i.code.startsWith('FONT_')).slice(0,16)));throw Error('render');}
  await writeFile(join(temporary,'warnings.json'),JSON.stringify(pdf.warnings));
  await writeFile(join(temporary,'font-usage.json'),JSON.stringify(pdf.value.fontUsage??[]));
  process.stdout.write(pdf.value.bytes);

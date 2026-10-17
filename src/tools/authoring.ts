@@ -39,13 +39,16 @@ export function createAuthoringTools(config:{baseUrl:string;token:string;fetch?:
   server.registerTool('save_preview_pdf',{description:'Download an owned preview PDF directly to a local file on the MCP host. Returns absolute path, byteSize and SHA-256; open that path to inspect every page. Prefer this over copying resource base64. Each call creates a separate file. Does not publish.',inputSchema:z.object({jobId:id}).strict(),annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:false,openWorldHint:false}},async({jobId})=>{
    let folder:string|undefined;
    try{
+    const status=await call('/authoring/previews/'+jobId);
+    if(!status.ok||status.value.status!=='succeeded'||!status.value.outputAvailable)throw Error('Preview unavailable');
     const bytes:Buffer=await call('/authoring/previews/'+jobId+'/pdf','GET',undefined,true);
     if(bytes.subarray(0,5).toString()!=='%PDF-')throw Error('Invalid PDF');
     await mkdir(directory,{recursive:true,mode:0o700});
     folder=await mkdtemp(join(directory,'preview-'));
     const path=join(folder,jobId+'.pdf');
     await writeFile(path,bytes,{flag:'wx',mode:0o600});
-    return {content:[{type:'text' as const,text:JSON.stringify({ok:true,value:{path,byteSize:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex'),mimeType:'application/pdf'}})}]};
+    const {templateId,revision,fingerprint,hasWarnings,warnings}=status.value;
+    return {content:[{type:'text' as const,text:JSON.stringify({ok:true,value:{path,byteSize:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex'),mimeType:'application/pdf',jobId,templateId,revision,fingerprint,hasWarnings,warnings},warnings:status.warnings??warnings??[]})}]};
    }catch{
     if(folder){await unlink(join(folder,jobId+'.pdf')).catch(()=>{});await rmdir(folder).catch(()=>{});}
     return {content:[{type:'text' as const,text:'Preview PDF could not be saved. Check preview availability and local output-directory access, then retry.'}],isError:true};
