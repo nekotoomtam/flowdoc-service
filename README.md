@@ -1,6 +1,6 @@
 # FlowDoc Service
 
-Development candidate `0.4.3-dev.1` supports model19 Section instance authoring
+Development candidate `0.4.3-dev.2` supports model19 Section instance authoring
 beside unchanged model18. `POST /authoring/drafts/:id/sections` creates an empty
 authored Section; `POST /authoring/drafts/:id/sections/import` copies saved source
 Sections into an owned target with new public/normalized IDs. Import accepts
@@ -23,9 +23,9 @@ Project Control Section–Area contract; this paragraph covers this repository.
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Package version: 0.4.3-dev.1. Its release identity is the matching annotated tag on the
+Package version: 0.4.3-dev.2. Its release identity is the matching annotated tag on the
 snapshot branch; a package version alone does not establish release acceptance.
-This development candidate pins Core 0.4.3-dev.1 for its opt-in pure
+This development candidate pins Core 0.4.3-dev.2 for its opt-in pure
 font-height calculation API and revision-bound proposal/confirmation endpoints.
 It is untagged and not an installed Service release.
 The local HTTP API includes a serial export processor,
@@ -35,7 +35,7 @@ an administrator UI and production scaling remain outside this slice.
 
 Start with the Thai [usage guide](docs/usage.md): first PDF, draft publication,
 API requests, uploads, Area examples, font administration/readiness and backup/upgrade.
-It describes candidate 0.4.3-dev.1; shared release status remains in Project Control.
+It describes candidate 0.4.3-dev.2; shared release status remains in Project Control.
 
 ## Local setup and acceptance
 
@@ -52,7 +52,7 @@ retains its volume/network/images. Failures leave inspection data. Generated
 fixtures/isolated schemas and temporarily alter constraints; never use shared data.
 
 For a persistent local registry, copy .env.example to .env and choose a random
-URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.4.3-dev.1` explicitly
+URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.4.3-dev.2` explicitly
 to identify the image built from this candidate; verify its image ID separately.
 Apply migrations through 021 before
 starting this package. For fonts/authoring, add the environment override in the
@@ -81,7 +81,7 @@ decoded JSON keys in raw template, draft and HTTP request input.
 
 ## Font-aware draft and job candidate
 
-This candidate vendors Core 0.4.3-dev.1 with its verified checksum in `vendor/manifest.json`.
+This candidate vendors Core 0.4.3-dev.2 with its verified checksum in `vendor/manifest.json`.
 Schema 1 retains the four verified Sarabun hashes. Schema 2 uses exact library
 release/weight/style references. Save/get/validate return `fontReadiness` separately
 from the saved revision: `ready`, `blocked` or `incomplete`, with `checkedScope`
@@ -213,9 +213,10 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.4.3-dev.1 is installed solely from `vendor/flowdoc-core-0.4.3-dev.1.tgz`.
+Core 0.4.3-dev.2 is installed solely from `vendor/flowdoc-core-0.4.3-dev.2.tgz`.
 Its SHA256 and source commit are pinned in `vendor/manifest.json`;
-`node scripts/verifyVendor.mjs` verifies the checksum. The package supports only Area model 18.
+`node scripts/verifyVendor.mjs` verifies the checksum. The package supports Area model18 and Section model19; explicit Format sizing
+requires model19 and capability version2.
 The lockfile pins dependencies. Linux runtime includes Node24, Python3.11/fontTools
 and the Core-owned resources. Do not copy or fork Core validation/rendering logic.
 
@@ -499,10 +500,13 @@ for this input. Validation/composition is not a substitute for rendering preview
 
 ## Format sizing development candidate
 
-Core 0.4.3-dev.1 accepts model19 Format `sizing` (auto/fixed), with independent
-fixed frames per Area entry at Section flow roots. Definitions, clones and saved
+Core 0.4.3-dev.2 accepts model19 Format `sizing` (auto/fixed), with independent
+fixed maximum heights per Area entry at Section flow roots. Each call reserves
+min(declared height, current body remainder), including short/empty content.
+Positive space shows fitting whole units; only zero space omits the frame.
+Fixed never moves/retries omitted content. Definitions, clones and saved
 job snapshots retain sizing. `GET /authoring/contract` advertises `formatSizing`
-v1; Area contract entries include explicitly selected sizing only. Partial PDFs
+v2 (diagnosticsVersion1); Area contract entries include explicitly selected sizing only. Partial PDFs
 remain succeeded with structured FORMAT_* warnings. Status and stored warnings
 retain diagnostics even if a later visible link/TOC to omitted content makes
 the job fail (`LAYOUT_FAILED`, reason `omitted-destination`). Input data remains

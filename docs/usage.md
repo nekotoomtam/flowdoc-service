@@ -1,4 +1,4 @@
-# คู่มือใช้งาน FlowDoc Service 0.4.3-dev.1
+# คู่มือใช้งาน FlowDoc Service 0.4.3-dev.2
 
 Section19 ช่วง1: candidate นี้เพิ่ม `create_draft_section` และ
 `import_draft_sections` ตาม `/authoring/drafts/:id/sections[/import]`.
@@ -600,10 +600,13 @@ Profile/assignment/review และ proposals/receipts ต้องอยู่�
 
 ## Format sizing development candidate
 
-Core 0.4.3-dev.1 accepts model19 Format `sizing` (auto/fixed), with independent
-fixed frames per Area entry at Section flow roots. Definitions, clones and saved
+Core 0.4.3-dev.2 accepts model19 Format `sizing` (auto/fixed), with independent
+fixed maximum heights per Area entry at Section flow roots. Each call reserves
+min(declared height, current body remainder), including short/empty content.
+Positive space shows fitting whole units; only zero space omits the frame.
+Fixed never moves/retries omitted content. Definitions, clones and saved
 job snapshots retain sizing. `GET /authoring/contract` advertises `formatSizing`
-v1; Area contract entries include explicitly selected sizing only. Partial PDFs
+v2 (diagnosticsVersion1); Area contract entries include explicitly selected sizing only. Partial PDFs
 remain succeeded with structured FORMAT_* warnings. Status and stored warnings
 retain diagnostics even if a later visible link/TOC to omitted content makes
 the job fail (`LAYOUT_FAILED`, reason `omitted-destination`). Input data remains
