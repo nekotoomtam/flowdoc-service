@@ -44,12 +44,12 @@ async function renderSerializedJob(payload:{text:string},signal?:AbortSignal,dea
       const bounded=(v:unknown):v is string=>typeof v==='string'&&v.length>0&&v.length<=2048&&!/[\x00-\x1f\x7f]/.test(v);
       if(!bounded(value.nodeId))continue;
       issues.push({code:'LAYOUT_FAILED',path:'nodes.'+value.nodeId,nodeId:value.nodeId,message:'Document content does not fit the configured layout',
-       ...(bounded(value.sectionId)?{sectionId:value.sectionId}:{}),...(bounded(value.format)?{format:value.format}:{}),
+       ...(bounded(value.sectionId)?{sectionId:value.sectionId}:{}),...(bounded(value.format)?{format:value.format}:{}),...(value.reason==='omitted-destination'?{reason:'omitted-destination'}:{}),
        ...(Number.isSafeInteger(value.contentIndex)&&value.contentIndex>=0?{contentIndex:value.contentIndex}:{})});
      }
     }
    }catch{}
-   resolve({ok:false,issues:issues.length?issues:[{code:'RENDER_FAILED',path:'job',message:'Document rendering failed or exceeded execution limits'}],warnings:[]});
+   resolve({ok:false,issues:issues.length?issues:[{code:'RENDER_FAILED',path:'job',message:'Document rendering failed or exceeded execution limits'}],warnings:code===1&&!failed?warnings:[]});
   };
   // The processor validates the pinned template before composing/preparing images.
   // Send only the branch the child consumes; retain composition for direct callers.

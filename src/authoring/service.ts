@@ -1,6 +1,9 @@
+import {createSectionOperations} from './sectionOperations.js';
+import {cloneInstances} from './sectionInstances.js';
 import {checkFontReadiness,resolveFontReadiness} from '../fonts/readiness.js';
 import {readReferences,verifyReferences,writeReferences} from '../fonts/retention.js';
 import {persistJobFonts} from '../fonts/snapshot.js';
+import {createFontHeightAdjustments} from '../fonts/heightProposals.js';
 import {randomUUID,createHash} from 'node:crypto';
 import type {Pool,PoolClient} from 'pg';
 import {validateTemplate,prepareGeneration,composeDocument} from '@flowdoc/core';
@@ -39,6 +42,13 @@ async function receipt(c:PoolClient,principal:string,operation:string,target:str
 }
 const revision=(expected:unknown,actual:number)=>{if(!Number.isSafeInteger(expected)||Number(expected)<0)invalid('expectedRevision');if(expected!==actual)throw new OperationError('STALE_CURRENT','expectedRevision','Reload draft before saving or previewing');};
 const audit=(c:PoolClient,id:string,p:string,r:number,op:string,summary:unknown)=>c.query('INSERT INTO authoring_audit(template_id,principal,revision,operation,summary) VALUES($1,$2,$3,$4,$5)',[id,p,r,op,JSON.stringify(summary)]);
+async function writeDraft(c:PoolClient,id:string,principal:string,definition:any,before:any){
+ const v=validateTemplate(definition);if(!v.ok)throw new AuthoringIssues(v);
+ const previous=before.revision?await readRecord(c,id):undefined;
+ await writeCurrent(c,reconcileDefinition(v.value.definition,previous));
+ await c.query('UPDATE templates SET name=$2,updated_at=now() WHERE id=$1',[id,v.value.definition.name]);
+ const after=await view(c,id),difference=definitionDiff(before.definition,after.definition);await audit(c,id,principal,after.revision,'save',difference);return {...after,...difference};
+}
 export function definitionDiff(before:any,after:any){
  const diff:{path:string;change:string}[]=[];
  const visit=(a:any,b:any,path:string)=>{
@@ -57,6 +67,8 @@ export function definitionDiff(before:any,after:any){
 export function createAuthoring(pool:Pool,principal:string,options:{maxOutstanding:number;imagesEnabled:boolean}){
  const safe=async(fn:()=>Promise<any>)=>{try{return {ok:true as const,value:await fn(),warnings:[]};}catch(e){return e instanceof AuthoringIssues?e.result:failure(e);}};
  return {
+  ...createSectionOperations(pool,principal,{owned,view,receipt,revision,fields,safe}),
+  ...createFontHeightAdjustments(pool,principal,{owned,view,receipt,write:writeDraft}),
   create:(raw:unknown)=>safe(()=>transaction(pool,async c=>{
    const input=fields(raw,['name','docKey','idempotencyKey']);
    if(typeof input.name!=='string'||!input.name.trim()||input.name.length>200||typeof input.docKey!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(input.docKey))invalid('name/docKey');
@@ -72,12 +84,13 @@ export function createAuthoring(pool:Pool,principal:string,options:{maxOutstandi
    return receipt(c,principal,'save',id,input,async()=>{
     const before=await view(c,id);revision(input.expectedRevision,before.revision);
     const v=validateTemplate(input.definition);if(!v.ok)throw new AuthoringIssues(v);
-    if(v.value.definition.nodeModelVersion!==18)invalid('nodeModelVersion','Authoring supports Area18 only');
+    if(![18,19].includes(v.value.definition.nodeModelVersion))invalid('nodeModelVersion');
+    if(before.definition&&before.definition.nodeModelVersion!==v.value.definition.nodeModelVersion)throw new OperationError('VERSION_MISMATCH','nodeModelVersion','Model changes require explicit conversion into a new draft');
+    if(v.value.definition.nodeModelVersion===19){
+     for(const section of v.value.definition.sections){const prior=before.definition?.sections.find((p:any)=>p.id===section.id);if(canonical(("origin" in section?section.origin:null)??null)!==canonical((prior&&"origin" in prior?prior.origin:null)??null))invalid('origin','Origin metadata is server owned');}
+    }
     if(v.value.definition.templateId!==id||v.value.definition.docKey!==identity.doc_key||v.value.definition.version!==1)invalid('definition','Identity must match the created draft; draft definition version is 1');
-    const previous=before.revision?await readRecord(c,id):undefined;
-    await writeCurrent(c,reconcileDefinition(v.value.definition,previous));
-    await c.query('UPDATE templates SET name=$2,updated_at=now() WHERE id=$1',[id,v.value.definition.name]);
-    const after=await view(c,id),difference=definitionDiff(before.definition,after.definition);await audit(c,id,principal,after.revision,'save',difference);return {...after,...difference};
+    return writeDraft(c,id,principal,v.value.definition,before);
    });
   })),
   cloneDraft:(id:string,raw:unknown)=>safe(()=>transaction(pool,async c=>{
@@ -89,10 +102,11 @@ export function createAuthoring(pool:Pool,principal:string,options:{maxOutstandi
     const target=randomUUID(),created=await c.query('INSERT INTO templates(id,doc_key,name) VALUES($1,$2,$3) ON CONFLICT DO NOTHING RETURNING id',[target,input.docKey,input.name]);
     if(!created.rowCount)throw new OperationError('TEMPLATE_IDENTITY_CONFLICT','docKey','Document key already exists');
     await c.query('INSERT INTO authoring_templates(template_id,principal) VALUES($1,$2)',[target,principal]);
-    const definition={...structuredClone(source.definition),templateId:target,docKey:input.docKey,name:input.name,version:1};
+    const copy=source.definition.nodeModelVersion===19?cloneInstances(source.definition,{templateId:target,docKey:input.docKey,name:input.name},source.revision):null;
+    const definition=copy?.definition??{...structuredClone(source.definition),templateId:target,docKey:input.docKey,name:input.name,version:1};
     const valid=validateTemplate(definition);if(!valid.ok)throw new AuthoringIssues(valid);
     await writeCurrent(c,reconcileDefinition(valid.value.definition),refs);
-    await audit(c,target,principal,1,'clone',{sourceId:id,sourceRevision:source.revision,sourceReferenceSetId:refs?.id??null});return view(c,target);
+    await audit(c,target,principal,1,'clone',{sourceId:id,sourceRevision:source.revision,sourceReferenceSetId:refs?.id??null});return {...await view(c,target),...(copy?{sectionIdMap:copy.sectionIdMap}:{})};
    });
   })),
   fontReadiness:(id:string,raw:unknown)=>safe(()=>transaction(pool,async c=>{
@@ -104,7 +118,7 @@ export function createAuthoring(pool:Pool,principal:string,options:{maxOutstandi
    return {templateId:id,revision:draft.revision,fontReadiness:await checkFontReadiness(c,draft.definition,draft.fingerprint!,refs,actual)};
   })),
   validate:async(raw:unknown)=>{const warnings:import('@flowdoc/core').Issue[]=[];const result=await safe(()=>transaction(pool,async c=>{
-   const input=fields(raw,['definition','sampleRequest']),v=validateTemplate(input.definition);if(!v.ok)throw new AuthoringIssues(v);if(v.value.definition.nodeModelVersion!==18)invalid('nodeModelVersion');
+   const input=fields(raw,['definition','sampleRequest']),v=validateTemplate(input.definition);if(!v.ok)throw new AuthoringIssues(v);if(![18,19].includes(v.value.definition.nodeModelVersion))invalid('nodeModelVersion');
    let refs=null;
    const owner=(await c.query('SELECT 1 FROM authoring_templates WHERE template_id=$1 AND principal=$2',[v.value.definition.templateId,principal])).rowCount;
    if(owner){const saved=await view(c,v.value.definition.templateId);refs=await readReferences(c,saved.templateId,saved.revision);if(saved.definition)verifyReferences(saved.definition,saved.fingerprint!,refs);if(refs)refs={...refs,definitionFingerprint:v.value.fingerprint};}

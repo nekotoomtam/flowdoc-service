@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs';
 import {beforeAll,afterAll,it,expect} from 'vitest';
 import {isolatedDatabase} from './isolatedDatabase.mjs';
 import {migrate} from '../dist/db/migrate.js';
@@ -19,7 +20,7 @@ async function ready(){const font=await stageFont(pool,root,process.env.FONT_FIX
 async function processOne(id){let bytes;const processor=await startProcessor({pool,policy:{retain:true,ttlHours:24,tempHours:24},pollMs:10,files:{writePdf:async(job,b)=>{bytes=b;return {path:job+'.pdf',byteSize:b.length};}}});try{for(let i=0;i<600;i++){const r=(await pool.query('SELECT status,errors_json FROM generation_jobs WHERE id=$1',[id])).rows[0];if(['succeeded','failed'].includes(r.status))return {...r,bytes};await new Promise(r=>setTimeout(r,20));}throw Error('processor timeout');}finally{await processor.stop();}}
 it('persists admission fonts with the job, survives retirement and restart, and keeps font errors from the child',async()=>{
  const {font,def,request}=await ready();ok(await registerTemplate(pool,JSON.stringify(def)));
- const job=ok(await submitJob(pool,request)),row=(await pool.query('SELECT snapshot FROM job_font_snapshots WHERE job_id=$1',[job.jobId])).rows[0];expect(row.snapshot).toMatchObject({version:1,rendererIdentity:{version:'0.4.0'},bindings:[expect.objectContaining({releaseId:font.id,sha256:font.sha256})]});
+ const job=ok(await submitJob(pool,request)),row=(await pool.query('SELECT snapshot FROM job_font_snapshots WHERE job_id=$1',[job.jobId])).rows[0];expect(row.snapshot).toMatchObject({version:1,rendererIdentity:{version:JSON.parse(readFileSync('vendor/manifest.json','utf8')).version},bindings:[expect.objectContaining({releaseId:font.id,sha256:font.sha256})]});
  await pool.query("UPDATE font_releases SET state='retired' WHERE id=$1",[font.id]);
  const result=await processOne(job.jobId);expect(result.status,JSON.stringify(result.errors_json)).toBe('succeeded');expect(Buffer.from(result.bytes).subarray(0,5).toString()).toBe('%PDF-');
  if(process.env.FONT_PROOF_DIR)await writeFile(join(process.env.FONT_PROOF_DIR,'pinned-library.pdf'),result.bytes);

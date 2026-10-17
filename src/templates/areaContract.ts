@@ -1,2 +1,3 @@
-import type {TemplateDefinition} from '@flowdoc/core';
-export function buildAreaContract(t:TemplateDefinition){return Object.fromEntries(Object.entries(t.areaFormats??{}).map(([id,f])=>[id,{ownerAreaId:f.ownerAreaId,key:f.key,...(f.label===undefined?{}:{label:f.label}),...(f.description===undefined?{}:{description:f.description}),inputSchema:f.inputSchema}]));}
+import type {TemplateDefinition,AreaFormat} from '@flowdoc/core';
+export interface AreaContractEntry {ownerAreaId:string;key:string;label?:string;description?:string;sizing?:AreaFormat['sizing'];inputSchema:AreaFormat['inputSchema']}
+export function buildAreaContract(t:TemplateDefinition):Record<string,AreaContractEntry>{return Object.fromEntries(Object.entries(t.areaFormats??{}).map(([id,f])=>[id,{ownerAreaId:f.ownerAreaId,key:f.key,...(f.label===undefined?{}:{label:f.label}),...(f.description===undefined?{}:{description:f.description}),...(f.sizing===undefined?{}:{sizing:structuredClone(f.sizing)}),inputSchema:f.inputSchema}]));}

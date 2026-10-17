@@ -24,6 +24,10 @@ export function createFontAdminClient(config:{baseUrl:string;token:string;fetch?
   const {id,entity,...body}=input;if(typeof id!=='string'||!UUID.test(id))fontError('INVALID_FONT_INPUT');
   if(command==='show'){if(Object.keys(body).length||!['release','import','review'].includes(entity))fontError('INVALID_FONT_INPUT');return call('/'+({release:'releases',import:'imports',review:'reviews'} as any)[entity]+'/'+id);}
   if(entity!==undefined)fontError('INVALID_FONT_INPUT');
+  if(command==='height-measure')return call('/releases/'+id+'/height-profiles','POST',body);
+  if(command==='height-show'){if(Object.keys(body).length)fontError('INVALID_FONT_INPUT');return call('/height-profiles/'+id);}
+  if(command==='height-approve'||command==='height-revoke')return call('/height-profiles/'+id+'/'+(command==='height-approve'?'approve':'revoke'),'POST',body);
+  if(command==='height-assign')return call('/releases/'+id+'/height-profile','PUT',body);
   if(command==='import-inspect')return call('/imports/'+id+'/inspect','POST',body);
   if(command==='release-edit')return call('/releases/'+id,'PATCH',body);
   if(command==='release-delete')return call('/releases/'+id,'DELETE',body);

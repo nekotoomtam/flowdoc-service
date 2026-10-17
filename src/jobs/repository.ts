@@ -20,8 +20,8 @@ export async function claimNextJob(pool:Queryable):Promise<Job|null>{
  const fonts=row?(await pool.query('SELECT snapshot FROM job_font_snapshots WHERE job_id=$1',[row.id])).rows[0]?.snapshot:undefined;
  return row?{...(fonts?{fontSnapshot:fonts}:{}),id:row.id,versionId:row.template_version_id,preparedInput:row.prepared_input,originalInput:row.original_input,...(row.preview_definition?{previewDefinition:row.preview_definition,previewFingerprint:row.preview_fingerprint}:{})}:null;
 }
-export async function failJob(pool:Queryable,id:string,issues:Issue[]):Promise<boolean>{
- const r=await pool.query("UPDATE generation_jobs SET status='failed',finished_at=now(),errors_json=$2 WHERE id=$1 AND status='running'",[id,JSON.stringify(issues)]);if(r.rowCount===1)await pool.query("UPDATE job_processing SET stage='failed',updated_at=now() WHERE job_id=$1",[id]);return r.rowCount===1;
+export async function failJob(pool:Queryable,id:string,issues:Issue[],warnings:Issue[]=[]):Promise<boolean>{
+ const r=await pool.query("WITH failed AS (UPDATE generation_jobs SET status='failed',finished_at=now(),errors_json=$2 WHERE id=$1 AND status='running' RETURNING id), progress AS (UPDATE job_processing p SET stage='failed',warnings_json=p.warnings_json||$3::jsonb,updated_at=now() FROM failed f WHERE p.job_id=f.id RETURNING p.job_id) SELECT id FROM failed",[id,JSON.stringify(issues),JSON.stringify(warnings)]);return r.rowCount===1;
 }
 export async function failInterruptedJobs(pool:Queryable):Promise<void>{
  await pool.query("UPDATE generation_jobs SET status='failed',finished_at=now(),errors_json=$1 WHERE status='running'",[JSON.stringify([{code:'PROCESS_INTERRUPTED',path:'job',message:'Processing interrupted; submit a new job'}])]);

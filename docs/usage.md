@@ -1,14 +1,32 @@
-# คู่มือใช้งาน FlowDoc Service 0.4.0
+# คู่มือใช้งาน FlowDoc Service 0.4.3
+
+Section19 ช่วง1: candidate นี้เพิ่ม `create_draft_section` และ
+`import_draft_sections` ตาม `/authoring/drafts/:id/sections[/import]`.
+ต่อ/แยกสำเนาลง draft ก่อนส่งข้อมูล `sections:[{id,data,header?,footer?}]`;
+ลำดับพิมพ์ตาม definition และ clone/import จัด ID ใหม่พร้อม sectionIdMap.
+ต้องตรวจสิทธิ์ทั้งต้นทาง/ปลายทางและ revision; retry ใช้ key/body เดิม.
+Migration021 เพิ่มประวัติ ID กันใช้ ID ที่ลบกลับมาใหม่ และขยาย job pin/ownership
+สำหรับ19 โดยไม่ rewrite ข้อมูล18. Model18 ยังใช้ object input และ clone เดิม.
+ช่วง2 เปิด fixed-height text ใน Area ที่วางตรง flow หลักของ Section19;
+ข้อความที่กำหนด props.heightMode:fixed / props.height ต้องพอดีกรอบและ body มิฉะนั้น preview ล้มเหลว.
+คนละสัญญากับ Format sizing.fixed ด้านท้ายคู่มือ ซึ่งแสดงส่วนที่พอในเพดานความสูง
+min(ความสูงที่กำหนด, พื้นที่หน้าที่เหลือ) แล้วแจ้งส่วนที่ไม่แสดง โดยไม่ย่อ/ตัดกลางบรรทัด.
+Section ยังคุมหน้าและหัว–ท้าย; fixed ใน cell/repeat และ Area ซ้อนยังห้าม.
+ช่วง3 เปิด TOC ของ19ด้วย props.scope kind section/document ชัดเจน หนึ่งต่อขอบเขต;
+clone คง scope ตาม Section เจ้าของที่ได้ ID ใหม่. เลขและลิงก์คำนวณจากหน้าเป้าหมาย
+ของ pinned preview;18ยังใช้ TOC เดิมโดยไม่ใส่ scope. ยังไม่แปลง18→19อัตโนมัติ. ใช้ package/hash จาก
+README และ vendor/manifest.json ปัจจุบัน; ส่วนคู่มือคลังฟอนต์ด้านล่างเก็บบริบท
+คำอธิบายความสามารถเดิมไว้และไม่ใช่คำอนุญาตติดตั้งอัตโนมัติ.
 
 ## Authority Boundary
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-แพ็กเกจ 0.4.0 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
+candidate 0.4.3 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
 
-คู่มือนี้ตาม package 0.4.0 ที่ใช้ Core 0.4.0; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
+คู่มือนี้ตาม candidate Service/Core 0.4.3 ซึ่งยังไม่ออก tag/ติดตั้ง; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
 annotated tag หลังผ่านเกณฑ์ออกรุ่น ไม่อนุมานจากชื่อ image. รองรับ Area18 ทั้ง schemaVersion 1
 (Sarabun เดิม) และ 2 (คลังฟอนต์). เลข schema, รุ่นฟอนต์, รุ่นแม่แบบ และรุ่น Service
 เป็นคนละค่า. คำสั่ง publish ด้านล่างคือเผยแพร่เวอร์ชันแม่แบบ ไม่ใช่ Git release;
@@ -53,8 +71,11 @@ proxy; ไม่เพิ่ม CORS หรือ static route ให้ product
 
 ## 1. เริ่มต้นและออก PDF แรก
 
+ตัวอย่าง area-document และ sections.main ในข้อ 1–5 ใช้ model18 เพื่อให้เอกสารเดิมยังใช้ได้.
+สำหรับ model19 ใช้ sections เป็น array ระบุ ID ตาม contract; ห้ามแปลงชื่อเป็น ID เอง.
+
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด 0.4.0
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด candidate 0.4.3
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
@@ -65,7 +86,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.4.0'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.4.3'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -83,7 +104,7 @@ docker @dc up -d api
 ของ project `flowdoc-manual` หาก port 4318 ใช้อยู่ ให้เปลี่ยนค่าก่อนเริ่ม API
 เปิด terminal ใหม่ให้กำหนด `$dc` อีกครั้ง ไม่ต้องสร้างรหัสผ่านหรือ import ซ้ำ
 `CURRENT_EXISTS` หมายถึงมีฉบับแก้ไขอยู่แล้ว ไม่ใช่คำสั่งแทนที่ข้อมูลเดิม
-`migrate` ของชุดนี้ต้องผ่าน migrations 016–018 เพิ่มจากฐาน 015; ฐานใหม่ใช้ทั้งหมด
+`migrate` ของชุดนี้ต้องผ่าน migrations 016–021 เพิ่มจากฐาน 015; ฐานใหม่ใช้ทั้งหมด
 และการรันซ้ำที่ครบแล้วไม่ควรมีรายการ applied ใหม่. ห้ามแก้ SQL migration ที่ใช้แล้ว.
 ตัวอย่างแรกใช้ Sarabun เดิม จึงยังไม่ต้องนำเข้าคลังหรือเปิดสิทธิ์ admin.
 
@@ -437,11 +458,49 @@ clone ผ่าน `POST /authoring/drafts/:id/clone` ด้วย sourceRevisio
 idempotencyKey; สิทธิ์ retired มาจาก revision ที่ server เก็บ ไม่ใช่ client แนบเอง.
 FlowDocMake ใช้ `get_font_catalog`, `get_draft_font_readiness`, `clone_template_draft`;
 ไม่มีคำสั่ง admin ในช่องทางนี้. ใช้ชุด client ที่เข้าคู่กับ Service/Core ปัจจุบัน.
-ชุดส่งมอบนี้ใช้ FlowDocMake 0.2.1 ซึ่งตรึง checksum ของ Core tarball ใน
+ชุดส่งมอบนี้ใช้ FlowDocMake 0.2.4 ซึ่งตรึง checksum ของ Core tarball ใน
 `vendor/manifest.json`; client 0.2.0 ตรึงแพ็กเกจก่อนปรับคู่มือและใช้แทนกันไม่ได้.
 job ตรึงฟอนต์/ไฟล์/license ที่รับไว้ แม้เปลี่ยน default หรือ retire ระหว่างรอ;
 ไฟล์หายหรือ hash ไม่ตรงต้องแก้ storage ไม่ข้ามการตรวจ. Sarabun schema 1 ยังใช้
 ไฟล์ชุดเดิม; ไม่แก้เอกสารเดิมให้กลายเป็น schema 2 เพื่อให้ผ่าน.
+
+### 8.1 ตัวช่วยความสูงฟอนต์: วัดและเก็บผล (development candidate หลัง 0.4.0)
+
+ส่วนนี้อธิบายโค้ดช่วง 1 ที่ยังไม่ออก tag/ติดตั้ง; ไม่ใช่คำสั่งของ release 0.4.0 เดิม.
+ข้อตกลงร่วมอยู่ Project Control
+`docs/domains/flowdoc-font-height-adjustment-design-plan-2026-10-16.md` ข้อ 7.
+ชุดปัจจุบันตรึง Core `0.4.3` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
+Core export `calculateFontHeightAdjustment` เป็น pure API รับ pt และ metric ต้นทาง/ปลายทาง
+แล้วคืน pt ที่ปัด half-up หกตำแหน่ง หรือ error; ไม่เขียน draft และไม่เปลี่ยน renderer.
+เครื่องมือ propose/confirm ของช่วง 3 มีแล้วตามข้อ 8.2; ต้องยืนยันก่อนเปลี่ยน pt.
+
+ใช้ `node dist/fonts/cli.js <command> --request <file.json>` กับ FONT_ADMIN_BASE_URL/
+FONT_ADMIN_TOKEN เดิม. Author token เรียก API เหล่านี้ไม่ได้; actor มาจาก auth.
+
+| command | JSON เพิ่มจาก requestId/reason | ผล |
+| --- | --- | --- |
+| height-measure | id=releaseId, expectedRevision=release revision, manifestDigest | วัด Regular 400 จริงและคืน profile; request ซ้ำได้ผลเดิม |
+| height-approve / height-revoke | id=profileId, expectedRevision=release revision, profileDigest | เพิ่มประวัติยืนยัน/ถอนผลวัด ไม่เปลี่ยนสถานะ release |
+| height-assign | id=releaseId, expectedRevision=assignment revision (ครั้งแรก 0), profileId, profileDigest | ตั้งผลวัดที่อนุมัติเป็น current pointer ด้วย CAS |
+| height-show | id=profileId เท่านั้น | อ่าน profile/hash/ผลวัดและ reviewStatus |
+
+ผลวัดใช้ method `thai-bo-baseline-top-v1`: baseline ถึงยอดเส้นโค้งจริงของ บ,
+unhinted รวม composite. topDesign เก็บ decimal string; ไม่รวมสระ/วรรณยุกต์.
+ผลวัดแยกจาก immutable asset metadata และ release manifest; การอ่าน metadata ปกติ
+ยังคืน shape เดิมเพื่อให้ review/re-activation ของฟอนต์ที่เก็บไว้แล้วทำงานต่อได้.
+ไม่มี บ/Regular คืน unavailable diagnostic ที่อนุมัติไม่ได้ ไม่ใช่ font readiness blocker ใหม่.
+reviewStatus ที่อ่านได้เป็นประวัติ review ไม่ใช่การรับรองไฟล์/manifest ปัจจุบัน;
+การ assign ตรวจ binding/hash และประวัติล่าสุดซ้ำ. active/retired เดิมแนบผลวัดได้.
+
+custom family ใช้ sourceIdentity `{provider:'custom',providerFamilyKey:'thsarabunnew'}`.
+custom sourceEvidence ต้องมี providerFamilyKey เดียวกัน พร้อม provenance
+`{sourceName,sourceVersion,obtainedFrom,rightsNote}`; metadataHash เป็น SHA-256 ของ
+canonical JSON (sort keys) ของ provenance, fileHashBinding เป็น SHA-256 ของ TTF จริง.
+locator ใช้ HTTPS ที่มาจริงหรือ `urn:flowdoc:custom:thsarabunnew`; ไม่ใส่พาธหรือ credentials.
+แนบ license text UTF-8 ที่ถูกต้องผ่าน licenseFiles/licenseClientKeys เหมือนเดิม;
+TH Sarabun New ใช้ข้อความ license ของตัวเอง ไม่ใช้ OFL ของ Google แทน.
+sourceWeight ไม่ทราบใช้ null แล้วบันทึก conflictResolution ของ approvedWeight ตามกฎเดิม.
+dedup bytes ไม่ลบที่มา/ใบอนุญาตของแต่ละ import; ไม่เปิด custom upload ให้ผู้เขียนทั่วไป.
 
 ## 9. เตรียมอัปเกรด สำรอง และตรวจหลังติดตั้ง
 
@@ -469,7 +528,7 @@ Get-FileHash (Join-Path $backupDir 'database.dump') -Algorithm SHA256
 
 4. ตรวจว่าแต่ละคำสั่งสำเร็จ ตรวจ hashes และทดลอง restore dump/ไฟล์ใน DB กับ volumes
    แยกก่อนใช้เป็นแผนกู้คืน. ไม่ทดลอง restore ทับข้อมูลจริง และไม่ใช้ `down -v`.
-5. ใช้ image ชุดใหม่ที่ตรึงไว้ รัน CLI `migrate` ให้ถึง 018 แล้วเปิด API. ไม่ย้อน SQL
+5. ใช้ image ชุดใหม่ที่ตรึงไว้ รัน CLI `migrate` ให้ถึง 021 แล้วเปิด API. ไม่ย้อน SQL
    migration หรือแก้ checksum ถ้าล้มเหลว; วิเคราะห์และกู้คืนเป็นชุด DB/files/config/
    image ที่เข้าคู่กันจากสำรองที่ตรวจแล้ว แยกการอนุมัติก่อนกระทบข้อมูลจริง.
 6. ตรวจ `/health`, คู่รุ่นจริง, admin/authoring permissions, catalog/readiness และ
@@ -496,3 +555,66 @@ UPLOAD_GONE จึงยังไม่ใช่หลักฐาน same-revis
 ให้ถูกต้องแล้วออกแม่แบบรุ่นถัดไป; ใช้ผลตรวจของชุดส่งมอบยืนยัน ไม่แก้ validation
 ของผลิตภัณฑ์เพื่อให้ตัวทดสอบเก่าผ่าน.
 ใช้ผลล่าสุดของ candidate ที่จะออกรุ่นตัดสินตามเกณฑ์รับงาน ไม่ขยายผลจากการตรวจเอกสาร.
+
+### 8.2 ขอเสนอและยืนยันขนาด (development candidate 0.4.3)
+
+POST `/authoring/drafts/:id/font-height-adjustments` รับ expectedRevision/styleId/
+targetFont/idempotencyKey. ใช้ credential เจ้าของ; metric และ pt อ่านจาก draft กับ
+profile ที่ผู้ดูแลตรวจแล้วเท่านั้น. คืน proposedFontSizePt และ layoutCheck=not_checked;
+ยังไม่เปลี่ยน draft. ยกเลิกได้โดยไม่ confirm.
+POST `/authoring/drafts/:id/font-height-adjustments/:proposalId/confirm` รับเพียง
+expectedRevision/idempotencyKey หลังเจ้าของเลือกใช้; บันทึก font+pt ใน transaction เดียว
+ผ่าน write/reference/audit เดียวกับ save และคง lineHeightPt. Shared style มีผลต่อทุก node
+ที่อ้าง style นั้น. ต้องตรวจ readiness และ preview ต่อ; save ไม่รับรอง layout.
+
+ข้อเสนออายุ 15 นาที. TTL/revision/fingerprint/profile/assignment/review เปลี่ยนให้ขอใหม่;
+retry key/body เดิมคืนผลเดิม ไม่เพิ่ม revision หรือยืดอายุ. key เดิมต่าง body เป็น conflict.
+active หรือ retired exact tuple ที่ draft retained เท่านั้น. ไม่มี profile หรือ schema1
+Sarabun คืน unavailable และยังใช้ ordinary pt/save/preview/clone ตามเดิม ไม่ migrate เอง.
+Catalog heightProfile เป็นข้อมูล review เบื้องต้น; propose/confirm ตรวจ binding/files/สิทธิ์ซ้ำ.
+Migration 020 เพิ่มตารางข้อเสนอเท่านั้น; ไม่แก้ schema1 definitions หรือ migration เดิม.
+ใช้ฐานทดสอบแยกก่อน upgrade; รุ่นนี้ยังไม่อนุญาต install/deploy จากผลตรวจ development.
+
+### 8.3 เตรียมส่งมอบตัวช่วยความสูงและการกู้คืน
+
+Candidate ใช้ Service/Core `0.4.3` กับ FlowDocMake
+`0.2.4` และ Core SHA256 ใน vendor/manifest.json.
+นี่เป็นชุด development ที่ตรวจร่วม ไม่ใช่ release/tag หรือคำอนุญาตติดตั้งจริง.
+Core schema/renderer เดิมไม่เปลี่ยน; helper ต้องยืนยันก่อนบันทึกและตรวจ PDF ทุกครั้ง.
+IBM Plex Sans Thai, Pridi, Noto Sans Thai Looped และ Noto Serif Thai ชุดที่ได้รับ
+ไม่มี italic; ห้ามนับเป็นผลผ่านของ italic หรือสร้างตัวเอียงแทน.
+
+ก่อน upgrade หลังได้รับอนุญาต: หยุดรับงาน/รอ job จบ สำรอง PostgreSQL แบบ custom dump
+และ staging/font library รวม licenses, output/temp ที่ต้องรักษา พร้อม config/secret
+แยกไว้ในที่ปลอดภัย. ใช้ image/source/Core hash ที่ตรึง สั่ง migrate ไปถึง 021;
+ห้ามแก้ bytes ของ 001–021. ตรวจ replay ไม่ apply ซ้ำ, admin/author แยก credential,
+เปิด draft เดิม, catalog/default/retired, helper และ preview/download ก่อนเปิดงาน.
+Profile/assignment/review และ proposals/receipts ต้องอยู่ใน dump เดียวกัน.
+
+กู้คืน: หยุด candidate, ใช้ image ที่ตรง backup, คืน DB และไฟล์เป็นชุดเดียวในฐาน/volume
+แยกก่อน ตรวจ ready/version/hash, draft revision/fingerprint, profile/receipt และ preview.
+ข้อเสนอที่หมดอายุไม่ถูกต่ออายุหรือ apply เอง; retry ที่สำเร็จแล้วต้องได้ receipt เดิม.
+อย่าเริ่ม binary เก่ากับ schema ใหม่หรือคืน DB โดยไม่มีไฟล์ฟอนต์ที่ตรง hash.
+ช่วง 4 ทดสอบ dump+files restore ในฐานแยกและตรวจ PDF เทียบไบต์แล้ว; การติดตั้งกับ
+ข้อมูลจริงและการย้าย stable version/tag ยังต้องผ่านกฎ release และคำอนุญาตรอบนั้น.
+
+ตรวจซ้ำแบบจำกัดขอบเขตใช้ `tests/checkFontHeightDelivery.mjs` กับ config ของฐาน
+ทดสอบที่ระบุ container ชัดเจน และ `tests/checkFontHeightPdf.py <state.json>`.
+ต้องเตรียม dependencies ตาม runtime/fontTools และ PDF tools; ไม่ใช่เครื่องมือนำเข้าฐานจริง.
+ผลอัตโนมัติแยกจาก visual review ทุกหน้า; ดูหลักฐานรอบที่ Project Control ระบุ.
+
+## Format sizing development candidate
+
+Core 0.4.3 accepts model19 Format `sizing` (auto/fixed), with independent
+fixed maximum heights per Area entry at Section flow roots. Each call reserves
+min(declared height, current body remainder), including short/empty content.
+Positive space shows fitting whole units; only zero space omits the frame.
+Fixed never moves/retries omitted content. Definitions, clones and saved
+job snapshots retain sizing. `GET /authoring/contract` advertises `formatSizing`
+v2 (diagnosticsVersion1); Area contract entries include explicitly selected sizing only. Partial PDFs
+remain succeeded with structured FORMAT_* warnings. Status and stored warnings
+retain diagnostics even if a later visible link/TOC to omitted content makes
+the job fail (`LAYOUT_FAILED`, reason `omitted-destination`). Input data remains
+complete and omission warnings are distinct from skipped input indices.
+No migration or Area/request sizing field is introduced. Existing backup,
+restore and installation steps still apply; this candidate is not installed.

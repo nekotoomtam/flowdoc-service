@@ -1,0 +1,726 @@
+{
+  "schemaVersion": 1,
+  "nodeModelVersion": 19,
+  "templateId": "area-cover-stage2",
+  "docKey": "area-cover-stage2",
+  "version": 1,
+  "name": "Section with native Area components",
+  "book": {
+    "contentSlot": "body",
+    "defaultPageLayoutId": "portrait"
+  },
+  "globalSchema": {
+    "type": "object",
+    "fields": {}
+  },
+  "styles": {
+    "body": {
+      "fontFamilyKey": "sarabun",
+      "fontWeight": "normal",
+      "fontSize": {
+        "value": 12,
+        "unit": "pt"
+      },
+      "lineHeightPt": 22
+    }
+  },
+  "examples": [],
+  "areaFormats": {
+    "format-0": {
+      "key": "component-0",
+      "ownerAreaId": "area-0",
+      "inputSchema": {
+        "type": "object",
+        "fields": {}
+      },
+      "repeats": [],
+      "fragment": {
+        "rootIds": [
+          "leading",
+          "heading",
+          "subtitle",
+          "break",
+          "again"
+        ],
+        "nodes": {
+          "heading": {
+            "id": "heading",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body",
+              "heightMode": "fixed",
+              "height": {
+                "value": 230,
+                "unit": "pt"
+              },
+              "verticalAlign": "center"
+            },
+            "children": [
+              {
+                "id": "heading-leaf",
+                "type": "text",
+                "text": "ปกเอกสาร / COVER"
+              }
+            ]
+          },
+          "subtitle": {
+            "id": "subtitle",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body",
+              "heightMode": "fixed",
+              "height": {
+                "value": 130,
+                "unit": "pt"
+              },
+              "verticalAlign": "center"
+            },
+            "children": [
+              {
+                "id": "subtitle-leaf",
+                "type": "text",
+                "text": "ทดสอบปกภายใน Section เดียว\nNative text - no page image"
+              }
+            ]
+          },
+          "leading": {
+            "id": "leading",
+            "type": "page-break"
+          },
+          "break": {
+            "id": "break",
+            "type": "page-break"
+          },
+          "again": {
+            "id": "again",
+            "type": "page-break"
+          }
+        }
+      }
+    },
+    "format-1": {
+      "key": "component-1",
+      "ownerAreaId": "area-1",
+      "inputSchema": {
+        "type": "object",
+        "fields": {}
+      },
+      "repeats": [],
+      "fragment": {
+        "rootIds": [
+          "heading",
+          "table",
+          "break",
+          "again"
+        ],
+        "nodes": {
+          "heading": {
+            "id": "heading",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "heading-leaf",
+                "type": "text",
+                "text": "ผู้อนุมัติ / APPROVAL"
+              }
+            ]
+          },
+          "table": {
+            "id": "table",
+            "type": "table",
+            "props": {
+              "headerRowCount": 0,
+              "repeatHeaderRows": false
+            },
+            "columns": [
+              {
+                "width": {
+                  "value": 220,
+                  "unit": "pt"
+                }
+              },
+              {
+                "width": {
+                  "value": 220,
+                  "unit": "pt"
+                }
+              }
+            ],
+            "rowIds": [
+              "row"
+            ]
+          },
+          "row": {
+            "id": "row",
+            "type": "table-row",
+            "props": {
+              "allowBreak": true
+            },
+            "cellIds": [
+              "left",
+              "right"
+            ]
+          },
+          "left": {
+            "id": "left",
+            "type": "table-cell",
+            "props": {},
+            "childIds": [
+              "left-text"
+            ]
+          },
+          "left-text": {
+            "id": "left-text",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "left-text-leaf",
+                "type": "text",
+                "text": "ผู้ตรวจสอบ"
+              }
+            ]
+          },
+          "right": {
+            "id": "right",
+            "type": "table-cell",
+            "props": {},
+            "childIds": [
+              "right-text"
+            ]
+          },
+          "right-text": {
+            "id": "right-text",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "right-text-leaf",
+                "type": "text",
+                "text": "อนุมัติการทดสอบ"
+              }
+            ]
+          },
+          "break": {
+            "id": "break",
+            "type": "page-break"
+          },
+          "again": {
+            "id": "again",
+            "type": "page-break"
+          }
+        }
+      }
+    },
+    "format-2": {
+      "key": "component-2",
+      "ownerAreaId": "area-2",
+      "inputSchema": {
+        "type": "object",
+        "fields": {}
+      },
+      "repeats": [],
+      "fragment": {
+        "rootIds": [
+          "heading",
+          "table",
+          "break",
+          "again"
+        ],
+        "nodes": {
+          "heading": {
+            "id": "heading",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "heading-leaf",
+                "type": "text",
+                "text": "ประวัติการแก้ไข / REVISIONS"
+              }
+            ]
+          },
+          "table": {
+            "id": "table",
+            "type": "table",
+            "props": {
+              "headerRowCount": 0,
+              "repeatHeaderRows": false
+            },
+            "columns": [
+              {
+                "width": {
+                  "value": 220,
+                  "unit": "pt"
+                }
+              },
+              {
+                "width": {
+                  "value": 220,
+                  "unit": "pt"
+                }
+              }
+            ],
+            "rowIds": [
+              "row"
+            ]
+          },
+          "row": {
+            "id": "row",
+            "type": "table-row",
+            "props": {
+              "allowBreak": true
+            },
+            "cellIds": [
+              "left",
+              "right"
+            ]
+          },
+          "left": {
+            "id": "left",
+            "type": "table-cell",
+            "props": {},
+            "childIds": [
+              "left-text"
+            ]
+          },
+          "left-text": {
+            "id": "left-text",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "left-text-leaf",
+                "type": "text",
+                "text": "รุ่น 1.0"
+              }
+            ]
+          },
+          "right": {
+            "id": "right",
+            "type": "table-cell",
+            "props": {},
+            "childIds": [
+              "right-text"
+            ]
+          },
+          "right-text": {
+            "id": "right-text",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "right-text-leaf",
+                "type": "text",
+                "text": "เพิ่มปกและพื้นที่เนื้อหา"
+              }
+            ]
+          },
+          "break": {
+            "id": "break",
+            "type": "page-break"
+          },
+          "again": {
+            "id": "again",
+            "type": "page-break"
+          }
+        }
+      }
+    },
+    "format-3": {
+      "key": "component-3",
+      "ownerAreaId": "area-3",
+      "inputSchema": {
+        "type": "object",
+        "fields": {
+          "photo": {
+            "type": "image",
+            "required": true
+          }
+        }
+      },
+      "repeats": [],
+      "fragment": {
+        "rootIds": [
+          "heading",
+          "photo",
+          "paragraph",
+          "break",
+          "again"
+        ],
+        "nodes": {
+          "heading": {
+            "id": "heading",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "heading-leaf",
+                "type": "text",
+                "text": "บทนำ / INTRODUCTION"
+              }
+            ]
+          },
+          "photo": {
+            "id": "photo",
+            "type": "image",
+            "props": {
+              "width": {
+                "value": 100,
+                "unit": "pt"
+              },
+              "height": {
+                "value": 40,
+                "unit": "pt"
+              },
+              "source": {
+                "scope": "local",
+                "key": "photo"
+              },
+              "align": "center"
+            }
+          },
+          "paragraph": {
+            "id": "paragraph",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "paragraph-leaf",
+                "type": "text",
+                "text": "เอกสารนี้ประกอบจาก Area โดยแต่ละพื้นที่ใช้การตั้งหน้าของ Section ร่วมกัน"
+              }
+            ]
+          },
+          "break": {
+            "id": "break",
+            "type": "page-break"
+          },
+          "again": {
+            "id": "again",
+            "type": "page-break"
+          }
+        }
+      }
+    },
+    "format-4": {
+      "key": "component-4",
+      "ownerAreaId": "area-4",
+      "inputSchema": {
+        "type": "object",
+        "fields": {
+          "text": {
+            "type": "string",
+            "required": true
+          }
+        }
+      },
+      "repeats": [],
+      "fragment": {
+        "rootIds": [
+          "heading",
+          "content",
+          "break",
+          "again"
+        ],
+        "nodes": {
+          "heading": {
+            "id": "heading",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "heading-leaf",
+                "type": "text",
+                "text": "เนื้อหา / BODY"
+              }
+            ]
+          },
+          "content": {
+            "id": "content",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "content-leaf",
+                "type": "field-ref",
+                "scope": "local",
+                "key": "text"
+              }
+            ]
+          },
+          "break": {
+            "id": "break",
+            "type": "page-break"
+          },
+          "again": {
+            "id": "again",
+            "type": "page-break"
+          }
+        }
+      }
+    }
+  },
+  "pageLayouts": {
+    "portrait": {
+      "page": {
+        "size": "A4",
+        "orientation": "portrait",
+        "margin": {
+          "top": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "right": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "bottom": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "left": {
+            "value": 20,
+            "unit": "mm"
+          }
+        }
+      }
+    },
+    "landscape": {
+      "page": {
+        "size": "A4",
+        "orientation": "landscape",
+        "margin": {
+          "top": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "right": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "bottom": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "left": {
+            "value": 20,
+            "unit": "mm"
+          }
+        }
+      }
+    }
+  },
+  "sections": [
+    {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "label": "Document1",
+      "nameBase": "Document",
+      "inputSchema": {
+        "type": "object",
+        "fields": {
+          "cover": {
+            "type": "area",
+            "areaId": "area-0"
+          },
+          "approval": {
+            "type": "area",
+            "areaId": "area-1"
+          },
+          "revisions": {
+            "type": "area",
+            "areaId": "area-2"
+          },
+          "introduction": {
+            "type": "area",
+            "areaId": "area-3"
+          },
+          "body": {
+            "type": "area",
+            "areaId": "area-4"
+          }
+        }
+      },
+      "pageLayoutId": "portrait",
+      "header": {
+        "baseTextStyleId": "body",
+        "inputSchema": {
+          "type": "object",
+          "fields": {}
+        },
+        "gap": {
+          "value": 4,
+          "unit": "pt"
+        },
+        "fragment": {
+          "rootIds": [
+            "band"
+          ],
+          "nodes": {
+            "band": {
+              "id": "band",
+              "type": "text-block",
+              "role": {
+                "role": "paragraph"
+              },
+              "props": {
+                "textStyleId": "body"
+              },
+              "children": [
+                {
+                  "id": "band-leaf",
+                  "type": "text",
+                  "text": "HEADER - Section Document1"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "footer": {
+        "baseTextStyleId": "body",
+        "inputSchema": {
+          "type": "object",
+          "fields": {}
+        },
+        "gap": {
+          "value": 4,
+          "unit": "pt"
+        },
+        "fragment": {
+          "rootIds": [
+            "band"
+          ],
+          "nodes": {
+            "band": {
+              "id": "band",
+              "type": "text-block",
+              "role": {
+                "role": "paragraph"
+              },
+              "props": {
+                "textStyleId": "body"
+              },
+              "children": [
+                {
+                  "id": "band-leaf",
+                  "type": "text",
+                  "text": "FOOTER - Section Document1"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "headerMode": "continuation",
+      "footerMode": "continuation",
+      "source": {
+        "kind": "authored",
+        "repeats": [],
+        "fragment": {
+          "rootIds": [
+            "cover",
+            "approval",
+            "revisions",
+            "introduction",
+            "body"
+          ],
+          "nodes": {
+            "cover": {
+              "id": "cover",
+              "type": "area",
+              "props": {
+                "areaId": "area-0"
+              }
+            },
+            "approval": {
+              "id": "approval",
+              "type": "area",
+              "props": {
+                "areaId": "area-1"
+              }
+            },
+            "revisions": {
+              "id": "revisions",
+              "type": "area",
+              "props": {
+                "areaId": "area-2"
+              }
+            },
+            "introduction": {
+              "id": "introduction",
+              "type": "area",
+              "props": {
+                "areaId": "area-3"
+              }
+            },
+            "body": {
+              "id": "body",
+              "type": "area",
+              "props": {
+                "areaId": "area-4"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -25,7 +25,7 @@ export async function startProcessor(deps:Dependencies){
   try{
    const job=await claimAndStartRender(deps,abort.signal);if(!job){await new Promise(r=>setTimeout(r,deps.pollMs??100));continue;}
    try{
-    const result=await job.pending;if(!result.ok){await failJob(pool,job.id,result.issues);continue;}
+    const result=await job.pending;if(!result.ok){await failJob(pool,job.id,result.issues,result.warnings);continue;}
     if(!healthy)break;
     const output=await deps.files.writePdf(job.id,result.value.bytes);
     try{await transaction(pool,async c=>{
@@ -53,7 +53,7 @@ async function claimAndStartRender(deps:Dependencies,signal:AbortSignal){
      // JSONB may reorder object keys and hence diagnostic order, but not entries.
      const warningKey=(w:PreparedInput['warnings'][number])=>JSON.stringify([w.code,w.path,w.message,w.action,w.contentIndex,w.format,w.expectedType,w.actualType]);
      const sortWarnings=(w:PreparedInput['warnings'])=>[...w].sort((a,b)=>warningKey(a).localeCompare(warningKey(b)));
-     const comparable=(p:PreparedInput)=>({...p,warnings:sortWarnings(p.warnings),...(p.sections?{sections:Object.fromEntries(Object.entries(p.sections).map(([id,s])=>[id,{...s,warnings:sortWarnings(s.warnings)}]))}:{})});
+     const comparable=(p:PreparedInput)=>({...p,warnings:sortWarnings(p.warnings),...(p.sections?{sections:Array.isArray(p.sections)?p.sections:Object.fromEntries(Object.entries(p.sections).map(([id,s])=>[id,{...s,warnings:sortWarnings(s.warnings)}]))}:{})});
      if(!isDeepStrictEqual(comparable(JSON.parse(JSON.stringify(fresh.value))),comparable(job.preparedInput)))throw Error('Prepared input differs from admission input');
     }
     const composed=composeDocument(valid.value,job.preparedInput);if(!composed.ok)throw Error('Composition failed');

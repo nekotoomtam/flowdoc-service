@@ -7,10 +7,20 @@ import {stageSet,releaseSet,mutation as m} from './fontLifecycleFixture.mjs';
 import {mkdtemp,rm,writeFile,readFile} from 'node:fs/promises';
 import {join} from 'node:path';import {tmpdir} from 'node:os';
 import {createAuthoring} from '../dist/authoring/service.js';
+import {randomUUID} from 'node:crypto';
 const db=isolatedDatabase(),pool=db.pool;let root,life,lib;
 const ok=r=>{expect(r.ok,JSON.stringify(r)).toBe(true);return r.value;};
 beforeAll(async()=>{await db.setup();ok(await migrate(pool));root=await mkdtemp(join(tmpdir(),'font-lifecycle-'));process.env.FONT_STORAGE_DIR=root;life=createFontLifecycle({pool,root,principal:'font-test-admin'});lib=await createFontLibrary({pool,root,principal:'font-test-admin'});});
 afterAll(async()=>{await db.close();await rm(root,{recursive:true,force:true});delete process.env.FONT_STORAGE_DIR;});
+it('model19 import inherits retired font rights from the verified source into an already saved target',async()=>{
+ const font=await releaseSet(pool,root,await stageSet(pool,root)),api=createAuthoring(pool,'instance-retained-owner',{maxOutstanding:10,imagesEnabled:false});
+ const source=ok(await api.create({name:'Retained source',docKey:'instance-retained-source',idempotencyKey:'source'})),target=ok(await api.create({name:'Target',docKey:'instance-retained-target',idempotencyKey:'target'}));
+ const make=async(identity,useFont)=>{const d=JSON.parse(await readFile('examples/area-document-template.json','utf8'));Object.assign(d,{nodeModelVersion:19,templateId:identity.templateId,docKey:identity.docKey,name:identity.name});d.examples=[];for(const s of d.sections){s.id=randomUUID();s.label='SRS1';s.nameBase='SRS';delete s.key;delete s.formats;}if(useFont){d.schemaVersion=2;for(const [k,s] of Object.entries(d.styles))d.styles[k]={font:{kind:'library',releaseId:font.id,weight:400,style:'normal'},fontSize:s.fontSize,lineHeightPt:s.lineHeightPt};}else{d.schemaVersion=2;for(const [k,s] of Object.entries(d.styles))d.styles[k]={font:{kind:'unselected'},fontSize:s.fontSize,lineHeightPt:s.lineHeightPt};}return d;};
+ const d=await make(source,true),other=await make(target,false);ok(await api.save(source.templateId,{definition:d,expectedRevision:0,idempotencyKey:'save-source'}));ok(await api.save(target.templateId,{definition:other,expectedRevision:0,idempotencyKey:'save-target'}));
+ await life.retire(font.id,m(font.revision));const copied=ok(await api.importSections(target.templateId,{sourceTemplateId:source.templateId,sourceRevision:1,sourceSectionIds:[d.sections[0].id],expectedRevision:1,beforeSectionId:null,idempotencyKey:'import-retired'}));expect(copied.revision).toBe(2);
+ const binding=(await pool.query("SELECT b.release_id,b.origin,b.source_reference_set_id FROM font_reference_bindings b JOIN font_reference_sets r ON r.id=b.reference_set_id WHERE r.template_id=$1 AND r.revision=2",[target.templateId])).rows;expect(binding).toHaveLength(1);expect(binding[0]).toMatchObject({release_id:font.id,origin:'inherited'});
+ const clone=ok(await api.cloneDraft(source.templateId,{sourceRevision:1,name:'Retired clone',docKey:'instance-retained-clone',idempotencyKey:'clone'}));expect(clone.fontReadiness.status).toBe('ready');
+},120000);
 it('reviews every real face, requires exact visual approval, activates once and freezes members',async()=>{
  const f=await stageSet(pool,root,{files:['Sarabun-Regular.ttf','Sarabun-Bold.ttf'],weights:[400,700]});
  await expect(life.activate(f.id,m(0,{reviewId:f.id,manifestDigest:f.manifestDigest}))).rejects.toThrow();

@@ -1,0 +1,88 @@
+{
+  "docKey": "scoped-contents-trial",
+  "data": {},
+  "sections": [
+    {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "data": {
+        "label": "Alpha",
+        "parts": [
+          {
+            "format": "document-contents",
+            "data": {}
+          },
+          {
+            "format": "section-contents",
+            "data": {}
+          },
+          {
+            "format": "heading",
+            "data": {
+              "anchor": "topic-0",
+              "title": "H000 ขอบเขตสารบัญ"
+            }
+          },
+          {
+            "format": "heading",
+            "data": {
+              "anchor": "topic-1",
+              "title": "H001 ขอบเขตสารบัญ"
+            }
+          },
+          {
+            "format": "heading",
+            "data": {
+              "anchor": "topic-2",
+              "title": "H002 ขอบเขตสารบัญ"
+            }
+          },
+          {
+            "format": "prose",
+            "data": {
+              "text": "จบเนื้อหาของ Section นี้ / END BODY"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000002",
+      "data": {
+        "label": "Beta",
+        "parts": [
+          {
+            "format": "section-contents",
+            "data": {}
+          },
+          {
+            "format": "heading",
+            "data": {
+              "anchor": "topic-0",
+              "title": "H000 ขอบเขตสารบัญ"
+            }
+          },
+          {
+            "format": "heading",
+            "data": {
+              "anchor": "topic-1",
+              "title": "H001 ขอบเขตสารบัญ"
+            }
+          },
+          {
+            "format": "heading",
+            "data": {
+              "anchor": "topic-2",
+              "title": "H002 ขอบเขตสารบัญ"
+            }
+          },
+          {
+            "format": "prose",
+            "data": {
+              "text": "จบเนื้อหาของ Section นี้ / END BODY"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

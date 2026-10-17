@@ -27,6 +27,7 @@ ENTRYPOINT ["node","dist/cli.js"]
 CMD ["--help"]
 
 FROM runtime AS verification
+COPY README.md ./README.md
 COPY --from=build /app/node_modules ./node_modules
 COPY tests ./tests
 ENTRYPOINT ["./node_modules/.bin/vitest","run","--no-file-parallelism"]

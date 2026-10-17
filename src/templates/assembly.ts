@@ -11,7 +11,7 @@ const codes:Record<number,string>={110001:'string',110002:'object',110003:'array
 const typeIds:Record<string,number>={string:110001,array:110003,image:110004,link:110005,area:110006};
 const invalid=(path:string):never=>{throw new OperationError('INVALID_DATA',path,'Invalid current record structure');};
 export function decompose(input:TemplateDefinition,id:()=>string):CurrentRecord {
- if(input.nodeModelVersion!==18)invalid('nodeModelVersion');
+ if(![18,19].includes(input.nodeModelVersion))invalid('nodeModelVersion');
  const t:Json=structuredClone(input),{globalSchema,version,areaFormats,...payload}=t;
  const record:CurrentRecord={templateId:t.templateId,revision:0,payload,formats:[],schemas:[],variables:[]};
  function schema(s:any,formatId:string|null,scope:NonNullable<SchemaRow['scope']>=formatId===null?'global':'format',sectionId:string|null=null){const sid=id();record.schemas.push({id:sid,formatId,scope,sectionId});
@@ -20,13 +20,13 @@ export function decompose(input:TemplateDefinition,id:()=>string):CurrentRecord 
  }
  schema(globalSchema,null);
  const addFormats=(formats:Json,sectionId:string|null=null)=>Object.entries(formats).forEach(([key,f],position)=>{const fid=id(),{inputSchema,...rest}=f;record.formats.push({id:fid,key,position,payload:rest,sectionId});schema(inputSchema,fid,'format',sectionId);});
- delete record.payload.sections;record.sections=[];t.sections.forEach((s:Json,position:number)=>{const sid=id(),{id:sourceDefinitionId,key,label,inputSchema,formats,...rest}=s;record.sections!.push({id:sid,sourceDefinitionId,key,...(label===undefined?{}:{label}),position,payload:rest});schema(inputSchema,null,'section',sid);addFormats(formats,sid);for(const k of ['header','footer'] as const)if(rest[k]){schema(rest[k].inputSchema,null,k,sid);delete rest[k].inputSchema;}});
+ delete record.payload.sections;record.sections=[];t.sections.forEach((s:Json,position:number)=>{const sid=id(),{id:sourceDefinitionId,key,label,inputSchema,formats,...rest}=s;record.sections!.push({id:sid,sourceDefinitionId,key:input.nodeModelVersion===19?sourceDefinitionId:key,...(label===undefined?{}:{label}),position,payload:rest});schema(inputSchema,null,'section',sid);addFormats(formats??{},sid);for(const k of ['header','footer'] as const)if(rest[k]){schema(rest[k].inputSchema,null,k,sid);delete rest[k].inputSchema;}});
  const owners=new Map(record.variables.filter(v=>v.typeId===110006).map(v=>[v.payload.areaId,v.id]));
  Object.entries(areaFormats??{}).forEach(([sourceDefinitionId,f]:[string,any],position)=>{const fid=id(),{key,ownerAreaId,inputSchema,...rest}=f,owner=owners.get(ownerAreaId);if(!owner)invalid('ownerAreaId');record.formats.push({id:fid,key,position,payload:rest,ownerAreaVariableId:owner!,sourceDefinitionId,sectionId:record.schemas.find(s=>s.id===record.variables.find(v=>v.id===owner)!.schemaId)!.sectionId??null});schema(inputSchema,fid,'format',record.formats.at(-1)!.sectionId??null);});return record;
 }
 export function checkRecord(r:CurrentRecord):void {
  if(!r||typeof r.templateId!=='string'||!r.payload||r.payload.templateId!==r.templateId||!Array.isArray(r.formats)||!Array.isArray(r.schemas)||!Array.isArray(r.variables))invalid('record');
- if(r.payload.nodeModelVersion!==18)invalid('nodeModelVersion');
+ if(![18,19].includes(r.payload.nodeModelVersion))invalid('nodeModelVersion');
  const ids=new Set<string>();for(const row of [...(r.sections??[]),...r.formats,...r.schemas,...r.variables]){if(typeof row.id!=='string'||!row.id||ids.has(row.id))invalid('id');ids.add(row.id);}
  const fmt=new Map(r.formats.map(f=>[f.id,f])),schemas=new Map(r.schemas.map(s=>[s.id,s])),vars=new Map(r.variables.map(v=>[v.id,v]));
  const sections=new Map((r.sections??[]).map(s=>[s.id,s]));
@@ -67,7 +67,7 @@ export function assemble(r:CurrentRecord,version:number):TemplateDefinition {
  const payload=structuredClone(r.payload);
  // Examples belong to the published envelope, not to an earlier draft import.
  if(Array.isArray(payload.examples))for(const e of payload.examples)if(e?.request&&typeof e.request==='object')e.request.version=version;
- payload.sections=[...(r.sections??[])].sort((a,b)=>a.position-b.position).map(s=>{const p=structuredClone(s.payload);for(const k of ['header','footer'])if(p[k])p[k].inputSchema=schema(r.schemas.find(v=>v.sectionId===s.id&&schemaScope(v)===k)!);return {...p,id:s.sourceDefinitionId,key:s.key,...(s.label===undefined?{}:{label:s.label}),inputSchema:schema(r.schemas.find(v=>v.sectionId===s.id&&schemaScope(v)==='section')!),formats:bySection.get(s.id)??{}};});
+ payload.sections=[...(r.sections??[])].sort((a,b)=>a.position-b.position).map(s=>{const p=structuredClone(s.payload);for(const k of ['header','footer'])if(p[k])p[k].inputSchema=schema(r.schemas.find(v=>v.sectionId===s.id&&schemaScope(v)===k)!);return {...p,id:s.sourceDefinitionId,...(r.payload.nodeModelVersion===18?{key:s.key}:{}),...(s.label===undefined?{}:{label:s.label}),inputSchema:schema(r.schemas.find(v=>v.sectionId===s.id&&schemaScope(v)==='section')!),...(r.payload.nodeModelVersion===18?{formats:bySection.get(s.id)??{}}:{})};});
  return {...payload,templateId:r.templateId,version,globalSchema:schema(r.schemas.find(s=>schemaScope(s)==='global')!),...(Object.keys(areaFormats).length?{areaFormats}:{})} as TemplateDefinition;
 }
 

@@ -26,6 +26,8 @@ export function createAuthoringTools(config:{baseUrl:string;token:string;fetch?:
  tool('get_font_catalog','Read active releases and real weight/style faces only. Retired rights remain on the owned draft; catalog cannot grant them.',{cursor:id.optional(),limit:z.number().int().min(1).max(100).optional(),familyId:id.optional()},a=>call('/authoring/fonts?'+new URLSearchParams(Object.entries(a).map(([k,v])=>[k,String(v)] as [string,string])) ),true);
  tool('get_draft_font_readiness','Check fonts on an owned exact draft revision, optionally with actual sample input. Readiness is separate from saved status; inspect issues, remedy and occurrences.',{templateId:id,expectedRevision:z.number().int().positive(),sampleRequest:json.optional()},({templateId,...a})=>call('/authoring/drafts/'+templateId+'/font-readiness','POST',a),true);
  tool('clone_template_draft','Create an owned copy from a server-verified source revision, preserving exact retained retired-font tuples. Client JSON alone grants no retained rights.',{templateId:id,sourceRevision:z.number().int().positive(),name:z.string().min(1).max(200),docKey:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/),idempotencyKey:key},({templateId,...a})=>call('/authoring/drafts/'+templateId+'/clone','POST',a));
+ tool('import_draft_sections','Copy selected saved model19 Sections into an owned draft before generation. Fresh IDs; atomic revision and retry receipt. Split uses an empty target draft; source is preserved.',{templateId:id,sourceTemplateId:id,sourceRevision:z.number().int().positive(),sourceSectionIds:z.array(id).min(1),expectedRevision:z.number().int().nonnegative(),beforeSectionId:id.nullable(),globalFieldRenames:z.record(z.string(),z.record(z.string(),z.string().min(1))).optional(),idempotencyKey:key},({templateId,...a})=>call('/authoring/drafts/'+templateId+'/sections/import','POST',a));
+ tool('create_draft_section','Create an empty model19 Section with a private copy of an existing page layout.',{templateId:id,expectedRevision:z.number().int().positive(),pageLayoutId:z.string().min(1),idempotencyKey:key},({templateId,...a})=>call('/authoring/drafts/'+templateId+'/sections','POST',a));
  tool('create_template_draft','First step: create an empty template identity and receive templateId/revision0. Does not accept a definition.',{name:z.string().min(1).max(200),docKey:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/),idempotencyKey:key},a=>call('/authoring/drafts','POST',a));
  tool('get_template_draft','Read the owned draft and current revision.',{templateId:id},a=>call('/authoring/drafts/'+a.templateId),true);
  tool('update_template_draft','Save a complete definition with its global/section/Format schemas under an existing template ID. Use expectedRevision; never publish.',{templateId:id,expectedRevision:z.number().int().nonnegative(),definition:json,idempotencyKey:key},({templateId,...a})=>call('/authoring/drafts/'+templateId,'PUT',a));
@@ -37,13 +39,16 @@ export function createAuthoringTools(config:{baseUrl:string;token:string;fetch?:
   server.registerTool('save_preview_pdf',{description:'Download an owned preview PDF directly to a local file on the MCP host. Returns absolute path, byteSize and SHA-256; open that path to inspect every page. Prefer this over copying resource base64. Each call creates a separate file. Does not publish.',inputSchema:z.object({jobId:id}).strict(),annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:false,openWorldHint:false}},async({jobId})=>{
    let folder:string|undefined;
    try{
+    const status=await call('/authoring/previews/'+jobId);
+    if(!status.ok||status.value.status!=='succeeded'||!status.value.outputAvailable)throw Error('Preview unavailable');
     const bytes:Buffer=await call('/authoring/previews/'+jobId+'/pdf','GET',undefined,true);
     if(bytes.subarray(0,5).toString()!=='%PDF-')throw Error('Invalid PDF');
     await mkdir(directory,{recursive:true,mode:0o700});
     folder=await mkdtemp(join(directory,'preview-'));
     const path=join(folder,jobId+'.pdf');
     await writeFile(path,bytes,{flag:'wx',mode:0o600});
-    return {content:[{type:'text' as const,text:JSON.stringify({ok:true,value:{path,byteSize:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex'),mimeType:'application/pdf'}})}]};
+    const {templateId,revision,fingerprint,hasWarnings,warnings}=status.value;
+    return {content:[{type:'text' as const,text:JSON.stringify({ok:true,value:{path,byteSize:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex'),mimeType:'application/pdf',jobId,templateId,revision,fingerprint,hasWarnings,warnings},warnings:status.warnings??warnings??[]})}]};
    }catch{
     if(folder){await unlink(join(folder,jobId+'.pdf')).catch(()=>{});await rmdir(folder).catch(()=>{});}
     return {content:[{type:'text' as const,text:'Preview PDF could not be saved. Check preview availability and local output-directory access, then retry.'}],isError:true};
