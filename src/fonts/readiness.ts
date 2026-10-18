@@ -1,5 +1,6 @@
 import {LEGACY_SARABUN} from './legacy.js';
 import {fontProbeDocument} from './probe.js';
+import {continuationLabelIds,continuationSuffix} from './group-labels.js';
 import type {PoolClient} from 'pg';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -14,12 +15,12 @@ const incomplete=(code:string)=>/ASSET_|LICENSE_|CHECK_UNAVAILABLE|RESOURCE_UNAV
 export function fontIssue(code:string,styleId?:string):FontIssue{return {code,path:styleId?'/styles/'+styleId.replaceAll('~','~0').replaceAll('/','~1')+'/font':'/font',message:'Font selection or verified resource is not ready',remedy:incomplete(code)?'Restore the exact font/license files or retry the check':'Select an available released face supporting the required text',styleIds:styleId?[styleId]:[],occurrences:[],samples:[],total:1,truncated:false};}
 /** Diagnostic locator only; Core shaping remains authoritative for readiness. */
 export function locateMissingGlyphs(document:any,coverage:Map<string,Set<number>>):FontIssue[]{
- const issues=new Map<string,FontIssue>(),seen=new Set<string>();
+ const issues=new Map<string,FontIssue>(),seen=new Set<string>(),labels=continuationLabelIds(document);
  const visit=(v:any)=>{
   if(!v||typeof v!=='object')return;
   if(v.type==='text-block'&&!seen.has(v.id)){
    seen.add(v.id);const style=v.props?.textStyleId,cmap=coverage.get(style);
-   if(cmap)for(const inline of v.children??[]){
+   if(cmap)for(const inline of [...v.children??[],...(labels.has(v.id)?[{id:v.id+'~continuation-suffix',type:'text',text:continuationSuffix}]:[])]){
     const text=inline.type==='text'?inline.text:inline.type==='link'?inline.label??'':'';let index=0;
     for(const ch of text){const cp=ch.codePointAt(0)!;
      if(!/[\r\n\t]/.test(ch)&&!cmap.has(cp)){

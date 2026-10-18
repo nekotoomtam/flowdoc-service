@@ -1,9 +1,9 @@
 {
   "name": "@flowdoc/core",
   "version": "0.4.3",
-  "file": "flowdoc-core-0.4.3.tgz",
-  "sha256": "64dae8f530b8b02be1a36c6cf15172635a7752c4d70ec1edacad8593269805b2",
-  "sourceCommit": "559b126c51073c31a2d42b3963d5d95a9b87757f",
-  "sourceArtifact": "C:/Users/nekot/Documents/Codex/2026-10-17/format-release-preparation/delivery/core/flowdoc-core-0.4.3.tgz",
+  "file": "flowdoc-core-0.4.3-group-label-stage2.tgz",
+  "sha256": "9d0db0231fdf98e4b0806a6f4b422f620ffcc119b7193ddf2ad0a43f0b4bfe06",
+  "sourceCommit": "885e36ead5e7d86778cfdbd975b42d1743c4f25f",
+  "sourceArtifact": "C:/Users/nekot/Documents/GitHub/flowdoc-core-worktrees/group-label-stage1/artifacts/1792319551096/flowdoc-core-0.4.3.tgz",
   "runtime": "linux-x64 glibc, Node24, Python3.11, fontTools4.58.2"
 }

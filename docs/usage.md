@@ -1,5 +1,13 @@
 # คู่มือใช้งาน FlowDoc Service 0.4.3
 
+Candidate เซลล์ชื่อกลุ่ม: ตรวจ `groupLabelSpans.version:1` ใน authoring contract
+ก่อนส่ง rowGroups.groupLabel (model19/schema1,2). Core package/checksum อยู่ใน
+vendor/manifest.json; รุ่นภายในยังเป็น 0.4.3 และยังไม่ใช่คำอนุญาตติดตั้ง.
+save/read/clone/import คง declaration; job ตรึง revision/ข้อมูล/engine/font เดิม.
+auto ตรวจฟอนต์รวม ` (ต่อ)`; fixed ไม่มีหน้าต่อและส่ง FORMAT_CONTENT_OMITTED
+พร้อม groupId/groupIndex/itemIndex ของส่วนค้าง. ถ้าชื่อเต็มใส่ auto ไม่ได้
+ให้ LAYOUT_FAILED reason group-label-does-not-fit; ไม่มี PDF บางส่วนให้ดาวน์โหลด.
+
 Section19 ช่วง1: candidate นี้เพิ่ม `create_draft_section` และ
 `import_draft_sections` ตาม `/authoring/drafts/:id/sections[/import]`.
 ต่อ/แยกสำเนาลง draft ก่อนส่งข้อมูล `sections:[{id,data,header?,footer?}]`;

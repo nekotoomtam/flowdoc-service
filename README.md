@@ -215,7 +215,16 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.4.3 is installed solely from `vendor/flowdoc-core-0.4.3.tgz`.
+Core 0.4.3 candidate is installed solely from `vendor/flowdoc-core-0.4.3-group-label-stage2.tgz`.
+This unpromoted candidate pins Core commit `885e36e` and SHA-256
+`9d0db0231fdf98e4b0806a6f4b422f620ffcc119b7193ddf2ad0a43f0b4bfe06`;
+the release archive remains unchanged. Internal versions remain 0.4.3 until
+delivery preparation. `/authoring/contract` advertises optional `groupLabelSpans`
+v1 for model19/schema1,2. Stored definitions, clones/imports and queued jobs retain
+the declaration. Font snapshots pin this exact engine checksum; a different engine
+cannot resume those jobs. Auto readiness includes generated ` (ต่อ)` in the label
+face; fixed never continues. Job errors preserve bounded group context with
+`group-label-does-not-fit`; fixed omission cursors reach status and PDF-save callers.
 Its SHA256 and source commit are pinned in `vendor/manifest.json`;
 `node scripts/verifyVendor.mjs` verifies the checksum. The package supports Area model18 and Section model19; explicit Format sizing
 requires model19 and capability version2.

@@ -1,14 +1,15 @@
 import type {ResolvedDocument} from '@flowdoc/core';
+import {continuationLabelIds,continuationSuffix} from './group-labels.js';
 /** Build a temporary font specimen from composed text. Core still validates,
  * shapes and embeds it; authored pagination is checked separately by the job. */
 export function fontProbeDocument(document:ResolvedDocument):ResolvedDocument{
  const nodes:Record<string,any>={},sourceMap:Record<string,any>={},rootIds:string[]=[],seen=new Set<string>();
  const label=(c:any)=>c.type==='system-page-field'?'0123456789':c.type==='line-break'?'\n':c.type==='url'?c.value:c.text??'';
- const headings:string[]=[],contents:string[]=[];const blocks:{style:string;text:string}[]=[];
+ const headings:string[]=[],contents:string[]=[];const blocks:{style:string;text:string}[]=[],labels=continuationLabelIds(document);
  const visit=(v:any)=>{
   if(!v||typeof v!=='object')return;
   if(v.type==='text-block'&&!seen.has(v.id)){
-   seen.add(v.id);const text=(v.children??[]).map(label).join('');blocks.push({style:v.props.textStyleId,text});if(v.props.toc)headings.push(text);
+   seen.add(v.id);const text=(v.children??[]).map(label).join('');blocks.push({style:v.props.textStyleId,text:text+(labels.has(v.id)?continuationSuffix:'')});if(v.props.toc)headings.push(text);
   }else if(v.type==='table-of-contents'&&!contents.includes(v.props.textStyleId))contents.push(v.props.textStyleId);
   for(const x of Object.values(v))if(x&&typeof x==='object')Array.isArray(x)?x.forEach(visit):visit(x);
  };visit(document);
