@@ -88,7 +88,7 @@ it('migrates an existing 015 database without changing stored templates, and rep
   unwrap(await migrate(old.pool,dir));const t=JSON.parse(readFileSync('examples/area-document-template.json','utf8'));
   t.docKey='font-migration-'+randomUUID();t.templateId=t.docKey;unwrap(await registerTemplate(old.pool,JSON.stringify(t)));
   const before=unwrap(await loadTemplate(old.pool,t.docKey,1));
-  expect(unwrap(await migrate(old.pool)).applied).toEqual(['016_font_library_staging.sql','017_font_references_jobs.sql','018_font_lifecycle.sql','019_font_height_profiles.sql','020_font_height_proposals.sql','021_section_instances.sql']);
+  expect(unwrap(await migrate(old.pool)).applied).toEqual(['016_font_library_staging.sql','017_font_references_jobs.sql','018_font_lifecycle.sql','019_font_height_profiles.sql','020_font_height_proposals.sql','021_section_instances.sql','022_task_intake.sql']);
   const legacy=(await old.pool.query('SELECT legacy_bindings FROM font_reference_sets')).rows;expect(legacy.length).toBeGreaterThan(0);expect(legacy.every(r=>r.legacy_bindings.length===4)).toBe(true);
   expect(unwrap(await migrate(old.pool)).applied).toEqual([]);
   expect(unwrap(await loadTemplate(old.pool,t.docKey,1))).toEqual(before);

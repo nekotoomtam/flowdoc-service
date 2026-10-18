@@ -28,6 +28,13 @@ README และ vendor/manifest.json ปัจจุบัน; ส่วนค�
 
 ## Authority Boundary
 
+ฐาน task ช่วง1 ยังเป็น internal adapter เท่านั้น: migration022 เพิ่ม task,
+การจองพื้นที่, metadata ไฟล์, events และ usage เมื่อจบงาน. ตัวรับเขียนเป็นช่วง
+และหมดอายุสามชั่วโมงนับจากเวลาสร้าง; ตรวจ cleanup ทุกสิบวินาทีและกู้เมื่อเริ่ม
+adapter ใหม่ โดยไม่ลบไฟล์ของ process ที่ยังทำงาน. ต้องเรียก stop ก่อนปิด pool.
+ยังไม่มี public `POST /documents`, ไม่เริ่ม job และไม่ได้รับรอง Core input/PDF.
+การเปิด API และการจอง scratch/PDF ของงานเดิมให้ครบยังเป็นงานช่วงถัดไป.
+
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
 candidate 0.4.4 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
@@ -112,7 +119,7 @@ docker @dc up -d api
 ของ project `flowdoc-manual` หาก port 4318 ใช้อยู่ ให้เปลี่ยนค่าก่อนเริ่ม API
 เปิด terminal ใหม่ให้กำหนด `$dc` อีกครั้ง ไม่ต้องสร้างรหัสผ่านหรือ import ซ้ำ
 `CURRENT_EXISTS` หมายถึงมีฉบับแก้ไขอยู่แล้ว ไม่ใช่คำสั่งแทนที่ข้อมูลเดิม
-`migrate` ของชุดนี้ต้องผ่าน migrations 016–021 เพิ่มจากฐาน 015; ฐานใหม่ใช้ทั้งหมด
+`migrate` ของชุดนี้ต้องผ่าน migrations 016–022 เพิ่มจากฐาน 015; ฐานใหม่ใช้ทั้งหมด
 และการรันซ้ำที่ครบแล้วไม่ควรมีรายการ applied ใหม่. ห้ามแก้ SQL migration ที่ใช้แล้ว.
 ตัวอย่างแรกใช้ Sarabun เดิม จึงยังไม่ต้องนำเข้าคลังหรือเปิดสิทธิ์ admin.
 
@@ -536,7 +543,7 @@ Get-FileHash (Join-Path $backupDir 'database.dump') -Algorithm SHA256
 
 4. ตรวจว่าแต่ละคำสั่งสำเร็จ ตรวจ hashes และทดลอง restore dump/ไฟล์ใน DB กับ volumes
    แยกก่อนใช้เป็นแผนกู้คืน. ไม่ทดลอง restore ทับข้อมูลจริง และไม่ใช้ `down -v`.
-5. ใช้ image ชุดใหม่ที่ตรึงไว้ รัน CLI `migrate` ให้ถึง 021 แล้วเปิด API. ไม่ย้อน SQL
+5. ใช้ image ชุดใหม่ที่ตรึงไว้ รัน CLI `migrate` ให้ถึง 022 แล้วเปิด API. ไม่ย้อน SQL
    migration หรือแก้ checksum ถ้าล้มเหลว; วิเคราะห์และกู้คืนเป็นชุด DB/files/config/
    image ที่เข้าคู่กันจากสำรองที่ตรวจแล้ว แยกการอนุมัติก่อนกระทบข้อมูลจริง.
 6. ตรวจ `/health`, คู่รุ่นจริง, admin/authoring permissions, catalog/readiness และ
@@ -594,7 +601,7 @@ IBM Plex Sans Thai, Pridi, Noto Sans Thai Looped และ Noto Serif Thai ช�
 
 ก่อน upgrade หลังได้รับอนุญาต: หยุดรับงาน/รอ job จบ สำรอง PostgreSQL แบบ custom dump
 และ staging/font library รวม licenses, output/temp ที่ต้องรักษา พร้อม config/secret
-แยกไว้ในที่ปลอดภัย. ใช้ image/source/Core hash ที่ตรึง สั่ง migrate ไปถึง 021;
+แยกไว้ในที่ปลอดภัย. ใช้ image/source/Core hash ที่ตรึง สั่ง migrate ไปถึง 022;
 ห้ามแก้ bytes ของ 001–021. ตรวจ replay ไม่ apply ซ้ำ, admin/author แยก credential,
 เปิด draft เดิม, catalog/default/retired, helper และ preview/download ก่อนเปิดงาน.
 Profile/assignment/review และ proposals/receipts ต้องอยู่ใน dump เดียวกัน.

@@ -41,6 +41,17 @@ It describes candidate 0.4.4; shared release status remains in Project Control.
 
 ## Local setup and acceptance
 
+Unreleased task intake foundation: migration022 adds task identity, reservations,
+file metadata, immutable events and terminal usage facts. The internal adapter in
+`src/tasks` receives bounded multipart input into a private staging directory,
+seals complete input, expires it after three hours from creation, and recovers
+interrupted local writers. It starts a ten-second cleanup sweep when instantiated;
+call its `stop()` before closing its pool. Trusted adapters supply credential and
+template permissions; client actor references are attribution only.
+`POST /documents` is still unavailable. Receipt does not validate Core input,
+start a job or create a PDF. Public API wiring and complete legacy render scratch/
+PDF reservation integration remain later-stage prerequisites; existing limits stay.
+
 Install dependencies with `npm ci --ignore-scripts`; build with `npm run build`.
 With Docker Desktop's Linux engine ready, run `npm run check:database`.
 It uses a fresh isolated PostgreSQL18 volume/internal network, pinned images and
@@ -56,7 +67,7 @@ fixtures/isolated schemas and temporarily alter constraints; never use shared da
 For a persistent local registry, copy .env.example to .env and choose a random
 URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.4.4` explicitly
 to identify the image built from this candidate; verify its image ID separately.
-Apply migrations through 021 before
+Apply migrations through 022 before
 starting this package. For fonts/authoring, add the environment override in the
 usage guide; base Compose does not pass those secrets to the API. Run:
 
@@ -447,7 +458,7 @@ for its one/two/six-request flow and failed-job handling.
 
 Prepared jobs send only the document and required image input to the child.
 Core validation and immutable snapshot integrity checks remain in place.
-Apply migrations through 021 using the matching CLI before starting the API.
+Apply migrations through 022 using the matching CLI before starting the API.
 
 ## Candidate Area18 authoring tools
 
