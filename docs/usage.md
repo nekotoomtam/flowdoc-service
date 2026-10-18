@@ -1,8 +1,8 @@
-# คู่มือใช้งาน FlowDoc Service 0.4.4
+# คู่มือใช้งาน FlowDoc Service 0.4.5
 
 Candidate เซลล์ชื่อกลุ่ม: ตรวจ `groupLabelSpans.version:1` ใน authoring contract
 ก่อนส่ง rowGroups.groupLabel (model19/schema1,2). Core package/checksum อยู่ใน
-vendor/manifest.json; ชุดส่งมอบพัฒนาเป็น 0.4.4 และยังไม่ใช่คำอนุญาตติดตั้ง.
+vendor/manifest.json; ชุดส่งมอบพัฒนาเป็น 0.4.5 และยังไม่ใช่คำอนุญาตติดตั้ง.
 save/read/clone/import คง declaration; job ตรึง revision/ข้อมูล/engine/font เดิม.
 auto ตรวจฟอนต์รวม ` (ต่อ)`; fixed ไม่มีหน้าต่อและส่ง FORMAT_CONTENT_OMITTED
 พร้อม groupId/groupIndex/itemIndex ของส่วนค้าง. ถ้าชื่อเต็มใส่ auto ไม่ได้
@@ -28,6 +28,12 @@ README และ vendor/manifest.json ปัจจุบัน; ส่วนค�
 
 ## Authority Boundary
 
+ช่วง2 เพิ่ม normalize และ findings ภายใน adapter กับ migration023: ใช้ Core
+จากแพ็กเกจที่ตรึงไว้ อ่านไฟล์ทีละส่วนและคงค่า/ลำดับสมาชิก. ภาพมีหรือไม่มี assetKey
+ใช้ได้; key ใช้เฉพาะ Section ของตน. ภาพหาย/เสีย/ขัดแย้งคงตัวแทนพร้อมเหตุผล
+และจำนวนส่วนที่ไม่แสดง โดยไม่ทำข้อมูลรอบข้างหาย. ผลยังอยู่ validating ไม่เริ่ม job.
+ตรวจ signature/ข้อมูลขนาด/ส่วนปิดไฟล์แล้ว; การถอดรหัสและเตรียมภาพเต็มเป็นงานช่วงถัดไป.
+
 ฐาน task ช่วง1 ยังเป็น internal adapter เท่านั้น: migration022 เพิ่ม task,
 การจองพื้นที่, metadata ไฟล์, events และ usage เมื่อจบงาน. ตัวรับเขียนเป็นช่วง
 และหมดอายุสามชั่วโมงนับจากเวลาสร้าง; ตรวจ cleanup ทุกสิบวินาทีและกู้เมื่อเริ่ม
@@ -36,12 +42,12 @@ adapter ใหม่ โดยไม่ลบไฟล์ของ process ท�
 การเปิด API และการจอง scratch/PDF ของงานเดิมให้ครบยังเป็นงานช่วงถัดไป.
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-candidate 0.4.4 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
+candidate 0.4.5 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
 
-คู่มือนี้ตาม candidate Service/Core 0.4.4 ซึ่งยังไม่ออก tag/ติดตั้ง; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
+คู่มือนี้ตาม candidate Service/Core 0.4.5 ซึ่งยังไม่ออก tag/ติดตั้ง; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
 annotated tag หลังผ่านเกณฑ์ออกรุ่น ไม่อนุมานจากชื่อ image. รองรับ Area18 ทั้ง schemaVersion 1
 (Sarabun เดิม) และ 2 (คลังฟอนต์). เลข schema, รุ่นฟอนต์, รุ่นแม่แบบ และรุ่น Service
 เป็นคนละค่า. คำสั่ง publish ด้านล่างคือเผยแพร่เวอร์ชันแม่แบบ ไม่ใช่ Git release;
@@ -90,7 +96,7 @@ proxy; ไม่เพิ่ม CORS หรือ static route ให้ product
 สำหรับ model19 ใช้ sections เป็น array ระบุ ID ตาม contract; ห้ามแปลงชื่อเป็น ID เอง.
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด candidate 0.4.4
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด candidate 0.4.5
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
@@ -101,7 +107,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.4.4'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.4.5'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -119,7 +125,7 @@ docker @dc up -d api
 ของ project `flowdoc-manual` หาก port 4318 ใช้อยู่ ให้เปลี่ยนค่าก่อนเริ่ม API
 เปิด terminal ใหม่ให้กำหนด `$dc` อีกครั้ง ไม่ต้องสร้างรหัสผ่านหรือ import ซ้ำ
 `CURRENT_EXISTS` หมายถึงมีฉบับแก้ไขอยู่แล้ว ไม่ใช่คำสั่งแทนที่ข้อมูลเดิม
-`migrate` ของชุดนี้ต้องผ่าน migrations 016–022 เพิ่มจากฐาน 015; ฐานใหม่ใช้ทั้งหมด
+`migrate` ของชุดนี้ต้องผ่าน migrations 016–023 เพิ่มจากฐาน 015; ฐานใหม่ใช้ทั้งหมด
 และการรันซ้ำที่ครบแล้วไม่ควรมีรายการ applied ใหม่. ห้ามแก้ SQL migration ที่ใช้แล้ว.
 ตัวอย่างแรกใช้ Sarabun เดิม จึงยังไม่ต้องนำเข้าคลังหรือเปิดสิทธิ์ admin.
 
@@ -484,7 +490,7 @@ job ตรึงฟอนต์/ไฟล์/license ที่รับไว้
 ส่วนนี้อธิบายโค้ดช่วง 1 ที่ยังไม่ออก tag/ติดตั้ง; ไม่ใช่คำสั่งของ release 0.4.0 เดิม.
 ข้อตกลงร่วมอยู่ Project Control
 `docs/domains/flowdoc-font-height-adjustment-design-plan-2026-10-16.md` ข้อ 7.
-ชุดปัจจุบันตรึง Core `0.4.4` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
+ชุดปัจจุบันตรึง Core `0.4.5` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
 Core export `calculateFontHeightAdjustment` เป็น pure API รับ pt และ metric ต้นทาง/ปลายทาง
 แล้วคืน pt ที่ปัด half-up หกตำแหน่ง หรือ error; ไม่เขียน draft และไม่เปลี่ยน renderer.
 เครื่องมือ propose/confirm ของช่วง 3 มีแล้วตามข้อ 8.2; ต้องยืนยันก่อนเปลี่ยน pt.
@@ -543,7 +549,7 @@ Get-FileHash (Join-Path $backupDir 'database.dump') -Algorithm SHA256
 
 4. ตรวจว่าแต่ละคำสั่งสำเร็จ ตรวจ hashes และทดลอง restore dump/ไฟล์ใน DB กับ volumes
    แยกก่อนใช้เป็นแผนกู้คืน. ไม่ทดลอง restore ทับข้อมูลจริง และไม่ใช้ `down -v`.
-5. ใช้ image ชุดใหม่ที่ตรึงไว้ รัน CLI `migrate` ให้ถึง 022 แล้วเปิด API. ไม่ย้อน SQL
+5. ใช้ image ชุดใหม่ที่ตรึงไว้ รัน CLI `migrate` ให้ถึง 023 แล้วเปิด API. ไม่ย้อน SQL
    migration หรือแก้ checksum ถ้าล้มเหลว; วิเคราะห์และกู้คืนเป็นชุด DB/files/config/
    image ที่เข้าคู่กันจากสำรองที่ตรวจแล้ว แยกการอนุมัติก่อนกระทบข้อมูลจริง.
 6. ตรวจ `/health`, คู่รุ่นจริง, admin/authoring permissions, catalog/readiness และ
@@ -571,7 +577,7 @@ UPLOAD_GONE จึงยังไม่ใช่หลักฐาน same-revis
 ของผลิตภัณฑ์เพื่อให้ตัวทดสอบเก่าผ่าน.
 ใช้ผลล่าสุดของ candidate ที่จะออกรุ่นตัดสินตามเกณฑ์รับงาน ไม่ขยายผลจากการตรวจเอกสาร.
 
-### 8.2 ขอเสนอและยืนยันขนาด (development candidate 0.4.4)
+### 8.2 ขอเสนอและยืนยันขนาด (development candidate 0.4.5)
 
 POST `/authoring/drafts/:id/font-height-adjustments` รับ expectedRevision/styleId/
 targetFont/idempotencyKey. ใช้ credential เจ้าของ; metric และ pt อ่านจาก draft กับ
@@ -592,7 +598,7 @@ Migration 020 เพิ่มตารางข้อเสนอเท่าน
 
 ### 8.3 เตรียมส่งมอบตัวช่วยความสูงและการกู้คืน
 
-Candidate ใช้ Service/Core `0.4.4` กับ FlowDocMake
+Candidate ใช้ Service/Core `0.4.5` กับ FlowDocMake
 `0.2.5` และ Core SHA256 ใน vendor/manifest.json.
 นี่เป็นชุด development ที่ตรวจร่วม ไม่ใช่ release/tag หรือคำอนุญาตติดตั้งจริง.
 Core schema/renderer เดิมไม่เปลี่ยน; helper ต้องยืนยันก่อนบันทึกและตรวจ PDF ทุกครั้ง.
@@ -601,7 +607,7 @@ IBM Plex Sans Thai, Pridi, Noto Sans Thai Looped และ Noto Serif Thai ช�
 
 ก่อน upgrade หลังได้รับอนุญาต: หยุดรับงาน/รอ job จบ สำรอง PostgreSQL แบบ custom dump
 และ staging/font library รวม licenses, output/temp ที่ต้องรักษา พร้อม config/secret
-แยกไว้ในที่ปลอดภัย. ใช้ image/source/Core hash ที่ตรึง สั่ง migrate ไปถึง 022;
+แยกไว้ในที่ปลอดภัย. ใช้ image/source/Core hash ที่ตรึง สั่ง migrate ไปถึง 023;
 ห้ามแก้ bytes ของ 001–021. ตรวจ replay ไม่ apply ซ้ำ, admin/author แยก credential,
 เปิด draft เดิม, catalog/default/retired, helper และ preview/download ก่อนเปิดงาน.
 Profile/assignment/review และ proposals/receipts ต้องอยู่ใน dump เดียวกัน.
@@ -620,7 +626,7 @@ Profile/assignment/review และ proposals/receipts ต้องอยู่�
 
 ## Format sizing development candidate
 
-Core 0.4.4 accepts model19 Format `sizing` (auto/fixed), with independent
+Core 0.4.5 accepts model19 Format `sizing` (auto/fixed), with independent
 fixed maximum heights per Area entry at Section flow roots. Each call reserves
 min(declared height, current body remainder), including short/empty content.
 Positive space shows fitting whole units; only zero space omits the frame.

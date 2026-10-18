@@ -3,6 +3,7 @@ import {createHash,randomUUID} from 'node:crypto';import {hostname} from 'node:o
 import {Busboy} from '@fastify/busboy';import {transaction} from '../db/connection.js';import {loadTemplate} from '../templates/registry.js';
 import {validJobId} from '../jobs/repository.js';import {taskFiles} from './files.js';import {policyWith,type TaskPolicy} from './policy.js';
 import {quotaLock,taskError} from './quota.js';import {taskRepository,safeTask,terminal,type TaskIdentity} from './repository.js';
+import {normalizeStoredTask} from './normalize.js';
 import {inspectPayload} from './payload.js';import {headerBudget,taskBoundary} from './multipart.js';
 interface Dependencies{pool:Pool;root:string;resolveCredential:(header:string)=>TaskIdentity|null|Promise<TaskIdentity|null>;policy?:Partial<TaskPolicy>;freeBytes?:()=>Promise<number>;removeFile?:(path:string)=>Promise<void>;writeChunk?:(handle:FileHandle,chunk:Buffer)=>Promise<void>}
 interface Opening{authorization:string;docKey:unknown;contentType:string;contentEncoding?:string}
@@ -30,7 +31,7 @@ export async function createTaskIntake(deps:Dependencies){
    const next=retry?'retry_needed':actual?'not_due':'done';if(r.cleanup_status!==next)await repo.event(c,r,'cleanup',r.status,retry?'STORAGE_IO':next,'cleanup:'+randomUUID());
   });
  }
- async function fail(id:string,reason:string){const a=active.get(id);if(a){a.abort.abort(taskError(reason));await a.done;}else{const r=await repo.get(id);if(r?.status==='receiving'&&!stopped(r))return;await repo.finish(id,reason,r);}await cleanup(id);}
+ async function fail(id:string,reason:string){const a=active.get(id);if(a){a.abort.abort(taskError(reason));await a.done;}else{const r=await repo.get(id);if(['receiving','validating'].includes(r?.status)&&!stopped(r))return;await repo.finish(id,reason,r);}await cleanup(id);}
  async function sweep(recovery=false){
   const rows=(await pool.query("SELECT *,expires_at<=clock_timestamp() AS due FROM tasks WHERE status NOT IN ('succeeded','failed','expired') OR cleanup_status<>'done' ORDER BY created_at,id")).rows;
   for(const r of rows){if(!terminal(r.status)){
@@ -97,9 +98,17 @@ export async function createTaskIntake(deps:Dependencies){
    await repo.finish(r.id,code);throw taskError((await repo.get(r.id)).terminal_reason);
   }finally{clearTimeout(idle!);clearTimeout(deadline);clearInterval(renew);request.signal?.removeEventListener('abort',external);abort.signal.removeEventListener('abort',stop);active.delete(r.id);try{await cleanup(r.id);}finally{resolveDone();}}
  }
+ async function normalize(request:{authorization:string;taskId:string}){
+  if(closing)throw taskError('UNAVAILABLE');const {r,i}=await owned(request.authorization,request.taskId,true),claimed=await repo.claimValidation(r.id,i.principalId);if(claimed.normalized_at)return safeTask(claimed);const token=claimed.lease_token,abort=new AbortController();let resolveDone!:()=>void;const done=new Promise<void>(res=>{resolveDone=res;});active.set(r.id,{abort,done});
+  const validationEnd=+claimed.validation_started_at+(claimed.resource_policy.validateMs??900000),absoluteEnd=+claimed.expires_at;const deadline=setTimeout(()=>abort.abort(taskError(absoluteEnd<=validationEnd?'TASK_EXPIRED':'TASK_TIMEOUT')),Math.max(1,Math.min(absoluteEnd,validationEnd)-Date.now()));const renew=setInterval(()=>{void repo.renew(r.id,token).then(ok=>{if(!ok)abort.abort(taskError('WORKER_INTERRUPTED'));}).catch(()=>abort.abort(taskError('WORKER_INTERRUPTED')));},Math.min(10000,Math.floor(claimed.resource_policy.leaseMs/3)));
+  try{return safeTask(await normalizeStoredTask({pool,files,repo,row:claimed,token,signal:abort.signal,...(deps.writeChunk?{writeChunk:deps.writeChunk}:{})}));}
+  catch(e){const raw=(abort.signal.aborted?abort.signal.reason:e) as any,code=['ENOSPC','EIO','EACCES','EROFS'].includes(raw?.code)?'STORAGE_IO':typeof raw?.code==='string'&&/^(TASK_|LIMIT_|INVALID_|TYPE_|MISSING_|UNKNOWN_|SECTION_|STORAGE_|WORKER_)/.test(raw.code)?raw.code:'INVALID_DATA';await repo.finish(r.id,code);throw taskError((await repo.get(r.id)).terminal_reason);}
+  finally{clearTimeout(deadline);clearInterval(renew);active.delete(r.id);try{await cleanup(r.id);}finally{resolveDone();}}
+ }
+ async function findings(header:string,id:string,cursor=0,limit=50){await owned(header,id);if(!Number.isSafeInteger(cursor)||cursor<0||!Number.isSafeInteger(limit)||limit<1||limit>100)throw taskError('INVALID_REQUEST');const rows=(await pool.query('SELECT * FROM task_findings WHERE task_id=$1 AND sequence>$2 ORDER BY sequence LIMIT $3',[id,cursor,limit+1])).rows;const items=rows.slice(0,limit).map(f=>({id:f.id,sequence:Number(f.sequence),code:f.code,sectionId:f.section_id,pointer:f.pointer,locatorSha256:f.locator_sha256,affectedPlacementCount:Number(f.affected_placement_count)}));return {items,nextCursor:rows.length>limit?items.at(-1)!.sequence:null};}
  await sweep(true);let maintenance:Promise<void>|undefined;
  const timer=setInterval(()=>{if(closing||maintenance)return;maintenance=sweep().catch(()=>{}).finally(()=>{maintenance=undefined;});},p.sweepMs);timer.unref();
- return {open,receive,reserve:repo.reserve,async inspect(header:string,id:string){return safeTask((await owned(header,id)).r);},fail,
+ return {open,receive,normalize,findings,reserve:repo.reserve,async inspect(header:string,id:string){return safeTask((await owned(header,id)).r);},fail,
   async recover(){await sweep(true);},async sweep(){await sweep();},
   async stop(){closing=true;clearInterval(timer);for(const a of active.values())a.abort.abort(taskError('WORKER_INTERRUPTED'));await Promise.all([...active.values()].map(a=>a.done));await maintenance;for(const id of opened){const r=await repo.get(id);if(r?.status==='awaiting_input')await fail(id,'WORKER_INTERRUPTED');}}
  };
