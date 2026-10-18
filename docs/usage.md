@@ -1,8 +1,8 @@
-# คู่มือใช้งาน FlowDoc Service 0.4.3
+# คู่มือใช้งาน FlowDoc Service 0.4.4
 
 Candidate เซลล์ชื่อกลุ่ม: ตรวจ `groupLabelSpans.version:1` ใน authoring contract
 ก่อนส่ง rowGroups.groupLabel (model19/schema1,2). Core package/checksum อยู่ใน
-vendor/manifest.json; รุ่นภายในยังเป็น 0.4.3 และยังไม่ใช่คำอนุญาตติดตั้ง.
+vendor/manifest.json; ชุดส่งมอบพัฒนาเป็น 0.4.4 และยังไม่ใช่คำอนุญาตติดตั้ง.
 save/read/clone/import คง declaration; job ตรึง revision/ข้อมูล/engine/font เดิม.
 auto ตรวจฟอนต์รวม ` (ต่อ)`; fixed ไม่มีหน้าต่อและส่ง FORMAT_CONTENT_OMITTED
 พร้อม groupId/groupIndex/itemIndex ของส่วนค้าง. ถ้าชื่อเต็มใส่ auto ไม่ได้
@@ -29,12 +29,12 @@ README และ vendor/manifest.json ปัจจุบัน; ส่วนค�
 ## Authority Boundary
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-candidate 0.4.3 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
+candidate 0.4.4 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
 
-คู่มือนี้ตาม candidate Service/Core 0.4.3 ซึ่งยังไม่ออก tag/ติดตั้ง; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
+คู่มือนี้ตาม candidate Service/Core 0.4.4 ซึ่งยังไม่ออก tag/ติดตั้ง; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
 annotated tag หลังผ่านเกณฑ์ออกรุ่น ไม่อนุมานจากชื่อ image. รองรับ Area18 ทั้ง schemaVersion 1
 (Sarabun เดิม) และ 2 (คลังฟอนต์). เลข schema, รุ่นฟอนต์, รุ่นแม่แบบ และรุ่น Service
 เป็นคนละค่า. คำสั่ง publish ด้านล่างคือเผยแพร่เวอร์ชันแม่แบบ ไม่ใช่ Git release;
@@ -83,7 +83,7 @@ proxy; ไม่เพิ่ม CORS หรือ static route ให้ product
 สำหรับ model19 ใช้ sections เป็น array ระบุ ID ตาม contract; ห้ามแปลงชื่อเป็น ID เอง.
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด candidate 0.4.3
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด candidate 0.4.4
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
@@ -94,7 +94,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.4.3'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.4.4'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -466,7 +466,7 @@ clone ผ่าน `POST /authoring/drafts/:id/clone` ด้วย sourceRevisio
 idempotencyKey; สิทธิ์ retired มาจาก revision ที่ server เก็บ ไม่ใช่ client แนบเอง.
 FlowDocMake ใช้ `get_font_catalog`, `get_draft_font_readiness`, `clone_template_draft`;
 ไม่มีคำสั่ง admin ในช่องทางนี้. ใช้ชุด client ที่เข้าคู่กับ Service/Core ปัจจุบัน.
-ชุดส่งมอบนี้ใช้ FlowDocMake 0.2.4 ซึ่งตรึง checksum ของ Core tarball ใน
+ชุดส่งมอบนี้ใช้ FlowDocMake 0.2.5 ซึ่งตรึง checksum ของ Core tarball ใน
 `vendor/manifest.json`; client 0.2.0 ตรึงแพ็กเกจก่อนปรับคู่มือและใช้แทนกันไม่ได้.
 job ตรึงฟอนต์/ไฟล์/license ที่รับไว้ แม้เปลี่ยน default หรือ retire ระหว่างรอ;
 ไฟล์หายหรือ hash ไม่ตรงต้องแก้ storage ไม่ข้ามการตรวจ. Sarabun schema 1 ยังใช้
@@ -477,7 +477,7 @@ job ตรึงฟอนต์/ไฟล์/license ที่รับไว้
 ส่วนนี้อธิบายโค้ดช่วง 1 ที่ยังไม่ออก tag/ติดตั้ง; ไม่ใช่คำสั่งของ release 0.4.0 เดิม.
 ข้อตกลงร่วมอยู่ Project Control
 `docs/domains/flowdoc-font-height-adjustment-design-plan-2026-10-16.md` ข้อ 7.
-ชุดปัจจุบันตรึง Core `0.4.3` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
+ชุดปัจจุบันตรึง Core `0.4.4` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
 Core export `calculateFontHeightAdjustment` เป็น pure API รับ pt และ metric ต้นทาง/ปลายทาง
 แล้วคืน pt ที่ปัด half-up หกตำแหน่ง หรือ error; ไม่เขียน draft และไม่เปลี่ยน renderer.
 เครื่องมือ propose/confirm ของช่วง 3 มีแล้วตามข้อ 8.2; ต้องยืนยันก่อนเปลี่ยน pt.
@@ -564,7 +564,7 @@ UPLOAD_GONE จึงยังไม่ใช่หลักฐาน same-revis
 ของผลิตภัณฑ์เพื่อให้ตัวทดสอบเก่าผ่าน.
 ใช้ผลล่าสุดของ candidate ที่จะออกรุ่นตัดสินตามเกณฑ์รับงาน ไม่ขยายผลจากการตรวจเอกสาร.
 
-### 8.2 ขอเสนอและยืนยันขนาด (development candidate 0.4.3)
+### 8.2 ขอเสนอและยืนยันขนาด (development candidate 0.4.4)
 
 POST `/authoring/drafts/:id/font-height-adjustments` รับ expectedRevision/styleId/
 targetFont/idempotencyKey. ใช้ credential เจ้าของ; metric และ pt อ่านจาก draft กับ
@@ -585,8 +585,8 @@ Migration 020 เพิ่มตารางข้อเสนอเท่าน
 
 ### 8.3 เตรียมส่งมอบตัวช่วยความสูงและการกู้คืน
 
-Candidate ใช้ Service/Core `0.4.3` กับ FlowDocMake
-`0.2.4` และ Core SHA256 ใน vendor/manifest.json.
+Candidate ใช้ Service/Core `0.4.4` กับ FlowDocMake
+`0.2.5` และ Core SHA256 ใน vendor/manifest.json.
 นี่เป็นชุด development ที่ตรวจร่วม ไม่ใช่ release/tag หรือคำอนุญาตติดตั้งจริง.
 Core schema/renderer เดิมไม่เปลี่ยน; helper ต้องยืนยันก่อนบันทึกและตรวจ PDF ทุกครั้ง.
 IBM Plex Sans Thai, Pridi, Noto Sans Thai Looped และ Noto Serif Thai ชุดที่ได้รับ
@@ -613,7 +613,7 @@ Profile/assignment/review และ proposals/receipts ต้องอยู่�
 
 ## Format sizing development candidate
 
-Core 0.4.3 accepts model19 Format `sizing` (auto/fixed), with independent
+Core 0.4.4 accepts model19 Format `sizing` (auto/fixed), with independent
 fixed maximum heights per Area entry at Section flow roots. Each call reserves
 min(declared height, current body remainder), including short/empty content.
 Positive space shows fitting whole units; only zero space omits the frame.

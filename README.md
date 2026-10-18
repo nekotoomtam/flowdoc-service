@@ -1,6 +1,6 @@
 # FlowDoc Service
 
-Development candidate `0.4.3` supports model19 Section instance authoring
+Development candidate `0.4.4` supports model19 Section instance authoring
 beside unchanged model18. `POST /authoring/drafts/:id/sections` creates an empty
 authored Section; `POST /authoring/drafts/:id/sections/import` copies saved source
 Sections into an owned target with new public/normalized IDs. Import accepts
@@ -25,9 +25,9 @@ Project Control Section–Area contract; this paragraph covers this repository.
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Package version: 0.4.3. Its release identity is the matching annotated tag on the
+Package version: 0.4.4. Its release identity is the matching annotated tag on the
 snapshot branch; a package version alone does not establish release acceptance.
-This development candidate pins Core 0.4.3 for its opt-in pure
+This development candidate pins Core 0.4.4 for its opt-in pure
 font-height calculation API and revision-bound proposal/confirmation endpoints.
 It is untagged and not an installed Service release.
 The local HTTP API includes a serial export processor,
@@ -37,7 +37,7 @@ an administrator UI and production scaling remain outside this slice.
 
 Start with the Thai [usage guide](docs/usage.md): first PDF, draft publication,
 API requests, uploads, Area examples, font administration/readiness and backup/upgrade.
-It describes candidate 0.4.3; shared release status remains in Project Control.
+It describes candidate 0.4.4; shared release status remains in Project Control.
 
 ## Local setup and acceptance
 
@@ -54,7 +54,7 @@ retains its volume/network/images. Failures leave inspection data. Generated
 fixtures/isolated schemas and temporarily alter constraints; never use shared data.
 
 For a persistent local registry, copy .env.example to .env and choose a random
-URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.4.3` explicitly
+URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.4.4` explicitly
 to identify the image built from this candidate; verify its image ID separately.
 Apply migrations through 021 before
 starting this package. For fonts/authoring, add the environment override in the
@@ -83,7 +83,7 @@ decoded JSON keys in raw template, draft and HTTP request input.
 
 ## Font-aware draft and job candidate
 
-This candidate vendors Core 0.4.3 with its verified checksum in `vendor/manifest.json`.
+This candidate vendors Core 0.4.4 with its verified checksum in `vendor/manifest.json`.
 Schema 1 retains the four verified Sarabun hashes. Schema 2 uses exact library
 release/weight/style references. Save/get/validate return `fontReadiness` separately
 from the saved revision: `ready`, `blocked` or `incomplete`, with `checkedScope`
@@ -215,11 +215,11 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.4.3 candidate is installed solely from `vendor/flowdoc-core-0.4.3-group-label-stage2.tgz`.
-This unpromoted candidate pins Core commit `885e36e` and SHA-256
-`9d0db0231fdf98e4b0806a6f4b422f620ffcc119b7193ddf2ad0a43f0b4bfe06`;
-the release archive remains unchanged. Internal versions remain 0.4.3 until
-delivery preparation. `/authoring/contract` advertises optional `groupLabelSpans`
+Core 0.4.4 candidate is installed solely from `vendor/flowdoc-core-0.4.4.tgz`.
+This unpromoted candidate pins Core commit `e1a6517` and SHA-256
+`dc65df98e1a605236e0c2e4f13dc1595b1b9924709ceed9ab276ee0a6006a529`;
+the release archive remains unchanged. This is the prepared development 0.4.4
+delivery candidate, not an installed release. `/authoring/contract` advertises optional `groupLabelSpans`
 v1 for model19/schema1,2. Stored definitions, clones/imports and queued jobs retain
 the declaration. Font snapshots pin this exact engine checksum; a different engine
 cannot resume those jobs. Auto readiness includes generated ` (ต่อ)` in the label
@@ -511,7 +511,7 @@ for this input. Validation/composition is not a substitute for rendering preview
 
 ## Format sizing development candidate
 
-Core 0.4.3 accepts model19 Format `sizing` (auto/fixed), with independent
+Core 0.4.4 accepts model19 Format `sizing` (auto/fixed), with independent
 fixed maximum heights per Area entry at Section flow roots. Each call reserves
 min(declared height, current body remainder), including short/empty content.
 Positive space shows fitting whole units; only zero space omits the frame.
