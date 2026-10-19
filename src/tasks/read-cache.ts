@@ -5,7 +5,7 @@ import {READ_WINDOW,type ReadGrant} from './read-cache-budget.js';
 const invalid=()=>Object.assign(Error('Invalid staged JSON'),{code:'INVALID_DATA'});
 export type ReadAt=(buffer:Buffer,offset:number,length:number,position:number)=>Promise<{bytesRead:number}>;
 /** One scratch window; cursors retain offsets only. Cache buffers never escape. */
-export function taskReadWindows(file:FileHandle,initial:Stats,grant:ReadGrant,signal?:AbortSignal,readAt:ReadAt=file.read.bind(file)){
+export function taskReadWindows(file:FileHandle,initial:Stats,grant:ReadGrant,signal?:AbortSignal,readAt:ReadAt=file.read.bind(file),onClose=()=>{},extraStats:()=>Record<string,number>=()=>({})){
  const size=initial.size;
  let scratch:Buffer|undefined=Buffer.allocUnsafeSlow(READ_WINDOW),scratchStart=-1,scratchLength=0,clock=0,closing=false;
  const entries=new Map<number,{buffer:Buffer;length:number;used:number}>();
@@ -47,9 +47,9 @@ export function taskReadWindows(file:FileHandle,initial:Stats,grant:ReadGrant,si
   check();return out.toString('utf8');
  };
  function close(){
-  if(closePromise)return closePromise;closing=true;
-  closePromise=(async()=>{try{await tail;if(!signal?.aborted)await identity();}finally{entries.clear();scratch=undefined;stats.currentCacheBytes=0;stats.scratchBytes=0;signal?.removeEventListener('abort',onAbort);try{await file.close();}finally{grant.release();channel('flowdoc.task.read').publish({taskId:grant.taskId,cacheLimit:grant.cacheBytes,...stats});}}})();return closePromise;
+  if(closePromise)return closePromise;closing=true;onClose();
+  closePromise=(async()=>{try{await tail;if(!signal?.aborted)await identity();}finally{entries.clear();scratch=undefined;stats.currentCacheBytes=0;stats.scratchBytes=0;signal?.removeEventListener('abort',onAbort);try{await file.close();}finally{grant.release();channel('flowdoc.task.read').publish({taskId:grant.taskId,cacheLimit:grant.cacheBytes,indexLimit:grant.indexBytes,...stats,...extraStats()});}}})();return closePromise;
  }
  const onAbort=()=>{void close().catch(()=>{});};signal?.addEventListener('abort',onAbort,{once:true});
- return {byte,text,close,check,stats:()=>({...stats})};
+ return {byte,text,close,check,stats:()=>({...stats,...extraStats()})};
 }

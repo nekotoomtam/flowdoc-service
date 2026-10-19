@@ -112,7 +112,7 @@ async function run(input: any) {
     sharp.concurrency(1);
     if (await digest(input.path) !== input.digest)
         throw error('INPUT_INTEGRITY');
-    const reader = await openTaskJson(input.path, abort.signal, {grant:delegatedReadGrant(input.taskId,input.readCacheBytes)});
+    const reader = await openTaskJson(input.path, abort.signal, {grant:delegatedReadGrant(input.taskId,input.readCacheBytes,()=>{},input.fieldIndexBytes)});
     let task: TaskValue | undefined, resources: any[] = [];
     try {
         for await (const [key, value] of reader.value.properties()) {

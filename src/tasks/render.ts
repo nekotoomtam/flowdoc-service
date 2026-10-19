@@ -238,7 +238,7 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
         if (!child.pid)
             throw taskError('TASK_RUNTIME_UNAVAILABLE');
         await pool.query('UPDATE tasks SET child_pid=$2,child_host=$3 WHERE id=$1', [row.id, child.pid, hostname()]);
-        child.send({ type: 'init', input: { taskId:row.id,readCacheBytes:readGrant.cacheBytes,path: await files.path(normalized.storage_key), digest: row.normalized_digest, template, templateFingerprint: row.template_pin.fingerprint, core: { version: row.normalization_summary.coreVersion, sha256: row.normalization_summary.coreSha256 }, fontSnapshot: snapshot, fontRoot: process.env.FONT_STORAGE_DIR ?? 'staging/fonts', workspace, sources, policy: p } });
+        child.send({ type: 'init', input: { taskId:row.id,readCacheBytes:readGrant.cacheBytes,fieldIndexBytes:readGrant.indexBytes,path: await files.path(normalized.storage_key), digest: row.normalized_digest, template, templateFingerprint: row.template_pin.fingerprint, core: { version: row.normalization_summary.coreVersion, sha256: row.normalization_summary.coreSha256 }, fontSnapshot: snapshot, fontRoot: process.env.FONT_STORAGE_DIR ?? 'staging/fonts', workspace, sources, policy: p } });
         const cancelled = new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }));
         await Promise.race([closure, cancelled]);
         if (signal.aborted)
