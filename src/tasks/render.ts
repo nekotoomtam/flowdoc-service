@@ -17,6 +17,7 @@ export interface GenerationSummary {
     preparationOmittedPlacementCount: number;
     omittedPlacementCount: number;
     findingCount: number;
+    formatOmissionCount: number;
     completeness: 'complete' | 'partial';
 }
 export interface TaskRenderReceipt {
@@ -171,7 +172,7 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
         if (m.op === 'finding') {
             if (m.code !== 'IMAGE_UNUSABLE' || !(m.sectionId === null || typeof m.sectionId === 'string' && Buffer.byteLength(m.sectionId) <= 256) || typeof m.pointer !== 'string' || !m.pointer.startsWith('/') || Buffer.byteLength(m.pointer) > 2048 || !Number.isSafeInteger(m.affectedPlacementCount) || m.affectedPlacementCount < 1 || preparationOmitted + m.affectedPlacementCount > 10000 || !m.detail || m.detail.stage !== 'preparation' || Buffer.byteLength(JSON.stringify(m.detail)) > 32768)
                 throw taskError('INVALID_DATA');
-            await transaction(pool, async (client) => { const r = await repo.row(client, row.id); repo.live(r); await client.query("INSERT INTO task_findings(id,task_id,sequence,code,section_id,pointer,affected_placement_count,detail) SELECT $1,$2,coalesce(max(sequence),0)+1,$3,$4,$5,$6,$7 FROM task_findings WHERE task_id=$2", [randomUUID(), row.id, m.code, m.sectionId, m.pointer, m.affectedPlacementCount, JSON.stringify(m.detail)]); });
+            await transaction(pool, async (client) => { const r = await repo.row(client, row.id); repo.live(r); await client.query("INSERT INTO task_findings(id,task_id,sequence,code,section_id,pointer,affected_placement_count,detail) SELECT $1,$2,coalesce(max(sequence),0)+1,$3,$4,$5,$6,$7 FROM task_findings WHERE task_id=$2 HAVING count(*)<$8", [randomUUID(), row.id, m.code, m.sectionId, m.pointer, m.affectedPlacementCount, JSON.stringify(m.detail),p.findingDetails]); });
             preparationFindings++;
             preparationOmitted += m.affectedPlacementCount;
             return null;
@@ -185,7 +186,7 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
             if (!ref || ref.sha256 !== m.receipt?.sha256 || ref.byteLength !== m.receipt?.byteLength || !Number.isSafeInteger(m.receipt.pageCount) || m.receipt.pageCount < 1 || m.receipt.pageCount > 2000)
                 throw taskError('STORAGE_IO');
             const summary = m.summary;
-            if (!summary || summary.version !== 1 || summary.scope !== 'expanded-image-nodes' || !['complete', 'partial'].includes(summary.completeness) || ['imagePlacementCount', 'normalizedOmittedPlacementCount', 'preparationOmittedPlacementCount', 'omittedPlacementCount', 'findingCount'].some(k => !Number.isSafeInteger(summary[k]) || summary[k] < 0 || summary[k] > 10000) || summary.findingCount !== preparationFindings || summary.preparationOmittedPlacementCount !== preparationOmitted || summary.omittedPlacementCount !== summary.normalizedOmittedPlacementCount + preparationOmitted || summary.omittedPlacementCount > summary.imagePlacementCount || summary.omittedPlacementCount && summary.completeness !== 'partial' || Buffer.byteLength(JSON.stringify(summary)) > 8192)
+            if (!summary || summary.version !== 1 || summary.scope !== 'expanded-image-nodes' || !['complete', 'partial'].includes(summary.completeness) || ['imagePlacementCount', 'normalizedOmittedPlacementCount', 'preparationOmittedPlacementCount', 'omittedPlacementCount', 'findingCount', 'formatOmissionCount'].some(k => !Number.isSafeInteger(summary[k]) || summary[k] < 0 || summary[k] > 10000) || summary.findingCount !== preparationFindings || summary.preparationOmittedPlacementCount !== preparationOmitted || summary.omittedPlacementCount !== summary.normalizedOmittedPlacementCount + preparationOmitted || summary.omittedPlacementCount > summary.imagePlacementCount || summary.omittedPlacementCount && summary.completeness !== 'partial' || Buffer.byteLength(JSON.stringify(summary)) > 8192)
                 throw taskError('INVALID_DATA');
             completion = { summary, output: ref.key, receipt: { byteLength: ref.byteLength, sha256: ref.sha256, pageCount: m.receipt.pageCount }, warnings: m.warnings, warningCount: m.warningCount };
             return null;

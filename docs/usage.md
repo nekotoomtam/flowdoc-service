@@ -647,3 +647,25 @@ the job fail (`LAYOUT_FAILED`, reason `omitted-destination`). Input data remains
 complete and omission warnings are distinct from skipped input indices.
 No migration or Area/request sizing field is introduced. Existing backup,
 restore and installation steps still apply; this candidate is not installed.
+
+### Streamed document task API (unreleased Service0.4.8 / Core0.4.7)
+
+Enable only with the trusted `TASK_CREDENTIALS_FILE` mapping described in README.
+Send `Authorization: Bearer <configured-task-token>`, `Doc-Key: <authorized-key>`,
+`Content-Type: multipart/form-data; boundary=<request-boundary>` and optionally
+`Accept: multipart/mixed`. The first part is `payload` with application/json:
+`{"data":{},"sections":[{"id":"<saved-section-id>","data":{...}}]}` for model19;
+model18 retains its Section map. Root docKey/taskId are not generation selectors.
+
+An image value is `{"image":{"upload":true}}`, optionally with assetKey. A matching
+binary part name is the original JSON Pointer ending at that image object. A keyed
+reference `{"assetKey":"seal"}` can reuse a definition only in the same Section,
+including definitions in that Section's assets array. Never send local paths in data.
+No declared-size header, opening request, polling loop or error-level mode is needed.
+
+Read multipart JSON feedback incrementally, then save the final exact-length PDF
+and verify its SHA256 and closing boundary. HTTP200 or artifact metadata alone is
+not success. If an error closes without a PDF, retain taskId for optional lookup.
+If disconnected, the worker stops safely; only received originals remain until the
+original expiresAt. A later JSON POST to the same route contains only taskId and
+optional findings pagination; it returns status, never a PDF or new child job.

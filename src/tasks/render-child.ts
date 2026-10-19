@@ -234,7 +234,7 @@ async function run(input: any) {
         const warnings = result.warnings.filter(w => !(w.code === 'IMAGE_UNAVAILABLE' && omitted.has(w.nodeId ?? '')));
         if (warnings.length > 10000)
             throw error('LIMIT_EXCEEDED');
-        const summary = { version: 1, scope: 'expanded-image-nodes', imagePlacementCount: nodes.length, normalizedOmittedPlacementCount: normalizedOmitted, preparationOmittedPlacementCount: preparationOmitted, omittedPlacementCount: normalizedOmitted + preparationOmitted, findingCount, completeness: omitted.size || warnings.some(w => w.code === 'FORMAT_CONTENT_OMITTED') ? 'partial' : 'complete' };
+        const summary = { version: 1, scope: 'expanded-image-nodes', imagePlacementCount: nodes.length, normalizedOmittedPlacementCount: normalizedOmitted, preparationOmittedPlacementCount: preparationOmitted, omittedPlacementCount: normalizedOmitted + preparationOmitted, findingCount, formatOmissionCount: warnings.filter(w=>w.code==='FORMAT_CONTENT_OMITTED').length, completeness: omitted.size || warnings.some(w => w.code === 'FORMAT_CONTENT_OMITTED') ? 'partial' : 'complete' };
         await rpc('complete', { output, receipt: result.value, warningCount: warnings.length, warnings: warnings.slice(0, 100), summary });
     }
     finally {

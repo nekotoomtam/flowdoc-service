@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
-import { createReadStream } from 'node:fs';
+import {taskWire,type TaskWire} from './wire.js';
+import {taskSnapshot,publicCode,stageFor} from './public.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 import { transaction } from '../db/connection.js';
@@ -74,6 +75,7 @@ export async function createTaskProcessing(deps: Dependencies) {
         taskId: string;
         response: TaskResponse;
         signal?: AbortSignal;
+        wire?: TaskWire;
     }) {
         const admission = await admit(request.authorization, request.taskId), id = request.taskId, row = admission.row, p = row.resource_policy;
         const abort = new AbortController();
@@ -101,7 +103,7 @@ export async function createTaskProcessing(deps: Dependencies) {
                     abort.abort(taskError('WORKER_INTERRUPTED'));
             })().catch(() => abort.abort(taskError('WORKER_INTERRUPTED'))).finally(() => { renewing = false; });
         }, Math.min(1000, Math.floor(p.leaseMs / 3)));
-        const boundary = 'flowdoc-' + randomUUID();
+
         let started = false, lastState = '', lastFeedback = 0;
         async function transport(operation: () => Promise<void>) {
             abort.signal.throwIfAborted();
@@ -122,23 +124,16 @@ export async function createTaskProcessing(deps: Dependencies) {
                 abort.signal.removeEventListener('abort', onAbort);
             }
         }
-        const write = async (b: Uint8Array) => {
-            for (let at = 0; at < b.length; at += 65536)
-                await transport(() => request.response.write(b.subarray(at, at + 65536)));
-        };
-        async function feedback(r: any) {
-            if (r.status === lastState && Date.now() - lastFeedback < 1000)
-                return;
-            lastState = r.status;
-            lastFeedback = Date.now();
-            const summary = (await pool.query('SELECT count(*)::int AS count FROM task_findings WHERE task_id=$1', [id])).rows[0];
-            const bytes = Buffer.from(JSON.stringify({ taskId: id, status: r.status, jobId: r.job_id ?? null, expiresAt: r.expires_at.toISOString(), ...(r.generation_summary ? { generationSummary: r.generation_summary } : {}), warningCount: summary.count + Number((await pool.query('SELECT coalesce(task_warning_count,0) AS count FROM generation_jobs WHERE task_id=$1', [id])).rows[0]?.count ?? 0), ...(r.terminal_reason ? { error: r.terminal_reason } : {}) }));
-            await write(Buffer.concat([Buffer.from('--' + boundary + '\r\nContent-Type: application/json\r\nContent-Length: ' + bytes.length + '\r\n\r\n'), bytes, Buffer.from('\r\n')]));
+        const wire=request.wire??taskWire({start:t=>request.response.start(t),write:b=>transport(()=>request.response.write(b)),end:()=>transport(()=>request.response.end()),abort:()=>request.response.abort()},id);
+        async function feedback(r:any){
+            if(r.status===lastState&&Date.now()-lastFeedback<1000)return;
+            lastState=r.status;lastFeedback=Date.now();
+            if(!wire.started)await wire.event('task',r.status,{createdAt:r.created_at.toISOString(),expiresAt:r.expires_at.toISOString(),template:r.template_pin});
+            await wire.event('progress',r.status,{stage:stageFor(r),completed:null,total:null,unit:null});
         }
         try {
             const q = (await pool.query('SELECT storage_used_bytes FROM task_resource_reservations WHERE task_id=$1', [id])).rows[0];
             await repo.reserve(id, Number(q.storage_used_bytes) + fontWorkspaceBound(admission.snapshot).bytes + 64 * 1048576, row.lease_token);
-            request.response.start('multipart/mixed; boundary=' + boundary);
             started = true;
             while (true) {
                 abort.signal.throwIfAborted();
@@ -161,19 +156,10 @@ export async function createTaskProcessing(deps: Dependencies) {
             const output = (await pool.query('SELECT o.* FROM document_outputs o JOIN generation_jobs j ON j.id=o.job_id WHERE j.task_id=$1 AND o.deleted_at IS NULL', [id])).rows[0];
             if (!output || output.sha256 !== pdf.receipt.sha256 || Number(output.byte_size) !== pdf.receipt.byteLength)
                 throw taskError('STORAGE_IO');
+            const snapshot=await taskSnapshot(pool,intake,request.authorization,id,undefined,10);
+            if(snapshot.task.counts.findingCount||pdf.warningCount){const detail={findings:[...snapshot.findings],...snapshot.task.counts,detailsTruncated:snapshot.task.detailsTruncated||snapshot.nextCursor!==null};while(Buffer.byteLength(JSON.stringify(detail))>30000&&detail.findings.length){detail.findings.pop();detail.detailsTruncated=true;}await wire.event('warning','sending',detail);}
             delivery = 'interrupted';
-            await write(Buffer.from('--' + boundary + '\r\nContent-Type: application/pdf\r\nContent-Disposition: attachment; filename="document.pdf"\r\nContent-Length: ' + output.byte_size + '\r\nX-FlowDoc-SHA256: ' + output.sha256 + '\r\n\r\n'));
-            const h = createHash('sha256');
-            let sent = 0;
-            for await (const b of createReadStream(await files.path(pdf.output), { highWaterMark: 65536, signal: abort.signal })) {
-                h.update(b);
-                sent += b.length;
-                await write(b);
-            }
-            if (sent !== Number(output.byte_size) || h.digest('hex') !== output.sha256)
-                throw taskError('STORAGE_IO');
-            await write(Buffer.from('\r\n--' + boundary + '--\r\n'));
-            await transport(() => request.response.end());
+            await wire.pdf(await files.path(pdf.output),{bytes:Number(output.byte_size),sha256:output.sha256,pageCount:pdf.receipt.pageCount,completeness:snapshot.task.completeness,...snapshot.task.counts},abort.signal);
             const n = await transaction(pool, async (c) => {
                 await quotaLock(c);
                 const r = await repo.row(c, id);
@@ -192,16 +178,19 @@ export async function createTaskProcessing(deps: Dependencies) {
             return safeTask(n);
         }
         catch (e) {
-            abort.abort(e);
+            const cause=abort.signal.aborted?abort.signal.reason:e;
+            abort.abort(cause);
             await pool.query('UPDATE tasks SET stop_requested_at=coalesce(stop_requested_at,clock_timestamp()) WHERE id=$1 AND terminal_at IS NULL', [id]);
             await execution.renderDone;
             pdf = execution.receipt ?? pdf;
             if (pdf)
                 generation = 'succeeded';
-            await repo.finish(id, reason(e), undefined, facts(await repo.get(id), generation, delivery, pdf));
-            if (started)
-                await request.response.abort();
-            throw taskError((await repo.get(id)).terminal_reason ?? reason(e));
+            await repo.finish(id, reason(cause), undefined, facts(await repo.get(id), generation, delivery, pdf));
+            if (started) {
+                if(!abort.signal.aborted||!request.signal?.aborted)await wire.error(publicCode(reason(cause)),generation==='succeeded'?'sending':'composing',(await repo.get(id)).status).catch(()=>request.response.abort());
+                else await request.response.abort();
+            }
+            throw taskError((await repo.get(id)).terminal_reason ?? reason(cause));
         }
         finally {
             clearInterval(poll);

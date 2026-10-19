@@ -1,6 +1,6 @@
 # FlowDoc Service
 
-Development candidate `0.4.7` supports model19 Section instance authoring
+Development candidate `0.4.8` supports model19 Section instance authoring
 beside unchanged model18. `POST /authoring/drafts/:id/sections` creates an empty
 authored Section; `POST /authoring/drafts/:id/sections/import` copies saved source
 Sections into an owned target with new public/normalized IDs. Import accepts
@@ -25,7 +25,7 @@ Project Control Section–Area contract; this paragraph covers this repository.
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Package version: 0.4.7. Its release identity is the matching annotated tag on the
+Package version: 0.4.8 (unreleased candidate). A release identity requires an annotated tag on the
 snapshot branch; a package version alone does not establish release acceptance.
 This development candidate pins Core 0.4.7 for its opt-in pure
 font-height calculation API and revision-bound proposal/confirmation endpoints.
@@ -37,7 +37,7 @@ an administrator UI and production scaling remain outside this slice.
 
 Start with the Thai [usage guide](docs/usage.md): first PDF, draft publication,
 API requests, uploads, Area examples, font administration/readiness and backup/upgrade.
-It describes candidate 0.4.7; shared release status remains in Project Control.
+It describes candidate 0.4.8; shared release status remains in Project Control.
 
 ## Local setup and acceptance
 
@@ -111,7 +111,7 @@ retains its volume/network/images. Failures leave inspection data. Generated
 fixtures/isolated schemas and temporarily alter constraints; never use shared data.
 
 For a persistent local registry, copy .env.example to .env and choose a random
-URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.4.7` explicitly
+URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.4.8` explicitly
 to identify the image built from this candidate; verify its image ID separately.
 Apply migrations through 024 before
 starting this package. For fonts/authoring, add the environment override in the
@@ -581,3 +581,32 @@ the job fail (`LAYOUT_FAILED`, reason `omitted-destination`). Input data remains
 complete and omission warnings are distinct from skipped input indices.
 No migration or Area/request sizing field is introduced. Existing backup,
 restore and installation steps still apply; this candidate is not installed.
+
+## Opt-in streamed document tasks (candidate 0.4.8)
+
+Core remains exactly0.4.7 from the pinned vendor archive; migration024 remains
+latest. The new HTTP path is disabled unless `TASK_CREDENTIALS_FILE` names a private
+JSON array of explicit `{token,ownerKey,principalId,docKeys,taskRead,billingSubjectKey?}`
+mappings. Tokens are at least32 characters. No authoring/legacy token fallback or
+client-reported identity is accepted. `TASK_STORAGE_DIR` selects private task storage;
+the trial1.5GB quota and original creation+3h expiry remain. Linux/amd64 only.
+
+`POST /documents` distinguishes multipart generation (`Doc-Key` once, payload JSON
+first, optional JPEG/PNG parts named by original JSON Pointer) from bounded JSON
+lookup (`{taskId,findingsCursor?,findingsLimit?}`). Missing taskId creates new work;
+a supplied ID only reads its owned record, never resumes/downloads/regenerates it.
+Creator reads its own work; other principals in that owner require taskRead.
+Lookup does not renew expiry. Section assets cannot cross Section boundaries.
+
+After complete receipt, the same response streams task-v1 JSON events and one final
+PDF part; early failures use JSON/status, late failures use a closed error envelope
+before PDF or abort incomplete binary framing. A trusted proxy must stream rather
+than buffer responses, preserve request size/time budgets and permit long uploads.
+Success requires actual server transport finish and the conditional DB transition.
+Client file save/hash and complete multipart framing are separately verified; they
+do not prove the final DB receipt committed. Lookup can inspect that lasting record.
+
+Backup/recovery includes migrations and the private task storage directory. Startup
+reconciles old leases and expiry; it never automatically resumes an abandoned job.
+Do not edit applied migration bytes, expose credentials/storage paths, install or
+promote this candidate as part of isolated development verification.
