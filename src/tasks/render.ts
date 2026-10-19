@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { transaction } from '../db/connection.js';
 import { quotaLock, taskError } from './quota.js';
 import { workspaceSize, clearWorkspace, groupStopped } from './workspace.js';
+import {taskReadBudget} from './read-cache-budget.js';
 import type { createTaskIntake } from './intake.js';
 type Context = Awaited<ReturnType<typeof createTaskIntake>>['processingContext'];
 export interface GenerationSummary {
@@ -52,7 +53,10 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
     if (!normalized)
         throw taskError('INPUT_INTEGRITY');
     const env = { ...process.env, NODE_CHANNEL_FD: '3', NODE_CHANNEL_SERIALIZATION_MODE: 'advanced', TMPDIR: workspace, PYTHONDONTWRITEBYTECODE: '1' };
-    const child = spawn(process.env.PYTHON_EXECUTABLE ?? 'python', [fileURLToPath(new URL('../../runtime/python/task_launcher.py', import.meta.url)), String(bound.fileBytes), process.execPath, fileURLToPath(new URL('./render-child.js', import.meta.url))], { env, detached: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'], serialization: 'advanced' });
+    const readGrant = await taskReadBudget.acquire(row.id,signal);
+    let child:ReturnType<typeof spawn>;
+    try {child = spawn(process.env.PYTHON_EXECUTABLE ?? 'python', [fileURLToPath(new URL('../../runtime/python/task_launcher.py', import.meta.url)), String(bound.fileBytes), process.execPath, fileURLToPath(new URL('./render-child.js', import.meta.url))], { env, detached: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'], serialization: 'advanced' });}
+    catch(e){readGrant.release();throw e;}
     let closed = false, failed: unknown, completion: TaskRenderReceipt | undefined, handling = false, chain = Promise.resolve(), workspaceBytes = 0, workspaceClosed = false, preparationFindings = 0, preparationOmitted = 0;
     const handles = new Map<string, {
         handle: FileHandle;
@@ -108,6 +112,7 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
         signal.throwIfAborted();
         if (!m || !Number.isSafeInteger(m.id) || typeof m.op !== 'string')
             throw taskError('INVALID_DATA');
+        if(m.op==='reader-closed'){readGrant.release();return null;}
         if (m.op === 'decode') {
             while (await groupMemory(child.pid!) >= p.memoryPauseBytes) {
                 signal.throwIfAborted();
@@ -233,7 +238,7 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
         if (!child.pid)
             throw taskError('TASK_RUNTIME_UNAVAILABLE');
         await pool.query('UPDATE tasks SET child_pid=$2,child_host=$3 WHERE id=$1', [row.id, child.pid, hostname()]);
-        child.send({ type: 'init', input: { path: await files.path(normalized.storage_key), digest: row.normalized_digest, template, templateFingerprint: row.template_pin.fingerprint, core: { version: row.normalization_summary.coreVersion, sha256: row.normalization_summary.coreSha256 }, fontSnapshot: snapshot, fontRoot: process.env.FONT_STORAGE_DIR ?? 'staging/fonts', workspace, sources, policy: p } });
+        child.send({ type: 'init', input: { taskId:row.id,readCacheBytes:readGrant.cacheBytes,path: await files.path(normalized.storage_key), digest: row.normalized_digest, template, templateFingerprint: row.template_pin.fingerprint, core: { version: row.normalization_summary.coreVersion, sha256: row.normalization_summary.coreSha256 }, fontSnapshot: snapshot, fontRoot: process.env.FONT_STORAGE_DIR ?? 'staging/fonts', workspace, sources, policy: p } });
         const cancelled = new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }));
         await Promise.race([closure, cancelled]);
         if (signal.aborted)
@@ -273,6 +278,7 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
                 await new Promise(r => setTimeout(r, 20));
             }
         }
+        readGrant.release();
         await clearWorkspace(workspace);
         if (workspaceBytes)
             await pool.query('UPDATE task_resource_reservations SET storage_used_bytes=storage_used_bytes-$2 WHERE task_id=$1', [row.id, workspaceBytes]);

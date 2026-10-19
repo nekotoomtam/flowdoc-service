@@ -6,6 +6,7 @@ import { deflate } from 'node:zlib';
 import { promisify } from 'node:util';
 import sharp from 'sharp';
 import { openTaskJson } from './json-reader.js';
+import { delegatedReadGrant } from './read-cache-budget.js';
 import { imageNodes } from '../images/nodes.js';
 import { snapshotResources } from '../fonts/snapshot.js';
 const zip = promisify(deflate), abort = new AbortController();
@@ -111,7 +112,7 @@ async function run(input: any) {
     sharp.concurrency(1);
     if (await digest(input.path) !== input.digest)
         throw error('INPUT_INTEGRITY');
-    const reader = await openTaskJson(input.path, abort.signal);
+    const reader = await openTaskJson(input.path, abort.signal, {grant:delegatedReadGrant(input.taskId,input.readCacheBytes)});
     let task: TaskValue | undefined, resources: any[] = [];
     try {
         for await (const [key, value] of reader.value.properties()) {
@@ -131,6 +132,9 @@ async function run(input: any) {
         const composed = await composeTaskDocument(template.value, task, { signal: abort.signal });
         if (!composed.ok)
             throw error(composed.issues[0]?.code ?? 'INVALID_DATA');
+        await reader.close();
+        task = undefined;
+        await rpc('reader-closed');
         const document = composed.value, images: Record<string, StreamPdfImage> = {}, omitted = new Set<string>();
         const nodes = imageNodes(document);
         if (nodes.length > 10000)

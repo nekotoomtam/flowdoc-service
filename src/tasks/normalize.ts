@@ -1,6 +1,7 @@
 import {createHash,randomUUID} from 'node:crypto';import {createReadStream,readFileSync} from 'node:fs';import type {FileHandle} from 'node:fs/promises';import type {Pool} from 'pg';
 import {normalizeTaskInput} from '@flowdoc/core';import {loadTemplate} from '../templates/registry.js';import {transaction} from '../db/connection.js';import {quotaLock,taskError} from './quota.js';
 import {policyWith} from './policy.js';
+import {taskReadBudget} from './read-cache-budget.js';
 import {taskRepository} from './repository.js';import type {TaskFileStore} from './files.js';import {openTaskJson} from './json-reader.js';import {createTaskImageIndex} from './image-index.js';import type {ImageFinding} from './image-index.js';
 const vendor=JSON.parse(readFileSync(new URL('../../vendor/manifest.json',import.meta.url),'utf8'));
 export async function normalizeStoredTask(deps:{pool:Pool;files:TaskFileStore;repo:ReturnType<typeof taskRepository>;row:any;token:string;signal:AbortSignal;writeChunk?:(handle:FileHandle,chunk:Buffer)=>Promise<void>}){
@@ -14,7 +15,7 @@ export async function normalizeStoredTask(deps:{pool:Pool;files:TaskFileStore;re
  const images=createTaskImageIndex({files:input.filter(f=>f.role==='original_image'),pathFor:files.path,budgetBytes:policy.maxIndexBytes,maxDefinitions:policy.maxImageDefinitions,maxPlacements:policy.maxImagePlacements,chargeBytes:charge,signal,onFinding:finding});
  const id=randomUUID(),key=r.id+'/normalized/'+id+'.bin.part',order=Math.max(...input.map(f=>f.part_order))+1;
  await pool.query("INSERT INTO task_files(id,task_id,role,logical_path,part_order,media_type,storage_key,state) VALUES($1,$2,'normalized','normalized-input-v1',$3,'application/json',$4,'receiving')",[id,r.id,order,key]);
- const reader=await openTaskJson(sourcePath,signal),handle=await files.open(key).catch(async e=>{await reader.close();throw e;}),hash=createHash('sha256');let written=0,closed=false;
+ const reader=await openTaskJson(sourcePath,signal,{grant:await taskReadBudget.acquire(r.id,signal)}),handle=await files.open(key).catch(async e=>{await reader.close();throw e;}),hash=createHash('sha256');let written=0,closed=false;
   const pending=Buffer.allocUnsafe(65536);let buffered=0;
  const flush=async()=>{if(!buffered)return;signal.throwIfAborted();const chunk=pending.subarray(0,buffered),used=Number((await pool.query('SELECT storage_used_bytes FROM task_resource_reservations WHERE task_id=$1',[r.id])).rows[0].storage_used_bytes);
   await repo.reserve(r.id,used+chunk.length,token);await (deps.writeChunk?deps.writeChunk(handle,chunk):handle.writeFile(chunk));hash.update(chunk);written+=chunk.length;
@@ -35,5 +36,5 @@ export async function normalizeStoredTask(deps:{pool:Pool;files:TaskFileStore;re
    for(const [i,f] of findings.entries())await c.query('INSERT INTO task_findings(id,task_id,sequence,code,section_id,pointer,affected_placement_count,locator_sha256) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[f.id,r.id,i+1,f.code,f.sectionId,f.pointer,f.affectedPlacementCount,f.locatorSha256??null]);
    const n=(await c.query("UPDATE tasks SET normalized_at=clock_timestamp(),normalized_digest=$2,normalized_file_id=$3,normalization_summary=$4,lease_token=NULL,lease_expires_at=NULL,writer_pid=NULL,writer_host=NULL,state_version=state_version+1,updated_at=now() WHERE id=$1 RETURNING *",[r.id,digest,id,JSON.stringify(summary)])).rows[0];await repo.event(c,n,'normalized',row.status);return n;
   });
- }finally{if(!closed)await handle.close();await reader.close();}
+ }finally{try{if(!closed)await handle.close();}finally{await reader.close();}}
 }
