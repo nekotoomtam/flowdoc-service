@@ -1,6 +1,6 @@
 # FlowDoc Service
 
-Development candidate `0.4.5` supports model19 Section instance authoring
+Development candidate `0.4.7` supports model19 Section instance authoring
 beside unchanged model18. `POST /authoring/drafts/:id/sections` creates an empty
 authored Section; `POST /authoring/drafts/:id/sections/import` copies saved source
 Sections into an owned target with new public/normalized IDs. Import accepts
@@ -25,9 +25,9 @@ Project Control Section–Area contract; this paragraph covers this repository.
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Package version: 0.4.5. Its release identity is the matching annotated tag on the
+Package version: 0.4.7. Its release identity is the matching annotated tag on the
 snapshot branch; a package version alone does not establish release acceptance.
-This development candidate pins Core 0.4.5 for its opt-in pure
+This development candidate pins Core 0.4.7 for its opt-in pure
 font-height calculation API and revision-bound proposal/confirmation endpoints.
 It is untagged and not an installed Service release.
 The local HTTP API includes a serial export processor,
@@ -37,7 +37,7 @@ an administrator UI and production scaling remain outside this slice.
 
 Start with the Thai [usage guide](docs/usage.md): first PDF, draft publication,
 API requests, uploads, Area examples, font administration/readiness and backup/upgrade.
-It describes candidate 0.4.5; shared release status remains in Project Control.
+It describes candidate 0.4.7; shared release status remains in Project Control.
 
 ## Local setup and acceptance
 
@@ -48,9 +48,37 @@ or Section into memory. Image keys are Section-local; anonymous occurrences stay
 distinct. Unsupported/missing/conflicting images retain typed unavailable markers
 and durable reasons, while unbound parts are discarded with accounted deletion.
 JPEG/PNG signatures, closing markers, checksums and metadata/pixel bounds are
-checked; full decoding/preparation still belongs to later task processing.
+checked; full decoding/preparation belongs to the internal task processor below.
 Normalization writes a private version1 artifact and remains at `validating`;
 its summary is historical normalization evidence, not job/PDF readiness.
+
+Internal task processing (migration024, development0.4.7): `createTaskProcessing`
+connects normalized task files to one immutable `flowdoc-task-job/1` child job.
+Pass its hook to the existing serial `startProcessor({tasks: manager, ...})` and
+stop the manager before the intake/pool. This adapter is not a public endpoint.
+Admission pins the exact Core tarball, template version and font snapshot; the
+normalized file digest is verified before bounded Core composition. Legacy
+PreparedInput jobs, byte-return PDF limits and API capabilities stay unchanged.
+
+The supported task worker is Linux/amd64 with the packaged Python runtime. One
+owned process group prepares images serially, streams verified JPEG or deflated
+RGB/alpha derivatives from private files, and emits64KiB acknowledged PDF chunks.
+The parent reserves before writes. Font scratch has an exclusive conservative
+window and inherited native per-file ceiling; no capacity is released before
+actual process-group stop and file removal. A Windows task render fails closed.
+Parent plus owned-group RSS is sampled: pause new decode at768MiB, terminate at
+896MiB; deploy under a1GiB cgroup. Sampling is not proof of full workload peak RAM.
+This candidate's trial storage pool is1.5GB; the planned10GB deployment is untested.
+
+`execute` takes a trusted response adapter with `start`, awaited `write`, `end`
+and `abort`. `end` must resolve only on transport finish; `abort` must close the
+transport and settle pending writes. It sends bounded periodic JSON feedback and
+one PDF in `multipart/mixed`. Two senders share the pool; later jobs wait safely.
+Do not buffer the response in a production adapter. Success is recorded only
+following confirmed finish before the original deadline. Disconnect/expiry safely
+stops the child; complete originals remain until original expiry after failure,
+while derivatives/scratch/unsent PDF are removed. Task events and usage survive.
+Failed deletion stays charged and retries on sweep. No automatic render replay.
 
 Task intake foundation: migration022 adds task identity, reservations,
 file metadata, immutable events and terminal usage facts. The internal adapter in
@@ -60,7 +88,7 @@ interrupted local writers. It starts a ten-second cleanup sweep when instantiate
 call its `stop()` before closing its pool. Trusted adapters supply credential and
 template permissions; client actor references are attribution only.
 `POST /documents` is still unavailable. Receipt does not validate Core input,
-start a job or create a PDF. Public API wiring and complete legacy render scratch/
+start a job or create a PDF. Public API wiring and legacy render scratch/
 PDF reservation integration remain later-stage prerequisites; existing limits stay.
 
 Install dependencies with `npm ci --ignore-scripts`; build with `npm run build`.
@@ -76,9 +104,9 @@ retains its volume/network/images. Failures leave inspection data. Generated
 fixtures/isolated schemas and temporarily alter constraints; never use shared data.
 
 For a persistent local registry, copy .env.example to .env and choose a random
-URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.4.5` explicitly
+URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.4.7` explicitly
 to identify the image built from this candidate; verify its image ID separately.
-Apply migrations through 023 before
+Apply migrations through 024 before
 starting this package. For fonts/authoring, add the environment override in the
 usage guide; base Compose does not pass those secrets to the API. Run:
 
@@ -105,7 +133,7 @@ decoded JSON keys in raw template, draft and HTTP request input.
 
 ## Font-aware draft and job candidate
 
-This candidate vendors Core 0.4.5 with its verified checksum in `vendor/manifest.json`.
+This candidate vendors Core 0.4.7 with its verified checksum in `vendor/manifest.json`.
 Schema 1 retains the four verified Sarabun hashes. Schema 2 uses exact library
 release/weight/style references. Save/get/validate return `fontReadiness` separately
 from the saved revision: `ready`, `blocked` or `incomplete`, with `checkedScope`
@@ -237,10 +265,10 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.4.5 candidate is installed solely from `vendor/flowdoc-core-0.4.5.tgz`.
+Core 0.4.7 candidate is installed solely from `vendor/flowdoc-core-0.4.7.tgz`.
 This unpromoted candidate pins Core commit `e1a6517` and SHA-256
 `dc65df98e1a605236e0c2e4f13dc1595b1b9924709ceed9ab276ee0a6006a529`;
-the release archive remains unchanged. This is the prepared development 0.4.5
+the release archive remains unchanged. This is the prepared development 0.4.7
 delivery candidate, not an installed release. `/authoring/contract` advertises optional `groupLabelSpans`
 v1 for model19/schema1,2. Stored definitions, clones/imports and queued jobs retain
 the declaration. Font snapshots pin this exact engine checksum; a different engine
@@ -469,7 +497,7 @@ for its one/two/six-request flow and failed-job handling.
 
 Prepared jobs send only the document and required image input to the child.
 Core validation and immutable snapshot integrity checks remain in place.
-Apply migrations through 023 using the matching CLI before starting the API.
+Apply migrations through 024 using the matching CLI before starting the API.
 
 ## Candidate Area18 authoring tools
 
@@ -533,7 +561,7 @@ for this input. Validation/composition is not a substitute for rendering preview
 
 ## Format sizing development candidate
 
-Core 0.4.5 accepts model19 Format `sizing` (auto/fixed), with independent
+Core 0.4.7 accepts model19 Format `sizing` (auto/fixed), with independent
 fixed maximum heights per Area entry at Section flow roots. Each call reserves
 min(declared height, current body remainder), including short/empty content.
 Positive space shows fitting whole units; only zero space omits the frame.

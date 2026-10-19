@@ -8,7 +8,7 @@ export async function storageTotals(c:PoolClient){
  (SELECT min((resource_policy->>'poolBytes')::bigint) FROM tasks t JOIN task_resource_reservations r ON r.task_id=t.id WHERE r.storage_held_bytes>0) AS pool,
  (SELECT max((resource_policy->>'freeFloorBytes')::bigint) FROM tasks t JOIN task_resource_reservations r ON r.task_id=t.id WHERE r.storage_held_bytes>0) AS floor,
  (SELECT coalesce(sum(reserved_bytes),0) FROM upload_sessions WHERE deleted_at IS NULL) AS legacy,
- (SELECT coalesce(sum(byte_size),0) FROM document_outputs WHERE deleted_at IS NULL) AS outputs,
+ (SELECT coalesce(sum(o.byte_size),0) FROM document_outputs o JOIN generation_jobs j ON j.id=o.job_id WHERE o.deleted_at IS NULL AND j.task_id IS NULL) AS outputs,
  (SELECT coalesce(sum(received_bytes),0) FROM upload_items WHERE source_kind='upload' AND upload_id IN (SELECT id FROM upload_sessions WHERE deleted_at IS NULL)) AS legacy_used`)).rows[0];
  return {held:Number(r.held),used:Number(r.used),pool:r.pool===null?null:Number(r.pool),floor:Number(r.floor??0),legacy:Number(r.legacy)+Number(r.outputs),legacyUnused:Math.max(0,Number(r.legacy)-Number(r.legacy_used))};
 }

@@ -4,6 +4,7 @@ import {Busboy} from '@fastify/busboy';import {transaction} from '../db/connecti
 import {validJobId} from '../jobs/repository.js';import {taskFiles} from './files.js';import {policyWith,type TaskPolicy} from './policy.js';
 import {quotaLock,taskError} from './quota.js';import {taskRepository,safeTask,terminal,type TaskIdentity} from './repository.js';
 import {normalizeStoredTask} from './normalize.js';
+import {workspaceSize,clearWorkspace,groupStopped,processIdentity} from './workspace.js';
 import {inspectPayload} from './payload.js';import {headerBudget,taskBoundary} from './multipart.js';
 interface Dependencies{pool:Pool;root:string;resolveCredential:(header:string)=>TaskIdentity|null|Promise<TaskIdentity|null>;policy?:Partial<TaskPolicy>;freeBytes?:()=>Promise<number>;removeFile?:(path:string)=>Promise<void>;writeChunk?:(handle:FileHandle,chunk:Buffer)=>Promise<void>}
 interface Opening{authorization:string;docKey:unknown;contentType:string;contentEncoding?:string}
@@ -13,15 +14,18 @@ export async function createTaskIntake(deps:Dependencies){
  const active=new Map<string,{abort:AbortController;done:Promise<void>}>(),opened=new Set<string>();let closing=false;
  async function authenticate(header:string){const i=await deps.resolveCredential(header);if(!i||!header.startsWith('Bearer ')||!i.ownerKey||!i.principalId||Buffer.byteLength(i.ownerKey)>200||Buffer.byteLength(i.principalId)>200||!Array.isArray(i.docKeys))throw taskError('UNAUTHORIZED');return i;}
  async function owned(header:string,id:string,write=false){const i=await authenticate(header);if(!validJobId(id))throw taskError('INVALID_REQUEST');const r=await repo.get(id);if(!r||r.owner_key!==i.ownerKey)throw taskError('TASK_NOT_FOUND');if(write?r.created_by_principal!==i.principalId:!i.taskRead)throw taskError('FORBIDDEN');return {r,i};}
- const stopped=(r:any)=>{if(!r.writer_pid)return true;if(r.writer_host!==hostname())return false;try{process.kill(r.writer_pid,0);return false;}catch(e){return (e as NodeJS.ErrnoException).code==='ESRCH';}};
+ const stopped=async(r:any)=>{if(!r.writer_pid)return true;if(r.writer_host!==hostname())return false;if(r.writer_start_identity&&await processIdentity(r.writer_pid)!==r.writer_start_identity)return true;try{process.kill(r.writer_pid,0);return false;}catch(e){return (e as NodeJS.ErrnoException).code==='ESRCH';}};
  async function cleanup(id:string){
-  let r=await repo.get(id);if(!r||!terminal(r.status)||active.has(id)||!stopped(r))return;
+  let r=await repo.get(id);if(!r||!terminal(r.status)||active.has(id)||!await stopped(r)||!await groupStopped(r.child_pid,r.child_host,hostname()))return;
   await pool.query("UPDATE tasks SET cleanup_status='running',updated_at=now() WHERE id=$1",[id]);
   let retry=false;const due=r.due,all=(await pool.query('SELECT * FROM task_files WHERE task_id=$1',[id])).rows;
   const keep=new Set(all.filter(f=>f.state==='received'&&['payload','original_image'].includes(f.role)&&!due&&r.status!=='succeeded').map(f=>f.storage_key));
   const names=await files.names(id);
   for(const key of names){if(keep.has(key))continue;try{await files.remove(key);await pool.query("UPDATE task_files SET state='deleted',storage_key=NULL,stored_bytes=0,deleted_at=clock_timestamp(),updated_at=now() WHERE task_id=$1 AND storage_key=$2",[id,key]);}catch{retry=true;}}
-  let actual=0;for(const key of await files.names(id))actual+=await files.size(key);
+  try{await clearWorkspace(await files.workspace(id));}catch{retry=true;}
+  let actual=await workspaceSize(await files.workspace(id));for(const key of await files.names(id))actual+=await files.size(key);
+  const outputs=(await pool.query('SELECT o.id,o.path FROM document_outputs o JOIN generation_jobs j ON j.id=o.job_id WHERE j.task_id=$1 AND o.deleted_at IS NULL',[id])).rows;
+  for(const out of outputs){const name=out.path.split(/[\\/]/).at(-1);if(!await files.size(id+'/output/'+name))await pool.query("UPDATE document_outputs SET availability='expired',deleted_at=clock_timestamp() WHERE id=$1",[out.id]);}
   // A missing file also becomes a tombstone; file disappearance never implies send success.
   for(const f of all)if(f.storage_key&&!(await files.size(f.storage_key))&&!keep.has(f.storage_key))await pool.query("UPDATE task_files SET state='deleted',storage_key=NULL,stored_bytes=0,deleted_at=clock_timestamp(),updated_at=now() WHERE id=$1",[f.id]);
   await transaction(pool,async c=>{await quotaLock(c);await repo.row(c,id);const q=(await c.query('SELECT storage_held_bytes FROM task_resource_reservations WHERE task_id=$1 FOR UPDATE',[id])).rows[0];
@@ -31,12 +35,12 @@ export async function createTaskIntake(deps:Dependencies){
    const next=retry?'retry_needed':actual?'not_due':'done';if(r.cleanup_status!==next)await repo.event(c,r,'cleanup',r.status,retry?'STORAGE_IO':next,'cleanup:'+randomUUID());
   });
  }
- async function fail(id:string,reason:string){const a=active.get(id);if(a){a.abort.abort(taskError(reason));await a.done;}else{const r=await repo.get(id);if(['receiving','validating'].includes(r?.status)&&!stopped(r))return;await repo.finish(id,reason,r);}await cleanup(id);}
+ async function fail(id:string,reason:string){const a=active.get(id);if(a){a.abort.abort(taskError(reason));await a.done;}else{const r=await repo.get(id);if(['receiving','validating','queued','processing','sending'].includes(r?.status)&&(!await stopped(r)||!await groupStopped(r.child_pid,r.child_host,hostname())))return;await repo.finish(id,reason,r);}await cleanup(id);}
  async function sweep(recovery=false){
-  const rows=(await pool.query("SELECT *,expires_at<=clock_timestamp() AS due FROM tasks WHERE status NOT IN ('succeeded','failed','expired') OR cleanup_status<>'done' ORDER BY created_at,id")).rows;
+  const rows=(await pool.query("SELECT *,expires_at<=clock_timestamp() AS due,lease_expires_at<=clock_timestamp() AS lease_due FROM tasks WHERE status NOT IN ('succeeded','failed','expired') OR cleanup_status<>'done' ORDER BY created_at,id")).rows;
   for(const r of rows){if(!terminal(r.status)){
    if(r.due)await fail(r.id,'TASK_EXPIRED');
-   else if(recovery&&!active.has(r.id)&&stopped(r))await fail(r.id,'WORKER_INTERRUPTED');
+   else if((recovery||r.lease_due&&['queued','processing','sending'].includes(r.status))&&!active.has(r.id)&&await stopped(r)&&await groupStopped(r.child_pid,r.child_host,hostname()))await fail(r.id,'WORKER_INTERRUPTED');
   }await cleanup(r.id);}
  }
  async function open(request:Opening){
@@ -108,7 +112,7 @@ export async function createTaskIntake(deps:Dependencies){
  async function findings(header:string,id:string,cursor=0,limit=50){await owned(header,id);if(!Number.isSafeInteger(cursor)||cursor<0||!Number.isSafeInteger(limit)||limit<1||limit>100)throw taskError('INVALID_REQUEST');const rows=(await pool.query('SELECT * FROM task_findings WHERE task_id=$1 AND sequence>$2 ORDER BY sequence LIMIT $3',[id,cursor,limit+1])).rows;const items=rows.slice(0,limit).map(f=>({id:f.id,sequence:Number(f.sequence),code:f.code,sectionId:f.section_id,pointer:f.pointer,locatorSha256:f.locator_sha256,affectedPlacementCount:Number(f.affected_placement_count)}));return {items,nextCursor:rows.length>limit?items.at(-1)!.sequence:null};}
  await sweep(true);let maintenance:Promise<void>|undefined;
  const timer=setInterval(()=>{if(closing||maintenance)return;maintenance=sweep().catch(()=>{}).finally(()=>{maintenance=undefined;});},p.sweepMs);timer.unref();
- return {open,receive,normalize,findings,reserve:repo.reserve,async inspect(header:string,id:string){return safeTask((await owned(header,id)).r);},fail,
+ return {processingContext:{pool,files,repo,owned,active,cleanup,policy:p},open,receive,normalize,findings,reserve:repo.reserve,async inspect(header:string,id:string){return safeTask((await owned(header,id)).r);},fail,
   async recover(){await sweep(true);},async sweep(){await sweep();},
   async stop(){closing=true;clearInterval(timer);for(const a of active.values())a.abort.abort(taskError('WORKER_INTERRUPTED'));await Promise.all([...active.values()].map(a=>a.done));await maintenance;for(const id of opened){const r=await repo.get(id);if(r?.status==='awaiting_input')await fail(id,'WORKER_INTERRUPTED');}}
  };
