@@ -37,15 +37,22 @@ process.on('message', (m: any) => {
             p?.resolve(m.value);
     }
 });
-process.on('disconnect', () => { if (finished)
-    return; try {
-    process.kill(-process.pid, 'SIGKILL');
+process.on('disconnect', () => {
+    if (finished)
+        return;
+    try {
+        process.kill(-process.pid, 'SIGKILL');
+    }
+    catch {
+        process.exit(1);
+    }
+});
+async function digest(path: string) {
+    const h = createHash('sha256');
+    for await (const b of createReadStream(path, { highWaterMark: 65536, signal: abort.signal }))
+        h.update(b);
+    return h.digest('hex');
 }
-catch {
-    process.exit(1);
-} });
-async function digest(path: string) { const h = createHash('sha256'); for await (const b of createReadStream(path, { highWaterMark: 65536, signal: abort.signal }))
-    h.update(b); return h.digest('hex'); }
 async function decode(v: TaskValue, max: number): Promise<any> {
     if (await v.byteLength() > max)
         throw error('LIMIT_EXCEEDED');
@@ -124,39 +131,82 @@ async function run(input: any) {
         const composed = await composeTaskDocument(template.value, task, { signal: abort.signal });
         if (!composed.ok)
             throw error(composed.issues[0]?.code ?? 'INVALID_DATA');
-        const document = composed.value, images: Record<string, StreamPdfImage> = {}, variants = new Map<string, string>(), omitted = new Set<string>();
+        const document = composed.value, images: Record<string, StreamPdfImage> = {}, omitted = new Set<string>();
         const nodes = imageNodes(document);
         if (nodes.length > 10000)
             throw error('LIMIT_EXCEEDED');
+        const owners = new Map<string, string>();
+        for (const section of document.sections ?? [])
+            for (const band of [section.header, section.footer])
+                for (const id of Object.keys(band?.nodes ?? {}))
+                    owners.set(id, section.sectionId);
+        const variants = new Map<string, {
+            id: string;
+            source: any;
+            nodes: typeof nodes;
+        }>();
+        let normalizedOmitted = 0, preparationOmitted = 0, findingCount = 0, diagnosticBytes = 0;
         for (const node of nodes) {
             const old = node.props.resourceId;
             if (old.startsWith('unavailable-')) {
                 omitted.add(node.id);
+                normalizedOmitted++;
                 continue;
             }
             const source = resources.find(r => r.assetId === old);
             if (!source)
                 throw error('INPUT_INTEGRITY');
             const signature = JSON.stringify([old, node.props.width, node.props.height, 200, 'srgb-orientation-v1']);
-            let id = variants.get(signature);
-            if (!id) {
+            let variant = variants.get(signature);
+            if (!variant) {
                 if (variants.size >= input.policy.maxDerivatives)
                     throw error('LIMIT_EXCEEDED');
-                id = randomUUID();
-                variants.set(signature, id);
-                try {
-                    images[id] = await prepare(source, node, input);
+                variant = { id: randomUUID(), source, nodes: [] };
+                variants.set(signature, variant);
+            }
+            variant.nodes.push(node);
+            node.props.resourceId = variant.id;
+        }
+        for (const variant of variants.values()) {
+            const first = variant.nodes[0]!;
+            try {
+                images[variant.id] = await prepare(variant.source, first, input);
+            }
+            catch (e) {
+                const code = (e as any)?.code;
+                if (abort.signal.aborted || code && !['IMAGE_UNUSABLE'].includes(code))
+                    throw e;
+                const source = input.sources.find((f: any) => f.id === variant.source.sourceFileId);
+                if (!source?.logical_path?.endsWith('/image'))
+                    throw error('INPUT_INTEGRITY');
+                const bySection = new Map<string | null, typeof nodes>();
+                for (const node of variant.nodes) {
+                    const section = document.sourceMap[node.id]?.sectionId ?? owners.get(node.id) ?? variant.source.sectionId ?? null;
+                    const group = bySection.get(section) ?? [];
+                    group.push(node);
+                    bySection.set(section, group);
                 }
-                catch (e) {
-                    const code = (e as any)?.code;
-                    if (abort.signal.aborted || code && !['IMAGE_UNUSABLE'].includes(code))
-                        throw e;
-                    await rpc('finding', { code: 'IMAGE_UNUSABLE', assetId: old });
+                for (const [sectionId, affected] of bySection) {
+                    const sample: string[] = [];
+                    let sampleBytes = 0;
+                    for (const node of affected) {
+                        if (sample.length >= 16 || sampleBytes + Buffer.byteLength(node.id) > 8192)
+                            break;
+                        sample.push(node.id);
+                        sampleBytes += Buffer.byteLength(node.id);
+                    }
+                    const detail = { stage: 'preparation', assetId: variant.source.assetId, variant: { widthPt: pt(first.props.width), heightPt: pt(first.props.height), frame: { width: first.props.width, height: first.props.height }, dpi: 200, transformVersion: 'srgb-orientation-v1' }, nodeIdsSample: sample, sampleTruncated: sample.length < affected.length };
+                    const finding = { code: 'IMAGE_UNUSABLE', sectionId, pointer: source.logical_path.slice(0, -6), affectedPlacementCount: affected.length, detail };
+                    diagnosticBytes += Buffer.byteLength(JSON.stringify(finding));
+                    if (diagnosticBytes > input.policy.maxIndexBytes)
+                        throw error('LIMIT_EXCEEDED');
+                    await rpc('finding', finding); // Suppress engine duplicates only after equivalent durable diagnostics are committed.
+                    findingCount++;
+                    preparationOmitted += affected.length;
+                    for (const node of affected)
+                        omitted.add(node.id);
                 }
             }
-            node.props.resourceId = id;
-            if (!images[id])
-                omitted.add(node.id);
         }
         const fonts = await snapshotResources(input.fontSnapshot, input.workspace, input.fontRoot);
         const engine = await createPdfEngine(fonts);
@@ -184,14 +234,23 @@ async function run(input: any) {
         const warnings = result.warnings.filter(w => !(w.code === 'IMAGE_UNAVAILABLE' && omitted.has(w.nodeId ?? '')));
         if (warnings.length > 10000)
             throw error('LIMIT_EXCEEDED');
-        await rpc('complete', { output, receipt: result.value, warningCount: warnings.length, warnings: warnings.slice(0, 100) });
+        const summary = { version: 1, scope: 'expanded-image-nodes', imagePlacementCount: nodes.length, normalizedOmittedPlacementCount: normalizedOmitted, preparationOmittedPlacementCount: preparationOmitted, omittedPlacementCount: normalizedOmitted + preparationOmitted, findingCount, completeness: omitted.size || warnings.some(w => w.code === 'FORMAT_CONTENT_OMITTED') ? 'partial' : 'complete' };
+        await rpc('complete', { output, receipt: result.value, warningCount: warnings.length, warnings: warnings.slice(0, 100), summary });
     }
     finally {
         await reader.close();
     }
 }
-process.once('message', (m: any) => { if (m?.type !== 'init')
-    process.exit(1); void run(m.input).then(() => { finished = true; process.exitCode = 0; process.disconnect?.(); }, async (e) => { try {
-    await rpc('failed', { code: /^[A-Z_]+$/.test(e?.code) ? e.code : 'RENDER_FAILED' });
-}
-catch { } finished = true; process.exitCode = 1; process.disconnect?.(); }); });
+process.once('message', (m: any) => {
+    if (m?.type !== 'init')
+        process.exit(1);
+    void run(m.input).then(() => { finished = true; process.exitCode = 0; process.disconnect?.(); }, async (e) => {
+        try {
+            await rpc('failed', { code: /^[A-Z_]+$/.test(e?.code) ? e.code : 'RENDER_FAILED' });
+        }
+        catch { }
+        finished = true;
+        process.exitCode = 1;
+        process.disconnect?.();
+    });
+});

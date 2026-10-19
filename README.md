@@ -78,6 +78,13 @@ Do not buffer the response in a production adapter. Success is recorded only
 following confirmed finish before the original deadline. Disconnect/expiry safely
 stops the child; complete originals remain until original expiry after failure,
 while derivatives/scratch/unsent PDF are removed. Task events and usage survive.
+Preparation failures preserve an exact Section/input locator, frame variant and
+full affected count (bounded node-ID samples). Engine duplicate omissions are
+suppressed only after those diagnostics commit. Immutable `generationSummary`
+counts expanded image nodes before pagination, separately from normalization's
+input-slot counts; repeated physical page-band placements remain Core layout
+scope. Overall completeness stays partial when either phase reports omissions.
+Successful delivery of a partial PDF does not claim all requested content exists.
 Failed deletion stays charged and retries on sweep. No automatic render replay.
 
 Task intake foundation: migration022 adds task identity, reservations,

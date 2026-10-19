@@ -6,7 +6,7 @@ import { transaction } from '../db/connection.js';
 import type { createTaskIntake } from './intake.js';
 import { quotaLock, taskError } from './quota.js';
 import { processIdentity } from './workspace.js';
-import { terminal, safeTask } from './repository.js';
+import { terminal, safeTask, taskCompleteness } from './repository.js';
 import { readReferences, verifyReferences } from '../fonts/retention.js';
 import { resolveFontReadiness } from '../fonts/readiness.js';
 import { makeFontSnapshot, persistJobFonts, validateFontSnapshot, rendererIdentity } from '../fonts/snapshot.js';
@@ -122,15 +122,17 @@ export async function createTaskProcessing(deps: Dependencies) {
                 abort.signal.removeEventListener('abort', onAbort);
             }
         }
-        const write = async (b: Uint8Array) => { for (let at = 0; at < b.length; at += 65536)
-            await transport(() => request.response.write(b.subarray(at, at + 65536))); };
+        const write = async (b: Uint8Array) => {
+            for (let at = 0; at < b.length; at += 65536)
+                await transport(() => request.response.write(b.subarray(at, at + 65536)));
+        };
         async function feedback(r: any) {
             if (r.status === lastState && Date.now() - lastFeedback < 1000)
                 return;
             lastState = r.status;
             lastFeedback = Date.now();
             const summary = (await pool.query('SELECT count(*)::int AS count FROM task_findings WHERE task_id=$1', [id])).rows[0];
-            const bytes = Buffer.from(JSON.stringify({ taskId: id, status: r.status, jobId: r.job_id ?? null, expiresAt: r.expires_at.toISOString(), warningCount: summary.count + Number((await pool.query('SELECT coalesce(task_warning_count,0) AS count FROM generation_jobs WHERE task_id=$1', [id])).rows[0]?.count ?? 0), ...(r.terminal_reason ? { error: r.terminal_reason } : {}) }));
+            const bytes = Buffer.from(JSON.stringify({ taskId: id, status: r.status, jobId: r.job_id ?? null, expiresAt: r.expires_at.toISOString(), ...(r.generation_summary ? { generationSummary: r.generation_summary } : {}), warningCount: summary.count + Number((await pool.query('SELECT coalesce(task_warning_count,0) AS count FROM generation_jobs WHERE task_id=$1', [id])).rows[0]?.count ?? 0), ...(r.terminal_reason ? { error: r.terminal_reason } : {}) }));
             await write(Buffer.concat([Buffer.from('--' + boundary + '\r\nContent-Type: application/json\r\nContent-Length: ' + bytes.length + '\r\n\r\n'), bytes, Buffer.from('\r\n')]));
         }
         try {
@@ -293,7 +295,11 @@ export async function createTaskProcessing(deps: Dependencies) {
         await pending;
         return true;
     }
-    return { execute, runNext, async stop() { closing = true; for (const e of executing.values())
-            e.abort.abort(taskError('WORKER_INTERRUPTED')); await Promise.all([...executing.values()].map(e => e.done)); } };
+    return { execute, runNext, async stop() {
+            closing = true;
+            for (const e of executing.values())
+                e.abort.abort(taskError('WORKER_INTERRUPTED'));
+            await Promise.all([...executing.values()].map(e => e.done));
+        } };
 }
-function facts(r: any, generation: string, delivery: string, pdf?: TaskRenderReceipt) { return { ownerKey: r.owner_key, principalId: r.created_by_principal, clientActorRef: r.client_actor_ref, billingSubjectKey: r.billing_subject_key, requestKind: r.request_kind, createdAt: r.created_at, expiresAt: r.expires_at, template: r.template_pin, policyVersion: r.resource_policy.version, status: r.status, reason: r.terminal_reason, core: { version: r.normalization_summary?.coreVersion ?? null, sha256: r.normalization_summary?.coreSha256 ?? null }, normalization: r.normalization_summary, processingStartedAt: r.processing_started_at, sendStartedAt: r.send_started_at, terminalAt: r.terminal_at, requestBytes: r.request_bytes === null ? null : Number(r.request_bytes), requestBytesMeasurement: r.request_bytes === null ? 'unknown_after_interruption' : 'observed', generation, delivery, pdfBytes: pdf?.receipt.byteLength ?? null, pageCount: pdf?.receipt.pageCount ?? null, pdfSha256: pdf?.receipt.sha256 ?? null, generationWarningCount: pdf?.warningCount ?? null }; }
+function facts(r: any, generation: string, delivery: string, pdf?: TaskRenderReceipt) { return { ownerKey: r.owner_key, principalId: r.created_by_principal, clientActorRef: r.client_actor_ref, billingSubjectKey: r.billing_subject_key, requestKind: r.request_kind, createdAt: r.created_at, expiresAt: r.expires_at, template: r.template_pin, policyVersion: r.resource_policy.version, status: r.status, reason: r.terminal_reason, core: { version: r.normalization_summary?.coreVersion ?? null, sha256: r.normalization_summary?.coreSha256 ?? null }, normalization: r.normalization_summary, processingStartedAt: r.processing_started_at, sendStartedAt: r.send_started_at, terminalAt: r.terminal_at, requestBytes: r.request_bytes === null ? null : Number(r.request_bytes), requestBytesMeasurement: r.request_bytes === null ? 'unknown_after_interruption' : 'observed', generation, delivery, pdfBytes: pdf?.receipt.byteLength ?? null, pageCount: pdf?.receipt.pageCount ?? null, pdfSha256: pdf?.receipt.sha256 ?? null, generationWarningCount: pdf?.warningCount ?? null, generationSummary: pdf?.summary ?? r.generation_summary ?? null, completeness: taskCompleteness(r, pdf?.summary ?? r.generation_summary) }; }

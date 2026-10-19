@@ -42,3 +42,13 @@ BEGIN
  RETURN NEW;
 END;
 $$;
+
+-- Generation observations are separate from the immutable normalization snapshot.
+ALTER TABLE task_findings ADD COLUMN detail jsonb NOT NULL DEFAULT '{}' CHECK(jsonb_typeof(detail)='object' AND octet_length(detail::text)<=32768);
+ALTER TABLE tasks ADD COLUMN generation_summary jsonb CHECK(generation_summary IS NULL OR (jsonb_typeof(generation_summary)='object' AND octet_length(generation_summary::text)<=8192));
+CREATE FUNCTION guard_task_generation_summary() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF OLD.generation_summary IS NOT NULL AND NEW.generation_summary IS DISTINCT FROM OLD.generation_summary THEN RAISE EXCEPTION 'Task generation observations are immutable' USING ERRCODE='55000'; END IF;
+ RETURN NEW;
+END; $$;
+CREATE TRIGGER task_generation_summary_guard BEFORE UPDATE ON tasks FOR EACH ROW EXECUTE FUNCTION guard_task_generation_summary();
