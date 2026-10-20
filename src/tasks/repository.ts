@@ -17,7 +17,13 @@ export function taskRepository(pool:Pool,policy:TaskPolicy,freeBytes:()=>Promise
   if(!Number.isSafeInteger(free)||free<0||t.held+t.legacy+delta>Math.min(p.poolBytes,t.pool??p.poolBytes)||t.held-t.used+t.legacyUnused+delta>free-Math.max(p.freeFloorBytes,t.floor))throw taskError('STORAGE_CAPACITY','Temporary storage capacity unavailable');
  }
  const live=(r:any)=>{if(r.due)throw taskError('TASK_EXPIRED');if(r.validation_due)throw taskError('TASK_TIMEOUT');if(terminal(r.status))throw taskError('TASK_REQUEST_CONFLICT');};
- return {row,event,live,
+ async function reserveLocked(c:PoolClient,r:any,needed:number){
+  if(!Number.isSafeInteger(needed)||needed<0)throw taskError('LIMIT_EXCEEDED');
+  const p=r.resource_policy as TaskPolicy,q=(await c.query('SELECT * FROM task_resource_reservations WHERE task_id=$1 FOR UPDATE',[r.id])).rows[0];
+  if(needed>p.taskBytes)throw taskError('LIMIT_EXCEEDED');const held=Number(q.storage_held_bytes),target=Math.min(p.taskBytes,held+Math.ceil(Math.max(0,needed-held)/p.growthBytes)*p.growthBytes);
+  await capacity(c,target-held,p);if(target>held)await c.query('UPDATE task_resource_reservations SET storage_held_bytes=$2,updated_at=now() WHERE task_id=$1',[r.id,target]);return target;
+ }
+ return {row,event,live,reserveLocked,
   async create(identity:TaskIdentity,versionId:string,pin:unknown,queueMode=false){return transaction(pool,async c=>{
    const p=queueMode?queuePolicy(policy):policy;
    await quotaLock(c);
@@ -32,9 +38,7 @@ export function taskRepository(pool:Pool,policy:TaskPolicy,freeBytes:()=>Promise
   async get(id:string){return (await pool.query('SELECT *,expires_at<=clock_timestamp() AS due FROM tasks WHERE id=$1',[id])).rows[0];},
   async reserve(id:string,needed:number,token?:string){if(!Number.isSafeInteger(needed)||needed<0)throw taskError('LIMIT_EXCEEDED');return transaction(pool,async c=>{
    await quotaLock(c);const r=await row(c,id);live(r);if(token&&(r.lease_token!==token||r.lease_due))throw taskError('WORKER_INTERRUPTED');
-   const p=r.resource_policy as TaskPolicy,q=(await c.query("SELECT * FROM task_resource_reservations WHERE task_id=$1 FOR UPDATE",[id])).rows[0];
-   if(needed>p.taskBytes)throw taskError('LIMIT_EXCEEDED');const held=Number(q.storage_held_bytes),target=Math.min(p.taskBytes,held+Math.ceil(Math.max(0,needed-held)/p.growthBytes)*p.growthBytes);
-   await capacity(c,target-held,p);if(target>held)await c.query('UPDATE task_resource_reservations SET storage_held_bytes=$2,updated_at=now() WHERE task_id=$1',[id,target]);return target;
+   return reserveLocked(c,r,needed);
   });},
   async claim(id:string,principal:string){return transaction(pool,async c=>{await quotaLock(c);const r=await row(c,id);live(r);if(r.created_by_principal!==principal)throw taskError('FORBIDDEN');if(r.status!=='awaiting_input'||r.receive_started_at)throw taskError('TASK_REQUEST_CONFLICT');
    if(r.lease_due)throw taskError('WORKER_INTERRUPTED');const next=(await c.query(`UPDATE tasks SET status='receiving',receive_started_at=clock_timestamp(),state_version=state_version+1,updated_at=now(),writer_pid=$2,writer_host=$3${Object.hasOwn(r,'writer_start_identity')?',writer_start_identity=$6':''},lease_token=$4,lease_expires_at=LEAST(expires_at,clock_timestamp()+($5*interval '1 millisecond')) WHERE id=$1 RETURNING *`,[id,process.pid,hostname(),randomUUID(),r.resource_policy.leaseMs,...(Object.hasOwn(r,'writer_start_identity')?[await processIdentity(process.pid)]:[])])).rows[0];await event(c,next,'receiving',r.status);return next;});},

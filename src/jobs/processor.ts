@@ -15,7 +15,7 @@ import type {PdfFiles,FilePolicy} from '../storage/pdf-files.js';
 import {renderDocumentJob} from './render.js';
 import {prepareOwnedJobImages,processing} from '../images/job.js';
 import type {ImageJobDependencies,JobImageInput} from '../images/job.js';
-interface Dependencies {pool:Pool;tasks?:{runNext:(signal:AbortSignal,leader:PoolClient)=>Promise<boolean>};initialize?:()=>Promise<void>;resources?:ImageJobDependencies;files:{writePdf:(id:string,bytes:Uint8Array)=>Promise<{path:string;byteSize:number;release?:()=>void}>};policy:FilePolicy;pollMs?:number;render?:(prepared:PreparedInput,template:TemplateDefinition,signal:AbortSignal,images?:JobImageInput)=>Promise<Result<Pick<PdfArtifact,"bytes"|"mediaType">>>}
+interface Dependencies {pool:Pool;tasks?:{runNext:(signal:AbortSignal,leader:PoolClient)=>Promise<boolean>;acquireLegacy?:(id:string,signal:AbortSignal,onStop:(code:string)=>void)=>Promise<{release():void}|null>;drain?:()=>Promise<void>};initialize?:()=>Promise<void>;resources?:ImageJobDependencies;files:{writePdf:(id:string,bytes:Uint8Array)=>Promise<{path:string;byteSize:number;release?:()=>void}>};policy:FilePolicy;pollMs?:number;render?:(prepared:PreparedInput,template:TemplateDefinition,signal:AbortSignal,images?:JobImageInput)=>Promise<Result<Pick<PdfArtifact,"bytes"|"mediaType">>>}
 export async function startProcessor(deps:Dependencies){
  const {pool}=deps,lock=await pool.connect();let stopping=false,healthy=true;const abort=new AbortController();
  const lost=()=>{healthy=false;stopping=true;abort.abort();};lock.on('error',lost);
@@ -24,20 +24,27 @@ export async function startProcessor(deps:Dependencies){
  const loop=(async()=>{while(!stopping){
   try{
    if(await deps.tasks?.runNext(abort.signal,lock))continue;
-   const job=await claimAndStartRender(deps,abort.signal);if(!job){await new Promise(r=>setTimeout(r,deps.pollMs??100));continue;}
+   const head=(await pool.query("SELECT id,task_id FROM generation_jobs WHERE status='queued' ORDER BY created_at,id LIMIT 1")).rows[0];
+   if(!head||head.task_id){await new Promise(r=>setTimeout(r,deps.pollMs??100));continue;}
+   const legacyAbort=new AbortController(),legacySignal=AbortSignal.any([abort.signal,legacyAbort.signal]);
+   const grant=deps.tasks?.acquireLegacy?await deps.tasks.acquireLegacy(head.id,legacySignal,code=>legacyAbort.abort(Object.assign(Error(),{code}))):{release(){}};
+   if(!grant){await new Promise(r=>setTimeout(r,deps.pollMs??100));continue;}
+   let confirmed=true;try{
+   const job=await claimAndStartRender(deps,legacySignal);if(!job){await new Promise(r=>setTimeout(r,deps.pollMs??100));continue;}
    try{
     const result=await job.pending;if(!result.ok){await failJob(pool,job.id,result.issues,result.warnings);continue;}
-    if(!healthy)break;
+    if(!healthy)break;if(legacySignal.aborted)throw legacySignal.reason;
     const output=await deps.files.writePdf(job.id,result.value.bytes);
     try{await transaction(pool,async c=>{
      const updated=await c.query("UPDATE generation_jobs SET status='succeeded',finished_at=now() WHERE id=$1 AND status='running' RETURNING id",[job.id]);if(updated.rowCount!==1)throw Error('Job transition conflict');
      await c.query("UPDATE job_processing SET stage='complete',warnings_json=warnings_json||$2::jsonb,updated_at=now() WHERE job_id=$1",[job.id,JSON.stringify(result.warnings)]);
      await c.query("INSERT INTO document_outputs(id,job_id,path,media_type,byte_size,retain,expires_at) VALUES(uuidv7(),$1,$2,'application/pdf',$3,$4 OR EXISTS(SELECT 1 FROM generation_jobs WHERE id=$1 AND preview_template_id IS NOT NULL),now()+($5 * interval '1 hour'))",[job.id,output.path,output.byteSize,deps.policy.retain,deps.policy.ttlHours]);
     });}finally{output.release?.();}
-   }catch{await failJob(pool,job.id,[{code:'RENDER_FAILED',path:'job',message:'Document processing failed'}]);}
+   }catch(e){if((e as any)?.code==='WORKER_STOP_UNCONFIRMED'){confirmed=false;lost();}await failJob(pool,job.id,[{code:'RENDER_FAILED',path:'job',message:'Document processing failed'}]);}
+   }finally{if(confirmed)grant.release();}
   }catch{lost();}
  }})();
- return {isReady:()=>healthy&&!stopping,async stop(){stopping=true;const timeout=setTimeout(()=>abort.abort(),5000);await loop;clearTimeout(timeout);try{if(healthy)await lock.query('SELECT pg_advisory_unlock(60430404)');}finally{lock.removeListener('error',lost);lock.release(!healthy);}}};
+ return {isReady:()=>healthy&&!stopping,async stop(){stopping=true;const timeout=setTimeout(()=>abort.abort(),5000);await loop;await deps.tasks?.drain?.();clearTimeout(timeout);try{if(healthy)await lock.query('SELECT pg_advisory_unlock(60430404)');}finally{lock.removeListener('error',lost);lock.release(!healthy);}}};
 }
 
 // This frame ends once transport starts. The waiting coordinator only retains the

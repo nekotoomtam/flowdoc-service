@@ -16,7 +16,7 @@ export async function createTaskIntake(deps:Dependencies){
  const resources=await createQueueResources(deps.queueResources);
  const queued=new Map<string,{abort:AbortController;done:Promise<void>;stage:'waiting'|'receiving'|'validating'}>();
  const externalReason=(signal:AbortSignal|undefined)=>{const code=(signal?.reason as any)?.code;return taskError(typeof code==='string'&&['TASK_EXPIRED','WORKER_INTERRUPTED','RESOURCE_LIMIT','UNAVAILABLE','TASK_TIMEOUT'].includes(code)?code:'CONNECTION_LOST');};
- const active=new Map<string,{abort:AbortController;done:Promise<void>}>(),opened=new Set<string>();let closing=false;
+ const active=new Map<string,{abort:AbortController;done:Promise<void>}>(),opened=new Set<string>();let closing=false,quarantined=false;
  async function authenticate(header:string){const i=await deps.resolveCredential(header);if(!i||!header.startsWith('Bearer ')||!i.ownerKey||!i.principalId||Buffer.byteLength(i.ownerKey)>200||Buffer.byteLength(i.principalId)>200||!Array.isArray(i.docKeys))throw taskError('UNAUTHORIZED');return i;}
  async function owned(header:string,id:string,write=false){const i=await authenticate(header);if(!validJobId(id))throw taskError('INVALID_REQUEST');const r=await repo.get(id);if(!r||r.owner_key!==i.ownerKey)throw taskError('TASK_NOT_FOUND');if(write?r.created_by_principal!==i.principalId:r.created_by_principal!==i.principalId&&!i.taskRead)throw taskError('FORBIDDEN');return {r,i};}
  const stopped=async(r:any)=>{if(!r.writer_pid)return true;if(r.writer_host!==hostname())return false;if(r.writer_start_identity&&await processIdentity(r.writer_pid)!==r.writer_start_identity)return true;try{process.kill(r.writer_pid,0);return false;}catch(e){return (e as NodeJS.ErrnoException).code==='ESRCH';}};
@@ -42,14 +42,15 @@ export async function createTaskIntake(deps:Dependencies){
  }
  async function fail(id:string,reason:string){const q=queued.get(id);if(q){q.abort.abort(taskError(reason));await q.done;await cleanup(id);return;}const a=active.get(id);if(a){a.abort.abort(taskError(reason));await a.done;}else{const r=await repo.get(id);if(['receiving','validating','queued','processing','sending'].includes(r?.status)&&(!await stopped(r)||!await groupStopped(r.child_pid,r.child_host,hostname())))return;await repo.finish(id,reason,r);}await cleanup(id);}
  async function sweep(recovery=false){
+  let blocked=false;
   const rows=(await pool.query("SELECT *,expires_at<=clock_timestamp() AS due,lease_expires_at<=clock_timestamp() AS lease_due FROM tasks WHERE status NOT IN ('succeeded','failed','expired') OR cleanup_status<>'done' ORDER BY created_at,id")).rows;
-  for(const r of rows){if(!terminal(r.status)){
+  for(const r of rows){if(r.child_pid&&!active.has(r.id)&&!queued.has(r.id)&&!await groupStopped(r.child_pid,r.child_host,hostname()))blocked=true;if(!terminal(r.status)){
    if(r.due)await fail(r.id,'TASK_EXPIRED');
    else if((recovery||r.lease_due&&['queued','processing','sending'].includes(r.status))&&!active.has(r.id)&&await stopped(r)&&await groupStopped(r.child_pid,r.child_host,hostname()))await fail(r.id,'WORKER_INTERRUPTED');
-  }await cleanup(r.id);}
+  }await cleanup(r.id);}quarantined=blocked;
  }
  async function open(request:Opening){
-  if(closing)throw taskError('UNAVAILABLE');const identity=await authenticate(request.authorization);
+  if(closing||quarantined)throw taskError('UNAVAILABLE');const identity=await authenticate(request.authorization);
   if(typeof request.docKey!=='string'||!request.docKey.trim()||request.docKey.includes(',')||request.docKey.length>200)throw taskError('INVALID_REQUEST');
   if(request.contentEncoding&&request.contentEncoding!=='identity')throw taskError('UNSUPPORTED_MEDIA');taskBoundary(request.contentType);
   if(!identity.docKeys.includes(request.docKey))throw taskError('TEMPLATE_NOT_FOUND');const selected=await loadTemplate(pool,request.docKey);if(!selected.ok)throw taskError('TEMPLATE_NOT_FOUND');
@@ -137,11 +138,11 @@ export async function createTaskIntake(deps:Dependencies){
  async function findings(header:string,id:string,cursor=0,limit=50){await owned(header,id);if(!Number.isSafeInteger(cursor)||cursor<0||!Number.isSafeInteger(limit)||limit<1||limit>100)throw taskError('INVALID_REQUEST');const rows=(await pool.query('SELECT * FROM task_findings WHERE task_id=$1 AND sequence>$2 ORDER BY sequence LIMIT $3',[id,cursor,limit+1])).rows;const items=rows.slice(0,limit).map(f=>({id:f.id,sequence:Number(f.sequence),code:f.code,sectionId:f.section_id,pointer:f.pointer,locatorSha256:f.locator_sha256,affectedPlacementCount:Number(f.affected_placement_count),...(Object.keys(f.detail??{}).length?{detail:f.detail}:{})}));return {items,nextCursor:rows.length>limit?items.at(-1)!.sequence:null};}
  await sweep(true);let maintenance:Promise<void>|undefined;
  const timer=setInterval(()=>{if(closing||maintenance)return;maintenance=sweep().catch(()=>{}).finally(()=>{maintenance=undefined;});},p.sweepMs);timer.unref();
- return {authenticate,processingContext:{pool,files,repo,owned,active,cleanup,policy:p},open,receive,normalize,receiveQueued,findings,reserve:repo.reserve,async inspect(header:string,id:string){return safeTask((await owned(header,id)).r);},fail,
+ return {authenticate,quarantined:()=>quarantined,processingContext:{pool,files,repo,owned,active,cleanup,policy:p,resources},open,receive,normalize,receiveQueued,findings,reserve:repo.reserve,async inspect(header:string,id:string){return safeTask((await owned(header,id)).r);},fail,
   queueSnapshot:resources.snapshot,
   queueState(id:string){const state=queued.get(id);return state?{stage:state.stage,waitReason:state.stage==='waiting'?(resources.snapshot().intakes>=2?'receive_slot':'memory'):null}:null;},
   sharedQueueEnabled:resources.enabled,
-  queueCapability(){return resources.ready()?{mode:'queue-v1',earlyResponse:true,continuedUpload:true,maxOutstanding:Math.min(10,p.maxOutstanding),maxOwnerTasks:10,maxIntakes:2,maxProcessing:1,maxSenders:2}:null;},
+  queueCapability(){return resources.ready()?{mode:'queue-v1',earlyResponse:true,continuedUpload:true,maxOutstanding:Math.min(10,p.maxOutstanding),maxOwnerTasks:10,maxIntakes:2,maxProcessing:2,maxSenders:2}:null;},
   async recover(){await sweep(true);},async sweep(){await sweep();},
   async stop(){closing=true;clearInterval(timer);await resources.stop();for(const q of queued.values())q.abort.abort(taskError('WORKER_INTERRUPTED'));for(const a of active.values())a.abort.abort(taskError('WORKER_INTERRUPTED'));await Promise.all([...queued.values(),...active.values()].map(a=>a.done));await maintenance;for(const id of opened){const r=await repo.get(id);if(r?.status==='awaiting_input')await fail(id,'WORKER_INTERRUPTED');}}
  };

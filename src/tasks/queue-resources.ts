@@ -23,7 +23,8 @@ export async function createQueueResources(options:QueueResourceOptions={}){
  const active=new Map<string,{request:Request;sequence:number;stopping:boolean}>(),waiting:Waiter[]=[];
  let sample:MemorySample|undefined,sampledAt=0,faultSince:number|undefined,closed=false,busy=false,pressure=false,low=0,emergency=0,sequence=0,enabled=false;
  const credits=()=>128+[...active.values()].reduce((n,a)=>n+cost[a.request.kind],0);
- const healthy=()=>!closed&&!!sample&&faultSince===undefined&&Date.now()-sampledAt<=500;
+ let startupEnabled=false;
+ const healthy=()=>startupEnabled&&!closed&&!!sample&&faultSince===undefined&&Date.now()-sampledAt<=500;
  const counts=(kind:Kind)=>[...active.values()].filter(a=>a.request.kind===kind).length;
  const reject=(w:Waiter,error:unknown)=>{const at=waiting.indexOf(w);if(at>=0)waiting.splice(at,1);w.request.signal?.removeEventListener('abort',w.abort);w.reject(error);};
  function stopActive(code:string,all=false){
@@ -60,10 +61,21 @@ export async function createQueueResources(options:QueueResourceOptions={}){
    faultSince??=sampledAt||Date.now();if(Date.now()-faultSince>=500){for(const w of [...waiting])reject(w,taskError('UNAVAILABLE'));stopActive('UNAVAILABLE',true);}
   }finally{busy=false;drain();}
  }
- await tick();const timer=setInterval(()=>{void tick();},interval);timer.unref();
+ await tick();startupEnabled=enabled;const timer=setInterval(()=>{void tick();},interval);timer.unref();
  return {
-  enabled:()=>enabled,
+  enabled:()=>startupEnabled,
   ready:healthy,
+  holds:(id:string,kind:Kind)=>active.get(id)?.request.kind===kind,
+  tryAcquire(id:string,request:Request):Grant|null{
+   if(!healthy())throw taskError('UNAVAILABLE');
+   if(request.signal?.aborted)throw request.signal.reason??taskError('WORKER_INTERRUPTED');
+   if(request.expiresAt<=Date.now())throw taskError('TASK_EXPIRED');
+   if(active.has(id)||waiting.some(w=>w.id===id))throw taskError('TASK_REQUEST_CONFLICT');
+   if(pressure||[...active.values()].some(a=>a.stopping)||waiting.some(w=>w.request.kind===request.kind)||counts(request.kind)>=limit[request.kind]||Math.max(sample!.current/MiB,credits())+cost[request.kind]>768)return null;
+   active.set(id,{request,sequence:++sequence,stopping:false});let released=false;
+   return {release(){if(released)return;released=true;active.delete(id);drain();}};
+  },
+  waitReason(kind:Kind){return counts(kind)>=limit[kind]?(kind==='worker'?'processing_slot':kind==='sender'?'send_slot':'receive_slot'):'memory';},
   acquire(id:string,request:Request):Promise<Grant>{
    if(!healthy())return Promise.reject(taskError('UNAVAILABLE'));
    if(request.signal?.aborted)return Promise.reject(request.signal.reason??taskError('CONNECTION_LOST'));
