@@ -8,6 +8,7 @@ import type { createTaskIntake } from './intake.js';
 import { quotaLock, taskError } from './quota.js';
 import { processIdentity } from './workspace.js';
 import { terminal, safeTask, taskCompleteness } from './repository.js';
+import {QUEUE_POLICY_VERSION} from './policy.js';
 import { readReferences, verifyReferences } from '../fonts/retention.js';
 import { resolveFontReadiness } from '../fonts/readiness.js';
 import { makeFontSnapshot, persistJobFonts, validateFontSnapshot, rendererIdentity } from '../fonts/snapshot.js';
@@ -84,6 +85,7 @@ export async function createTaskProcessing(deps: Dependencies) {
         const execution: Execution = { abort, done };
         executing.set(id, execution);
         active.set(id, { abort, done });
+        const queueMode=p.version===QUEUE_POLICY_VERSION;
         let generation = 'not_started', delivery = 'not_started', pdf: TaskRenderReceipt | undefined, renewing = false;
         const disconnect = () => abort.abort(taskError('CONNECTION_LOST'));
         request.signal?.addEventListener('abort', disconnect, { once: true });
@@ -94,7 +96,9 @@ export async function createTaskProcessing(deps: Dependencies) {
                 return;
             renewing = true;
             void (async () => {
-                const r = await repo.get(id);
+                // Queue status reads stay in the one-second loop. Lease safety must
+                // continue independently while feedback or PDF writes await transport.
+                const r = queueMode ? {status:lastState||'queued',due:+row.expires_at<=Date.now()} : await repo.get(id);
                 if (r.status === 'queued' && !deps.workerReady())
                     abort.abort(taskError('WORKER_INTERRUPTED'));
                 else if (r.due)
@@ -102,7 +106,7 @@ export async function createTaskProcessing(deps: Dependencies) {
                 else if (!await repo.renew(id, row.lease_token))
                     abort.abort(taskError('WORKER_INTERRUPTED'));
             })().catch(() => abort.abort(taskError('WORKER_INTERRUPTED'))).finally(() => { renewing = false; });
-        }, Math.min(1000, Math.floor(p.leaseMs / 3)));
+        }, Math.min(queueMode?10000:1000, Math.floor(p.leaseMs / 3)));
 
         let started = false, lastState = '', lastFeedback = 0;
         async function transport(operation: () => Promise<void>) {
@@ -133,7 +137,7 @@ export async function createTaskProcessing(deps: Dependencies) {
         }
         try {
             const q = (await pool.query('SELECT storage_used_bytes FROM task_resource_reservations WHERE task_id=$1', [id])).rows[0];
-            await repo.reserve(id, Number(q.storage_used_bytes) + fontWorkspaceBound(admission.snapshot).bytes + 64 * 1048576, row.lease_token);
+            if(!queueMode)await repo.reserve(id, Number(q.storage_used_bytes) + fontWorkspaceBound(admission.snapshot).bytes + 64 * 1048576, row.lease_token);
             started = true;
             while (true) {
                 abort.signal.throwIfAborted();
@@ -142,10 +146,14 @@ export async function createTaskProcessing(deps: Dependencies) {
                     generation = 'interrupted';
                 if (terminal(r.status))
                     throw taskError(r.terminal_reason ?? 'RENDER_FAILED');
+                if(queueMode){
+                    if(+r.expires_at<=Date.now())throw taskError('TASK_EXPIRED');
+                    if(!deps.workerReady())throw taskError('WORKER_INTERRUPTED');
+                }
                 await feedback(r);
                 if (r.status === 'sending')
                     break;
-                await wait(20);
+                await wait(queueMode?1000:20);
             }
             await execution.renderDone;
             abort.signal.throwIfAborted();
