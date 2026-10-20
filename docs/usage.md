@@ -6,6 +6,12 @@ vendor/manifest.json อ่านข้อมูลที่ normalize แล้
 ยังไม่มี public `/documents` หรือ capability ใหม่; การเชื่อม HTTP/FlowDocMake
 เป็นช่วงถัดไป ตัวรับ–ส่งต้องรอ write/finish จริงและ abort ต้องปิดการส่งที่ค้าง.
 ทาง task รองรับ Linux/amd64 เท่านั้นใน candidate นี้; ไม่ใช่คำอนุญาตติดตั้ง.
+Container ที่รัน task ต้องมี init เก็บกวาด process ลูก: Compose ที่ให้มาตั้ง
+`init: true` ให้ API, registry และ verification แล้ว หากเปิดด้วย `docker run`
+โดยตรงต้องใส่ `--init` ด้วย แม้เปลี่ยน entrypoint เป็น Node. ไม่รองรับ Node เป็น
+PID1 สำหรับงาน task เพราะเมื่อ worker ถูก SIGKILL อาจเหลือ zombie.
+หลัง build image ทดลอง ใช้ `FLOWDOC_REGISTRY_IMAGE` ระบุ image นั้นแล้วรัน
+`npm run check:process-reaping` เพื่อตรวจการหยุดปกติและบังคับฆ่า worker.
 หลักการเก็บ/หยุด/ล้างไฟล์และข้อจำกัดอยู่ในหัวข้อ Internal task processing ของ README.
 
 Candidate เซลล์ชื่อกลุ่ม: ตรวจ `groupLabelSpans.version:1` ใน authoring contract

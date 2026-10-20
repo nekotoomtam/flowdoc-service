@@ -66,6 +66,14 @@ RGB/alpha derivatives from private files, and emits64KiB acknowledged PDF chunks
 The parent reserves before writes. Font scratch has an exclusive conservative
 window and inherited native per-file ceiling; no capacity is released before
 actual process-group stop and file removal. A Windows task render fails closed.
+Container supervision requires a child-reaping init: the supplied Compose services
+enable `init: true`, including API entrypoint overrides. Direct `docker run` launches
+must include `--init`; running Node as container PID1 is unsupported for task workers.
+Cooperative abort closes native sessions; after a worker SIGKILL, init reaps its
+orphaned children. Existing process-group stop and reservation checks still apply.
+After building the candidate runtime image, `npm run check:process-reaping` checks
+the Compose settings and real native-child cleanup, including forced worker death.
+Set `FLOWDOC_REGISTRY_IMAGE` to that built candidate image when checking a private build.
 Parent plus owned-group RSS is sampled: pause new decode at768MiB, terminate at
 896MiB; deploy under a1GiB cgroup. Sampling is not proof of full workload peak RAM.
 This candidate's trial storage pool is1.5GB; the planned10GB deployment is untested.

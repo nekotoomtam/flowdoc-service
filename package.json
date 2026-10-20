@@ -16,7 +16,8 @@
     "start": "node dist/server.js",
     "tools:authoring": "node dist/tools/server.js",
     "check:api": "node scripts/checkApi.mjs",
-    "check:uploads": "node scripts/checkUploads.mjs"
+    "check:uploads": "node scripts/checkUploads.mjs",
+    "check:process-reaping": "node scripts/checkProcessReaping.mjs"
   },
   "dependencies": {
     "@fastify/busboy": "3.2.3",
