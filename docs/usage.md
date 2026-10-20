@@ -1,10 +1,10 @@
-# คู่มือใช้งาน FlowDoc Service 0.4.7
+# คู่มือใช้งาน FlowDoc Service 0.4.8
 
-Candidate นี้มีทางประมวลผล task ภายใน (migration024) ใช้ Core0.4.7 จาก
+รุ่นนี้มีทางประมวลผล task (migration024) ใช้ Core0.4.7 จาก
 vendor/manifest.json อ่านข้อมูลที่ normalize แล้วจากไฟล์ เตรียมภาพทีละรายการ
 และส่ง feedback กับ PDF แบบ multipart โดยไม่รวม PDF ทั้งก้อนใน RAM.
-ยังไม่มี public `/documents` หรือ capability ใหม่; การเชื่อม HTTP/FlowDocMake
-เป็นช่วงถัดไป ตัวรับ–ส่งต้องรอ write/finish จริงและ abort ต้องปิดการส่งที่ค้าง.
+มี `/documents` และ FlowDocMake manage_document_task เมื่อเปิด task credentials
+อย่างชัดเจนตามท้ายคู่มือ ตัวรับ–ส่งต้องรอ write/finish จริงและ abort ต้องปิดการส่งที่ค้าง.
 ทาง task รองรับ Linux/amd64 เท่านั้นใน candidate นี้; ไม่ใช่คำอนุญาตติดตั้ง.
 Container ที่รัน task ต้องมี init เก็บกวาด process ลูก: Compose ที่ให้มาตั้ง
 `init: true` ให้ API, registry และ verification แล้ว หากเปิดด้วย `docker run`
@@ -16,7 +16,7 @@ PID1 สำหรับงาน task เพราะเมื่อ worker ถ�
 
 Candidate เซลล์ชื่อกลุ่ม: ตรวจ `groupLabelSpans.version:1` ใน authoring contract
 ก่อนส่ง rowGroups.groupLabel (model19/schema1,2). Core package/checksum อยู่ใน
-vendor/manifest.json; ชุดส่งมอบพัฒนาเป็น 0.4.7 และยังไม่ใช่คำอนุญาตติดตั้ง.
+vendor/manifest.json; ชุดส่งมอบ Service0.4.8/Core0.4.7 ยังไม่ใช่คำอนุญาตติดตั้ง.
 save/read/clone/import คง declaration; job ตรึง revision/ข้อมูล/engine/font เดิม.
 auto ตรวจฟอนต์รวม ` (ต่อ)`; fixed ไม่มีหน้าต่อและส่ง FORMAT_CONTENT_OMITTED
 พร้อม groupId/groupIndex/itemIndex ของส่วนค้าง. ถ้าชื่อเต็มใส่ auto ไม่ได้
@@ -53,15 +53,15 @@ README และ vendor/manifest.json ปัจจุบัน; ส่วนค�
 และหมดอายุสามชั่วโมงนับจากเวลาสร้าง; ตรวจ cleanup ทุกสิบวินาทีและกู้เมื่อเริ่ม
 adapter ใหม่ โดยไม่ลบไฟล์ของ process ที่ยังทำงาน. ต้องเรียก stop ก่อนปิด pool.
 ยังไม่มี public `POST /documents`, ไม่เริ่ม job และไม่ได้รับรอง Core input/PDF.
-การเปิด API และการจอง scratch/PDF ของงานเดิมให้ครบยังเป็นงานช่วงถัดไป.
+API task ต้องเปิด credentials อย่างชัดเจน; การจอง scratch/PDF ใช้ budget ของ task.
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-candidate 0.4.7 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
+ชุด Service0.4.8/Core0.4.7 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
 
-คู่มือนี้ตาม candidate Service/Core 0.4.7 ซึ่งยังไม่ออก tag/ติดตั้ง; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
+คู่มือนี้ตาม Service0.4.8/Core0.4.7; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
 annotated tag หลังผ่านเกณฑ์ออกรุ่น ไม่อนุมานจากชื่อ image. รองรับ Area18 ทั้ง schemaVersion 1
 (Sarabun เดิม) และ 2 (คลังฟอนต์). เลข schema, รุ่นฟอนต์, รุ่นแม่แบบ และรุ่น Service
 เป็นคนละค่า. คำสั่ง publish ด้านล่างคือเผยแพร่เวอร์ชันแม่แบบ ไม่ใช่ Git release;
@@ -110,7 +110,7 @@ proxy; ไม่เพิ่ม CORS หรือ static route ให้ product
 สำหรับ model19 ใช้ sections เป็น array ระบุ ID ตาม contract; ห้ามแปลงชื่อเป็น ID เอง.
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด candidate 0.4.7
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด Service0.4.8
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
@@ -121,7 +121,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.4.7'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.4.8'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -591,7 +591,7 @@ UPLOAD_GONE จึงยังไม่ใช่หลักฐาน same-revis
 ของผลิตภัณฑ์เพื่อให้ตัวทดสอบเก่าผ่าน.
 ใช้ผลล่าสุดของ candidate ที่จะออกรุ่นตัดสินตามเกณฑ์รับงาน ไม่ขยายผลจากการตรวจเอกสาร.
 
-### 8.2 ขอเสนอและยืนยันขนาด (development candidate 0.4.7)
+### 8.2 ขอเสนอและยืนยันขนาด (Service0.4.8/Core0.4.7)
 
 POST `/authoring/drafts/:id/font-height-adjustments` รับ expectedRevision/styleId/
 targetFont/idempotencyKey. ใช้ credential เจ้าของ; metric และ pt อ่านจาก draft กับ
@@ -612,17 +612,18 @@ Migration 020 เพิ่มตารางข้อเสนอเท่าน
 
 ### 8.3 เตรียมส่งมอบตัวช่วยความสูงและการกู้คืน
 
-Candidate ใช้ Service/Core `0.4.7` กับ FlowDocMake
-`0.2.5` และ Core SHA256 ใน vendor/manifest.json.
-นี่เป็นชุด development ที่ตรวจร่วม ไม่ใช่ release/tag หรือคำอนุญาตติดตั้งจริง.
+ชุดส่งมอบใช้ Service `0.4.8` / Core `0.4.7` กับ FlowDocMake
+`0.2.7` และ Core SHA256 ใน vendor/manifest.json.
+ตัวตน release ต้องตรวจ tag/snapshot ของแต่ละส่วน; การติดตั้งจริงต้องได้รับอนุญาตแยก.
 Core schema/renderer เดิมไม่เปลี่ยน; helper ต้องยืนยันก่อนบันทึกและตรวจ PDF ทุกครั้ง.
 IBM Plex Sans Thai, Pridi, Noto Sans Thai Looped และ Noto Serif Thai ชุดที่ได้รับ
 ไม่มี italic; ห้ามนับเป็นผลผ่านของ italic หรือสร้างตัวเอียงแทน.
 
 ก่อน upgrade หลังได้รับอนุญาต: หยุดรับงาน/รอ job จบ สำรอง PostgreSQL แบบ custom dump
 และ staging/font library รวม licenses, output/temp ที่ต้องรักษา พร้อม config/secret
-แยกไว้ในที่ปลอดภัย. ใช้ image/source/Core hash ที่ตรึง สั่ง migrate ไปถึง 023;
-ห้ามแก้ bytes ของ 001–021. ตรวจ replay ไม่ apply ซ้ำ, admin/author แยก credential,
+แยกไว้ในที่ปลอดภัย รวม TASK_STORAGE_DIR และ task credentials ถ้าเปิดใช้งาน.
+ใช้ image/source/Core hash ที่ตรึง สั่ง migrate ไปถึง 024;
+ห้ามแก้ bytes ของ 001–024. ตรวจ replay ไม่ apply ซ้ำ, admin/author แยก credential,
 เปิด draft เดิม, catalog/default/retired, helper และ preview/download ก่อนเปิดงาน.
 Profile/assignment/review และ proposals/receipts ต้องอยู่ใน dump เดียวกัน.
 
@@ -654,9 +655,23 @@ complete and omission warnings are distinct from skipped input indices.
 No migration or Area/request sizing field is introduced. Existing backup,
 restore and installation steps still apply; this candidate is not installed.
 
-### Streamed document task API (unreleased Service0.4.8 / Core0.4.7)
+### Streamed document task API (Service0.4.8 / Core0.4.7)
 
 Enable only with the trusted `TASK_CREDENTIALS_FILE` mapping described in README.
+Base Compose keeps tasks disabled. After separately authorized backup/upgrade,
+add an operator-owned Compose override for api environment:
+`TASK_CREDENTIALS_FILE: /run/secrets/task-credentials.json` and
+`TASK_STORAGE_DIR: /app/staging/tasks`; mount the protected credential JSON file
+read-only at that first path. The existing staging volume retains task sources
+until their original expiry. A minimal credential entry has token (at least32
+characters), ownerKey, principalId, docKeys array and taskRead boolean; supply
+trusted server identities, never caller-claimed identities. Do not commit secrets.
+Use the same override file for migration/start/stop. Check actual Init=true,
+Service/Core versions and archive SHA, migrations through024, authenticated
+feedback/PDF/hash/closing boundary, denied-owner lookup and interruption cleanup
+in an isolated instance before enabling real requests. Backup task storage and
+credentials consistently with the DB. Roll back using a matching DB/files/image
+backup in a separate instance; do not run an older binary against migrated data.
 Send `Authorization: Bearer <configured-task-token>`, `Doc-Key: <authorized-key>`,
 `Content-Type: multipart/form-data; boundary=<request-boundary>` and optionally
 `Accept: multipart/mixed`. The first part is `payload` with application/json:

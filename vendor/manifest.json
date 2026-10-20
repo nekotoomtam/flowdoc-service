@@ -1,10 +1,10 @@
 {
   "name": "@flowdoc/core",
   "version": "0.4.7",
-  "file": "flowdoc-core-0.4.7-segmenter-session.tgz",
-  "sha256": "938c8627ec86c03d040dffc7fc8892b7a146182f4f4ed25f99b5cf099b62fe1a",
-  "sourceCommit": "5fc454c7360b4837b363669ebc09eac67364a81b",
-  "sourceArtifact": "C:\\Users\\nekot\\Documents\\Codex\\2026-10-20\\segmenter-session/artifacts/flowdoc-core-0.4.7.tgz",
+  "file": "flowdoc-core-0.4.7-release.tgz",
+  "sha256": "13673f22cca9667e88125dd4631b0b398c912b8e96c6734a2932b5ff27f3a8ad",
+  "sourceCommit": "8f8a739aea5597b6d8c9932c790f9bd716e8ebc7",
+  "sourceArtifact": "C:\\Users\\nekot\\Documents\\Codex\\2026-10-20\\release-047-048/flowdoc-core-0.4.7.tgz",
   "runtime": "linux-x64 glibc, Node24, Python3.11, fontTools4.58.2",
-  "candidate": "isolated persistent-segmenter experiment; not a published0.4.7 release"
+  "delivery": "Core0.4.7 / Service0.4.8 / FlowDocMake0.2.7; Git release identity is its annotated snapshot tag; installation separate"
 }

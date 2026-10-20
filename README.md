@@ -1,6 +1,6 @@
 # FlowDoc Service
 
-Development candidate `0.4.8` supports model19 Section instance authoring
+Package `0.4.8` supports model19 Section instance authoring
 beside unchanged model18. `POST /authoring/drafts/:id/sections` creates an empty
 authored Section; `POST /authoring/drafts/:id/sections/import` copies saved source
 Sections into an owned target with new public/normalized IDs. Import accepts
@@ -25,11 +25,12 @@ Project Control Section–Area contract; this paragraph covers this repository.
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Package version: 0.4.8 (unreleased candidate). A release identity requires an annotated tag on the
+Package version: 0.4.8. A release identity requires an annotated tag on the
 snapshot branch; a package version alone does not establish release acceptance.
-This development candidate pins Core 0.4.7 for its opt-in pure
-font-height calculation API and revision-bound proposal/confirmation endpoints.
-It is untagged and not an installed Service release.
+This package pins Core 0.4.7 for streamed document tasks, group-label spans,
+the bounded segmenter session, and opt-in font-height proposal/confirmation.
+The exact file/checksum/source commit are in vendor/manifest.json. Installation
+is separate from the Git release; this repository does not identify a running server.
 The local HTTP API includes a serial export processor,
 temporary PDF lifecycle and JPEG/PNG resource preparation. Release/tag promotion
 is separate. Font administration uses the CLI and scoped administrator permission;
@@ -41,7 +42,7 @@ It describes candidate 0.4.8; shared release status remains in Project Control.
 
 ## Local setup and acceptance
 
-Unreleased task normalization: migration023 adds immutable normalization pins and
+Task normalization: migration023 adds immutable normalization pins and
 paginated image findings to migration022's task foundation. Internal `normalize`
 uses the packed Core reader and file byte ranges; it never parses a whole payload
 or Section into memory. Image keys are Section-local; anonymous occurrences stay
@@ -52,11 +53,12 @@ checked; full decoding/preparation belongs to the internal task processor below.
 Normalization writes a private version1 artifact and remains at `validating`;
 its summary is historical normalization evidence, not job/PDF readiness.
 
-Internal task processing (migration024, development0.4.7): `createTaskProcessing`
+Task processing (migration024, Service0.4.8/Core0.4.7): `createTaskProcessing`
 connects normalized task files to one immutable `flowdoc-task-job/1` child job.
 Pass its hook to the existing serial `startProcessor({tasks: manager, ...})` and
 stop the manager before the intake/pool. This adapter is not a public endpoint.
-Admission pins the exact Core tarball, template version and font snapshot; the
+The authenticated `/documents` route uses this adapter; task credentials must be
+explicitly enabled as described below. Admission pins the exact Core tarball, template version and font snapshot; the
 normalized file digest is verified before bounded Core composition. Legacy
 PreparedInput jobs, byte-return PDF limits and API capabilities stay unchanged.
 
@@ -280,11 +282,11 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.4.7 candidate is installed solely from `vendor/flowdoc-core-0.4.7.tgz`.
-This unpromoted candidate pins Core commit `e1a6517` and SHA-256
-`dc65df98e1a605236e0c2e4f13dc1595b1b9924709ceed9ab276ee0a6006a529`;
-the release archive remains unchanged. This is the prepared development 0.4.7
-delivery candidate, not an installed release. `/authoring/contract` advertises optional `groupLabelSpans`
+Core 0.4.7 is installed solely from `vendor/flowdoc-core-0.4.7-release.tgz`.
+Exact SHA256 and Core source commit are recorded in `vendor/manifest.json` and
+the lockfile; earlier candidate archives remain immutable. Service0.4.8 uses
+FlowDocMake0.2.7 with the same exact pin. Installation is separately authorized.
+`/authoring/contract` advertises optional `groupLabelSpans`
 v1 for model19/schema1,2. Stored definitions, clones/imports and queued jobs retain
 the declaration. Font snapshots pin this exact engine checksum; a different engine
 cannot resume those jobs. Auto readiness includes generated ` (ต่อ)` in the label
@@ -590,7 +592,7 @@ complete and omission warnings are distinct from skipped input indices.
 No migration or Area/request sizing field is introduced. Existing backup,
 restore and installation steps still apply; this candidate is not installed.
 
-## Opt-in streamed document tasks (candidate 0.4.8)
+## Opt-in streamed document tasks (Service0.4.8)
 
 Core remains exactly0.4.7 from the pinned vendor archive; migration024 remains
 latest. The new HTTP path is disabled unless `TASK_CREDENTIALS_FILE` names a private
