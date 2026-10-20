@@ -5,7 +5,7 @@ import {loadBundledResources} from '@flowdoc/core';
 import {failure} from '../errors.js';
 import {tmpdir} from 'node:os';
 import {imageNodes as collectImageNodes} from '../images/nodes.js';
-import type {Pool} from 'pg';
+import type {Pool,PoolClient} from 'pg';
 import {validateTemplate,composeDocument,prepareGeneration} from '@flowdoc/core';
 import {isDeepStrictEqual} from 'node:util';
 import type {PdfArtifact,Result,PreparedInput,TemplateDefinition} from '@flowdoc/core';
@@ -15,7 +15,7 @@ import type {PdfFiles,FilePolicy} from '../storage/pdf-files.js';
 import {renderDocumentJob} from './render.js';
 import {prepareOwnedJobImages,processing} from '../images/job.js';
 import type {ImageJobDependencies,JobImageInput} from '../images/job.js';
-interface Dependencies {pool:Pool;initialize?:()=>Promise<void>;resources?:ImageJobDependencies;files:{writePdf:(id:string,bytes:Uint8Array)=>Promise<{path:string;byteSize:number;release?:()=>void}>};policy:FilePolicy;pollMs?:number;render?:(prepared:PreparedInput,template:TemplateDefinition,signal:AbortSignal,images?:JobImageInput)=>Promise<Result<Pick<PdfArtifact,"bytes"|"mediaType">>>}
+interface Dependencies {pool:Pool;tasks?:{runNext:(signal:AbortSignal,leader:PoolClient)=>Promise<boolean>};initialize?:()=>Promise<void>;resources?:ImageJobDependencies;files:{writePdf:(id:string,bytes:Uint8Array)=>Promise<{path:string;byteSize:number;release?:()=>void}>};policy:FilePolicy;pollMs?:number;render?:(prepared:PreparedInput,template:TemplateDefinition,signal:AbortSignal,images?:JobImageInput)=>Promise<Result<Pick<PdfArtifact,"bytes"|"mediaType">>>}
 export async function startProcessor(deps:Dependencies){
  const {pool}=deps,lock=await pool.connect();let stopping=false,healthy=true;const abort=new AbortController();
  const lost=()=>{healthy=false;stopping=true;abort.abort();};lock.on('error',lost);
@@ -23,6 +23,7 @@ export async function startProcessor(deps:Dependencies){
  catch(e){lock.removeListener('error',lost);lock.release();throw e;}
  const loop=(async()=>{while(!stopping){
   try{
+   if(await deps.tasks?.runNext(abort.signal,lock))continue;
    const job=await claimAndStartRender(deps,abort.signal);if(!job){await new Promise(r=>setTimeout(r,deps.pollMs??100));continue;}
    try{
     const result=await job.pending;if(!result.ok){await failJob(pool,job.id,result.issues,result.warnings);continue;}

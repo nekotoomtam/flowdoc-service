@@ -6,6 +6,7 @@ import {validJobId} from '../jobs/repository.js';
 import type {ResourceFiles} from '../storage/resource-files.js';
 import type {UploadConfig} from './config.js';
 import {validateManifest} from './validation.js';
+import {assertTaskPoolCapacity} from '../tasks/quota.js';
 const error=(code:string,message:string)=>new OperationError(code,'upload',message);
 export function createUploads(deps:{pool:Pool;files:ResourceFiles;config:UploadConfig;clock?:()=>number}){
  const {pool,files,config}=deps,now=deps.clock??Date.now;
@@ -37,6 +38,7 @@ export function createUploads(deps:{pool:Pool;files:ResourceFiles;config:UploadC
    const quota=(await c.query('SELECT count(*) AS count,coalesce(sum(reserved_bytes),0) AS bytes FROM upload_sessions WHERE deleted_at IS NULL')).rows[0];
    const size=m.items.reduce((n,i)=>n+(i.source==='upload'?i.byteSize:0),0);
    if(Number(quota.count)>=config.maxSessions||Number(quota.bytes)+size>config.stagingBytes)throw error('UPLOAD_CAPACITY','Staging capacity reached');
+   await assertTaskPoolCapacity(c,size,files.freeBytes);
    const t=now(),id=(await c.query('INSERT INTO upload_sessions(request_key,manifest_digest,reserved_bytes,last_progress_at,expires_at,absolute_expires_at,authoring_principal) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id',[requestKey,digest,size,new Date(t),new Date(t+Math.min(config.idleMs,config.absoluteMs)),new Date(t+config.absoluteMs),principal??null])).rows[0].id;
    for(const i of m.items)await c.query('INSERT INTO upload_items(upload_id,key,source_kind,media_type,expected_bytes,source_url,status) VALUES($1,$2,$3,$4,$5,$6,$7)',[id,i.key,i.source,i.source==='upload'?i.mediaType:null,i.source==='upload'?i.byteSize:null,i.source==='url'?i.url:null,i.source==='url'?'declared':'pending']);
    return id;

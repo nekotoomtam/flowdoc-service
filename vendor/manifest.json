@@ -1,9 +1,10 @@
 {
   "name": "@flowdoc/core",
-  "version": "0.4.3",
-  "file": "flowdoc-core-0.4.3.tgz",
-  "sha256": "64dae8f530b8b02be1a36c6cf15172635a7752c4d70ec1edacad8593269805b2",
-  "sourceCommit": "559b126c51073c31a2d42b3963d5d95a9b87757f",
-  "sourceArtifact": "C:/Users/nekot/Documents/Codex/2026-10-17/format-release-preparation/delivery/core/flowdoc-core-0.4.3.tgz",
-  "runtime": "linux-x64 glibc, Node24, Python3.11, fontTools4.58.2"
+  "version": "0.4.7",
+  "file": "flowdoc-core-0.4.7-release.tgz",
+  "sha256": "13673f22cca9667e88125dd4631b0b398c912b8e96c6734a2932b5ff27f3a8ad",
+  "sourceCommit": "8f8a739aea5597b6d8c9932c790f9bd716e8ebc7",
+  "sourceArtifact": "C:\\Users\\nekot\\Documents\\Codex\\2026-10-20\\release-047-048/flowdoc-core-0.4.7.tgz",
+  "runtime": "linux-x64 glibc, Node24, Python3.11, fontTools4.58.2",
+  "delivery": "Core0.4.7 / Service0.4.8 / FlowDocMake0.2.7; Git release identity is its annotated snapshot tag; installation separate"
 }

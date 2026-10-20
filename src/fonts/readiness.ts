@@ -1,5 +1,6 @@
 import {LEGACY_SARABUN} from './legacy.js';
 import {fontProbeDocument} from './probe.js';
+import {continuationLabelIds,continuationSuffix} from './group-labels.js';
 import type {PoolClient} from 'pg';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -14,12 +15,12 @@ const incomplete=(code:string)=>/ASSET_|LICENSE_|CHECK_UNAVAILABLE|RESOURCE_UNAV
 export function fontIssue(code:string,styleId?:string):FontIssue{return {code,path:styleId?'/styles/'+styleId.replaceAll('~','~0').replaceAll('/','~1')+'/font':'/font',message:'Font selection or verified resource is not ready',remedy:incomplete(code)?'Restore the exact font/license files or retry the check':'Select an available released face supporting the required text',styleIds:styleId?[styleId]:[],occurrences:[],samples:[],total:1,truncated:false};}
 /** Diagnostic locator only; Core shaping remains authoritative for readiness. */
 export function locateMissingGlyphs(document:any,coverage:Map<string,Set<number>>):FontIssue[]{
- const issues=new Map<string,FontIssue>(),seen=new Set<string>();
+ const issues=new Map<string,FontIssue>(),seen=new Set<string>(),labels=continuationLabelIds(document);
  const visit=(v:any)=>{
   if(!v||typeof v!=='object')return;
   if(v.type==='text-block'&&!seen.has(v.id)){
    seen.add(v.id);const style=v.props?.textStyleId,cmap=coverage.get(style);
-   if(cmap)for(const inline of v.children??[]){
+   if(cmap)for(const inline of [...v.children??[],...(labels.has(v.id)?[{id:v.id+'~continuation-suffix',type:'text',text:continuationSuffix}]:[])]){
     const text=inline.type==='text'?inline.text:inline.type==='link'?inline.label??'':'';let index=0;
     for(const ch of text){const cp=ch.codePointAt(0)!;
      if(!/[\r\n\t]/.test(ch)&&!cmap.has(cp)){
@@ -33,7 +34,7 @@ export function locateMissingGlyphs(document:any,coverage:Map<string,Set<number>
   for(const x of Object.values(v))if(x&&typeof x==='object')Array.isArray(x)?x.forEach(visit):visit(x);
  };visit(document);return [...issues.values()];
 }
-export async function resolveFontReadiness(c:Pick<PoolClient,'query'>,definition:any,definitionFingerprint:string,refs:ReferenceSet|null=null,actual?:{document:any;input:unknown},root?:string):Promise<{readiness:FontReadiness;snapshot?:FontSnapshot}>{
+export async function resolveFontReadiness(c:Pick<PoolClient,'query'>,definition:any,definitionFingerprint:string,refs:ReferenceSet|null=null,actual?:{document:any;input:unknown},root?:string,options:{deferFiles?:boolean}={}):Promise<{readiness:FontReadiness;snapshot?:FontSnapshot}>{
  const issues:FontIssue[]=[],bindings:SnapshotBinding[]=[],legacy:FontSnapshot['legacy']=[],coverage=new Map<string,Set<number>>();
  const inputFingerprint=fingerprint(actual?.input??null);
  if(refs&&refs.definitionFingerprint!==definitionFingerprint)issues.push(fontIssue('FONT_CHECK_UNAVAILABLE'));
@@ -60,12 +61,12 @@ export async function resolveFontReadiness(c:Pick<PoolClient,'query'>,definition
  if(!issues.length){
   let temp:string|undefined;
   try{
-   temp=await mkdtemp(join(tmpdir(),'flowdoc-font-check-'));
+   if(!options.deferFiles)temp=await mkdtemp(join(tmpdir(),'flowdoc-font-check-'));
    if(definition.schemaVersion===1){const expected=refs?.legacyBindings?.length?refs.legacyBindings:LEGACY_SARABUN;
     if(expected.length!==4||expected.some(f=>!LEGACY_SARABUN.some(b=>b.id===f.id&&b.sha256===f.sha256)))throw Object.assign(Error(),{code:'FONT_CHECK_UNAVAILABLE'});
     legacy.push(...expected.map(f=>({id:f.id,sha256:f.sha256})));}
    snapshot=makeFontSnapshot(definitionFingerprint,inputFingerprint,bindings,legacy);
-   if(!actual)await snapshotResources(snapshot,temp,root);
+   if(!actual&&!options.deferFiles)await snapshotResources(snapshot,temp!,root);
    if(actual){const result=await renderDocumentJob({document:fontProbeDocument(actual.document),images:{}},undefined,snapshot,root??fontRoot());
     if(!result.ok)for(const i of result.issues){
      const located=i.code==='FONT_GLYPH_MISSING'?locateMissingGlyphs(actual.document,coverage):[];

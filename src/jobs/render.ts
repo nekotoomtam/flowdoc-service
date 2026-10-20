@@ -44,7 +44,8 @@ async function renderSerializedJob(payload:{text:string},signal?:AbortSignal,dea
       const bounded=(v:unknown):v is string=>typeof v==='string'&&v.length>0&&v.length<=2048&&!/[\x00-\x1f\x7f]/.test(v);
       if(!bounded(value.nodeId))continue;
       issues.push({code:'LAYOUT_FAILED',path:'nodes.'+value.nodeId,nodeId:value.nodeId,message:'Document content does not fit the configured layout',
-       ...(bounded(value.sectionId)?{sectionId:value.sectionId}:{}),...(bounded(value.format)?{format:value.format}:{}),...(value.reason==='omitted-destination'?{reason:'omitted-destination'}:{}),
+       ...(bounded(value.sectionId)?{sectionId:value.sectionId}:{}),...(bounded(value.format)?{format:value.format}:{}),...(['omitted-destination','group-label-does-not-fit'].includes(value.reason)?{reason:value.reason}:{}),
+       ...(bounded(value.groupId)?{groupId:value.groupId}:{}),...(Number.isSafeInteger(value.groupIndex)&&value.groupIndex>=0?{groupIndex:value.groupIndex}:{}),
        ...(Number.isSafeInteger(value.contentIndex)&&value.contentIndex>=0?{contentIndex:value.contentIndex}:{})});
      }
     }

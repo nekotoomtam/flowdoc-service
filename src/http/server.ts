@@ -1,3 +1,6 @@
+import {rendererIdentity} from '../fonts/snapshot.js';
+import {readFileSync} from 'node:fs';
+import {registerDocuments,type Documents} from './documents.js';
 import {registerFontsAdmin,checkFontAdminAccess,type FontAdminAccess} from './fonts-admin.js';
 import {fontRoot} from '../fonts/snapshot.js';
 import {templateContract} from '../templates/contract.js';
@@ -15,12 +18,12 @@ import type {Uploads} from '../uploads/service.js';
 import {registerUploads} from './uploads.js';
 import {registerAuthoring,checkAuthoringAccess,type AuthoringAccess} from './authoring.js';
 const status=(code:string)=>({QUEUE_FULL:503,UNKNOWN_SECTION:422,UNKNOWN_FORMAT:422,INVALID_JOB_ID:400,INVALID_DATA:422,TYPE_MISMATCH:422,MISSING_REQUIRED:422,EMPTY_CONTENT:422,EXPANSION_LIMIT:422,IMAGE_JOBS_UNAVAILABLE:422,INVALID_UPLOAD:422,INVALID_RESOURCE:422,UPLOAD_NOT_FOUND:404,UPLOAD_GONE:410,UPLOAD_CONFLICT:409,UPLOAD_INCOMPLETE:409,TEMPLATE_NOT_FOUND:404,VERSION_NOT_FOUND:404,JOB_NOT_FOUND:404,OUTPUT_GONE:410}[code]??503);
-export function createServer(deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean;bodyLimit?:number;uploads?:Uploads;imagesEnabled?:boolean;maxOutstanding?:number;authoring?:AuthoringAccess;fontAdmin?:FontAdminAccess;fontStorageRoot?:string}){
+export function createServer(deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean;bodyLimit?:number;uploads?:Uploads;imagesEnabled?:boolean;maxOutstanding?:number;authoring?:AuthoringAccess;fontAdmin?:FontAdminAccess;fontStorageRoot?:string;tasks?:Documents}){
  if(deps.authoring)checkAuthoringAccess(deps.authoring);
  if(deps.fontAdmin)checkFontAdminAccess(deps.fontAdmin,deps.authoring?.token);
  const maxOutstanding=validateMaxOutstanding(deps.maxOutstanding??DEFAULT_MAX_OUTSTANDING);
  const app=Fastify({logger:false,forceCloseConnections:true,bodyLimit:deps.bodyLimit??2097152});
- if(deps.authoring)app.register(async routes=>registerAuthoring(routes,{pool:deps.pool,outputs:deps.outputs,isReady:deps.isReady,maxOutstanding,imagesEnabled:deps.imagesEnabled??false,access:deps.authoring!,...(deps.uploads?{uploads:deps.uploads}:{})}));
+ if(deps.authoring)app.register(async routes=>registerAuthoring(routes,{pool:deps.pool,outputs:deps.outputs,isReady:deps.isReady,maxOutstanding,imagesEnabled:deps.imagesEnabled??false,access:deps.authoring!,documents:deps.tasks?{version:1,route:'/documents',input:'section-assets-multipart-v1',response:'task-v1',lookup:'exact-record-only',serviceVersion:JSON.parse(readFileSync(new URL('../../package.json',import.meta.url),'utf8')).version,coreVersion:rendererIdentity.version,coreSha256:rendererIdentity.sha256}:null,...(deps.uploads?{uploads:deps.uploads}:{})}));
  app.addContentTypeParser('application/json',{parseAs:'string'},(_req,body,done)=>{
   const r=readGenerationJson(body as string);if(!r.ok){done(Object.assign(new Error('Invalid JSON'),{statusCode:400}));return;}
   const pending:unknown[]=[r.value];while(pending.length){const v=pending.pop();if(v&&typeof v==='object'){
@@ -34,6 +37,7 @@ export function createServer(deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean
   routes.addHook('onRequest',async(_req,reply)=>{if(!deps.isReady())return reply.code(503).send(failure(new OperationError('UNAVAILABLE','service','Service unavailable')));});
   await registerUploads(routes,deps.uploads!);
  });
+ if(deps.tasks)app.register(async routes=>registerDocuments(routes,deps.pool,deps.tasks!,deps.isReady));
  const pending=new Set<Promise<void>>();app.addHook('onClose',async()=>{await Promise.allSettled([...pending]);});
  app.setErrorHandler((error,request,reply)=>{const e=error as {statusCode?:number};const code=e.statusCode===413?413:e.statusCode&&e.statusCode>=400&&e.statusCode<500?400:503;reply.code(code).send(failure(new OperationError(code===413?'BODY_TOO_LARGE':code===400?'INVALID_REQUEST':'UNAVAILABLE','request',code===413?'Request exceeds size limit':code===400?'Invalid request':'Service unavailable')));});
  app.get('/health',async(_req,reply)=>{try{if(!deps.isReady())throw Error();await deps.pool.query('SELECT 1');return {ok:true,value:{ready:true},warnings:[]};}catch{reply.code(503);return failure(new OperationError('UNAVAILABLE','service','Service unavailable'));}});

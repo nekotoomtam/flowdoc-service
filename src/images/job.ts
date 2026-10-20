@@ -9,6 +9,7 @@ import type {UploadConfig} from '../uploads/config.js';
 import {transaction} from '../db/connection.js';
 import {prepareImage} from './prepare.js';
 import {downloadImage} from './download.js';
+import {assertTaskPoolCapacity} from '../tasks/quota.js';
 export interface RenderImage {path:string;width:number;height:number;mediaType:'image/jpeg'|'image/png'}
 export interface JobImageInput {fontSnapshot?:import('../fonts/snapshot.js').FontSnapshot;fontStorageRoot?:string;document:ResolvedDocument;images:Record<string,RenderImage>}
 export interface ImageJobDependencies {files:ResourceFiles;config:UploadConfig}
@@ -28,6 +29,7 @@ export async function prepareOwnedJobImages(pool:Pool,jobId:string,document:Reso
   await c.query('SELECT pg_advisory_xact_lock(60430405)');
   const row=(await c.query('SELECT reserved_bytes,deleted_at FROM upload_sessions WHERE id=$1 FOR UPDATE',[upload])).rows[0];if(!row||row.deleted_at)throw Error('Resource ownership unavailable');
   if(delta>0){const total=Number((await c.query('SELECT coalesce(sum(reserved_bytes),0) AS bytes FROM upload_sessions WHERE deleted_at IS NULL')).rows[0].bytes);if(total+delta>deps.config.stagingBytes||Number(row.reserved_bytes)+delta>deps.config.setBytes+64*1048576)throw Error('Resource staging budget');}
+  if(delta>0)await assertTaskPoolCapacity(c,delta,deps.files.freeBytes);
   await c.query('UPDATE upload_sessions SET reserved_bytes=reserved_bytes+$2 WHERE id=$1',[upload,delta]);
  });
  const pt=(n:Length)=>n.unit==='mm'?n.value*72/25.4:n.value;
@@ -61,7 +63,8 @@ export async function prepareOwnedJobImages(pool:Pool,jobId:string,document:Reso
     }finally{await reserve(retained-budget);}
    }
    node.props.resourceId=derivatives.get(key)??'';
-  }catch{
+  }catch(error){
+   if((error as {code?:string})?.code==='STORAGE_CAPACITY')throw error;
    abort.throwIfAborted();node.props.resourceId='';warnings.push({code:'IMAGE_UNUSABLE',path,message:'Image unavailable or exceeded preparation limits'});
   }finally{completed++;await processing(pool,jobId,'preparing-resources',completed,nodes.length,warnings);}
  }

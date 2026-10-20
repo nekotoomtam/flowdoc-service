@@ -1,4 +1,26 @@
-# คู่มือใช้งาน FlowDoc Service 0.4.3
+# คู่มือใช้งาน FlowDoc Service 0.4.8
+
+รุ่นนี้มีทางประมวลผล task (migration024) ใช้ Core0.4.7 จาก
+vendor/manifest.json อ่านข้อมูลที่ normalize แล้วจากไฟล์ เตรียมภาพทีละรายการ
+และส่ง feedback กับ PDF แบบ multipart โดยไม่รวม PDF ทั้งก้อนใน RAM.
+มี `/documents` และ FlowDocMake manage_document_task เมื่อเปิด task credentials
+อย่างชัดเจนตามท้ายคู่มือ ตัวรับ–ส่งต้องรอ write/finish จริงและ abort ต้องปิดการส่งที่ค้าง.
+ทาง task รองรับ Linux/amd64 เท่านั้นใน candidate นี้; ไม่ใช่คำอนุญาตติดตั้ง.
+Container ที่รัน task ต้องมี init เก็บกวาด process ลูก: Compose ที่ให้มาตั้ง
+`init: true` ให้ API, registry และ verification แล้ว หากเปิดด้วย `docker run`
+โดยตรงต้องใส่ `--init` ด้วย แม้เปลี่ยน entrypoint เป็น Node. ไม่รองรับ Node เป็น
+PID1 สำหรับงาน task เพราะเมื่อ worker ถูก SIGKILL อาจเหลือ zombie.
+หลัง build image ทดลอง ใช้ `FLOWDOC_REGISTRY_IMAGE` ระบุ image นั้นแล้วรัน
+`npm run check:process-reaping` เพื่อตรวจการหยุดปกติและบังคับฆ่า worker.
+หลักการเก็บ/หยุด/ล้างไฟล์และข้อจำกัดอยู่ในหัวข้อ Internal task processing ของ README.
+
+Candidate เซลล์ชื่อกลุ่ม: ตรวจ `groupLabelSpans.version:1` ใน authoring contract
+ก่อนส่ง rowGroups.groupLabel (model19/schema1,2). Core package/checksum อยู่ใน
+vendor/manifest.json; ชุดส่งมอบ Service0.4.8/Core0.4.7 ยังไม่ใช่คำอนุญาตติดตั้ง.
+save/read/clone/import คง declaration; job ตรึง revision/ข้อมูล/engine/font เดิม.
+auto ตรวจฟอนต์รวม ` (ต่อ)`; fixed ไม่มีหน้าต่อและส่ง FORMAT_CONTENT_OMITTED
+พร้อม groupId/groupIndex/itemIndex ของส่วนค้าง. ถ้าชื่อเต็มใส่ auto ไม่ได้
+ให้ LAYOUT_FAILED reason group-label-does-not-fit; ไม่มี PDF บางส่วนให้ดาวน์โหลด.
 
 Section19 ช่วง1: candidate นี้เพิ่ม `create_draft_section` และ
 `import_draft_sections` ตาม `/authoring/drafts/:id/sections[/import]`.
@@ -20,13 +42,26 @@ README และ vendor/manifest.json ปัจจุบัน; ส่วนค�
 
 ## Authority Boundary
 
+ช่วง2 เพิ่ม normalize และ findings ภายใน adapter กับ migration023: ใช้ Core
+จากแพ็กเกจที่ตรึงไว้ อ่านไฟล์ทีละส่วนและคงค่า/ลำดับสมาชิก. ภาพมีหรือไม่มี assetKey
+ใช้ได้; key ใช้เฉพาะ Section ของตน. ภาพหาย/เสีย/ขัดแย้งคงตัวแทนพร้อมเหตุผล
+และจำนวนส่วนที่ไม่แสดง โดยไม่ทำข้อมูลรอบข้างหาย. ผลยังอยู่ validating ไม่เริ่ม job.
+ตรวจ signature/ข้อมูลขนาด/ส่วนปิดไฟล์แล้ว; การถอดรหัสและเตรียมภาพเต็มเป็นงานช่วงถัดไป.
+
+ฐาน task ช่วง1 ยังเป็น internal adapter เท่านั้น: migration022 เพิ่ม task,
+การจองพื้นที่, metadata ไฟล์, events และ usage เมื่อจบงาน. ตัวรับเขียนเป็นช่วง
+และหมดอายุสามชั่วโมงนับจากเวลาสร้าง; ตรวจ cleanup ทุกสิบวินาทีและกู้เมื่อเริ่ม
+adapter ใหม่ โดยไม่ลบไฟล์ของ process ที่ยังทำงาน. ต้องเรียก stop ก่อนปิด pool.
+ยังไม่มี public `POST /documents`, ไม่เริ่ม job และไม่ได้รับรอง Core input/PDF.
+API task ต้องเปิด credentials อย่างชัดเจน; การจอง scratch/PDF ใช้ budget ของ task.
+
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-candidate 0.4.3 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
+ชุด Service0.4.8/Core0.4.7 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
 
-คู่มือนี้ตาม candidate Service/Core 0.4.3 ซึ่งยังไม่ออก tag/ติดตั้ง; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
+คู่มือนี้ตาม Service0.4.8/Core0.4.7; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
 annotated tag หลังผ่านเกณฑ์ออกรุ่น ไม่อนุมานจากชื่อ image. รองรับ Area18 ทั้ง schemaVersion 1
 (Sarabun เดิม) และ 2 (คลังฟอนต์). เลข schema, รุ่นฟอนต์, รุ่นแม่แบบ และรุ่น Service
 เป็นคนละค่า. คำสั่ง publish ด้านล่างคือเผยแพร่เวอร์ชันแม่แบบ ไม่ใช่ Git release;
@@ -75,7 +110,7 @@ proxy; ไม่เพิ่ม CORS หรือ static route ให้ product
 สำหรับ model19 ใช้ sections เป็น array ระบุ ID ตาม contract; ห้ามแปลงชื่อเป็น ID เอง.
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด candidate 0.4.3
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด Service0.4.8
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
@@ -86,7 +121,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.4.3'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.4.8'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -104,7 +139,7 @@ docker @dc up -d api
 ของ project `flowdoc-manual` หาก port 4318 ใช้อยู่ ให้เปลี่ยนค่าก่อนเริ่ม API
 เปิด terminal ใหม่ให้กำหนด `$dc` อีกครั้ง ไม่ต้องสร้างรหัสผ่านหรือ import ซ้ำ
 `CURRENT_EXISTS` หมายถึงมีฉบับแก้ไขอยู่แล้ว ไม่ใช่คำสั่งแทนที่ข้อมูลเดิม
-`migrate` ของชุดนี้ต้องผ่าน migrations 016–021 เพิ่มจากฐาน 015; ฐานใหม่ใช้ทั้งหมด
+`migrate` ของชุดนี้ต้องผ่าน migrations 016–023 เพิ่มจากฐาน 015; ฐานใหม่ใช้ทั้งหมด
 และการรันซ้ำที่ครบแล้วไม่ควรมีรายการ applied ใหม่. ห้ามแก้ SQL migration ที่ใช้แล้ว.
 ตัวอย่างแรกใช้ Sarabun เดิม จึงยังไม่ต้องนำเข้าคลังหรือเปิดสิทธิ์ admin.
 
@@ -458,7 +493,7 @@ clone ผ่าน `POST /authoring/drafts/:id/clone` ด้วย sourceRevisio
 idempotencyKey; สิทธิ์ retired มาจาก revision ที่ server เก็บ ไม่ใช่ client แนบเอง.
 FlowDocMake ใช้ `get_font_catalog`, `get_draft_font_readiness`, `clone_template_draft`;
 ไม่มีคำสั่ง admin ในช่องทางนี้. ใช้ชุด client ที่เข้าคู่กับ Service/Core ปัจจุบัน.
-ชุดส่งมอบนี้ใช้ FlowDocMake 0.2.4 ซึ่งตรึง checksum ของ Core tarball ใน
+ชุดส่งมอบนี้ใช้ FlowDocMake 0.2.7 ซึ่งตรึง checksum ของ Core tarball ใน
 `vendor/manifest.json`; client 0.2.0 ตรึงแพ็กเกจก่อนปรับคู่มือและใช้แทนกันไม่ได้.
 job ตรึงฟอนต์/ไฟล์/license ที่รับไว้ แม้เปลี่ยน default หรือ retire ระหว่างรอ;
 ไฟล์หายหรือ hash ไม่ตรงต้องแก้ storage ไม่ข้ามการตรวจ. Sarabun schema 1 ยังใช้
@@ -469,7 +504,7 @@ job ตรึงฟอนต์/ไฟล์/license ที่รับไว้
 ส่วนนี้อธิบายโค้ดช่วง 1 ที่ยังไม่ออก tag/ติดตั้ง; ไม่ใช่คำสั่งของ release 0.4.0 เดิม.
 ข้อตกลงร่วมอยู่ Project Control
 `docs/domains/flowdoc-font-height-adjustment-design-plan-2026-10-16.md` ข้อ 7.
-ชุดปัจจุบันตรึง Core `0.4.3` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
+ชุดปัจจุบันตรึง Core `0.4.7` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
 Core export `calculateFontHeightAdjustment` เป็น pure API รับ pt และ metric ต้นทาง/ปลายทาง
 แล้วคืน pt ที่ปัด half-up หกตำแหน่ง หรือ error; ไม่เขียน draft และไม่เปลี่ยน renderer.
 เครื่องมือ propose/confirm ของช่วง 3 มีแล้วตามข้อ 8.2; ต้องยืนยันก่อนเปลี่ยน pt.
@@ -528,7 +563,7 @@ Get-FileHash (Join-Path $backupDir 'database.dump') -Algorithm SHA256
 
 4. ตรวจว่าแต่ละคำสั่งสำเร็จ ตรวจ hashes และทดลอง restore dump/ไฟล์ใน DB กับ volumes
    แยกก่อนใช้เป็นแผนกู้คืน. ไม่ทดลอง restore ทับข้อมูลจริง และไม่ใช้ `down -v`.
-5. ใช้ image ชุดใหม่ที่ตรึงไว้ รัน CLI `migrate` ให้ถึง 021 แล้วเปิด API. ไม่ย้อน SQL
+5. ใช้ image ชุดใหม่ที่ตรึงไว้ รัน CLI `migrate` ให้ถึง 023 แล้วเปิด API. ไม่ย้อน SQL
    migration หรือแก้ checksum ถ้าล้มเหลว; วิเคราะห์และกู้คืนเป็นชุด DB/files/config/
    image ที่เข้าคู่กันจากสำรองที่ตรวจแล้ว แยกการอนุมัติก่อนกระทบข้อมูลจริง.
 6. ตรวจ `/health`, คู่รุ่นจริง, admin/authoring permissions, catalog/readiness และ
@@ -556,7 +591,7 @@ UPLOAD_GONE จึงยังไม่ใช่หลักฐาน same-revis
 ของผลิตภัณฑ์เพื่อให้ตัวทดสอบเก่าผ่าน.
 ใช้ผลล่าสุดของ candidate ที่จะออกรุ่นตัดสินตามเกณฑ์รับงาน ไม่ขยายผลจากการตรวจเอกสาร.
 
-### 8.2 ขอเสนอและยืนยันขนาด (development candidate 0.4.3)
+### 8.2 ขอเสนอและยืนยันขนาด (Service0.4.8/Core0.4.7)
 
 POST `/authoring/drafts/:id/font-height-adjustments` รับ expectedRevision/styleId/
 targetFont/idempotencyKey. ใช้ credential เจ้าของ; metric และ pt อ่านจาก draft กับ
@@ -577,17 +612,18 @@ Migration 020 เพิ่มตารางข้อเสนอเท่าน
 
 ### 8.3 เตรียมส่งมอบตัวช่วยความสูงและการกู้คืน
 
-Candidate ใช้ Service/Core `0.4.3` กับ FlowDocMake
-`0.2.4` และ Core SHA256 ใน vendor/manifest.json.
-นี่เป็นชุด development ที่ตรวจร่วม ไม่ใช่ release/tag หรือคำอนุญาตติดตั้งจริง.
+ชุดส่งมอบใช้ Service `0.4.8` / Core `0.4.7` กับ FlowDocMake
+`0.2.7` และ Core SHA256 ใน vendor/manifest.json.
+ตัวตน release ต้องตรวจ tag/snapshot ของแต่ละส่วน; การติดตั้งจริงต้องได้รับอนุญาตแยก.
 Core schema/renderer เดิมไม่เปลี่ยน; helper ต้องยืนยันก่อนบันทึกและตรวจ PDF ทุกครั้ง.
 IBM Plex Sans Thai, Pridi, Noto Sans Thai Looped และ Noto Serif Thai ชุดที่ได้รับ
 ไม่มี italic; ห้ามนับเป็นผลผ่านของ italic หรือสร้างตัวเอียงแทน.
 
 ก่อน upgrade หลังได้รับอนุญาต: หยุดรับงาน/รอ job จบ สำรอง PostgreSQL แบบ custom dump
 และ staging/font library รวม licenses, output/temp ที่ต้องรักษา พร้อม config/secret
-แยกไว้ในที่ปลอดภัย. ใช้ image/source/Core hash ที่ตรึง สั่ง migrate ไปถึง 021;
-ห้ามแก้ bytes ของ 001–021. ตรวจ replay ไม่ apply ซ้ำ, admin/author แยก credential,
+แยกไว้ในที่ปลอดภัย รวม TASK_STORAGE_DIR และ task credentials ถ้าเปิดใช้งาน.
+ใช้ image/source/Core hash ที่ตรึง สั่ง migrate ไปถึง 024;
+ห้ามแก้ bytes ของ 001–024. ตรวจ replay ไม่ apply ซ้ำ, admin/author แยก credential,
 เปิด draft เดิม, catalog/default/retired, helper และ preview/download ก่อนเปิดงาน.
 Profile/assignment/review และ proposals/receipts ต้องอยู่ใน dump เดียวกัน.
 
@@ -605,7 +641,7 @@ Profile/assignment/review และ proposals/receipts ต้องอยู่�
 
 ## Format sizing development candidate
 
-Core 0.4.3 accepts model19 Format `sizing` (auto/fixed), with independent
+Core 0.4.7 accepts model19 Format `sizing` (auto/fixed), with independent
 fixed maximum heights per Area entry at Section flow roots. Each call reserves
 min(declared height, current body remainder), including short/empty content.
 Positive space shows fitting whole units; only zero space omits the frame.
@@ -618,3 +654,39 @@ the job fail (`LAYOUT_FAILED`, reason `omitted-destination`). Input data remains
 complete and omission warnings are distinct from skipped input indices.
 No migration or Area/request sizing field is introduced. Existing backup,
 restore and installation steps still apply; this candidate is not installed.
+
+### Streamed document task API (Service0.4.8 / Core0.4.7)
+
+Enable only with the trusted `TASK_CREDENTIALS_FILE` mapping described in README.
+Base Compose keeps tasks disabled. After separately authorized backup/upgrade,
+add an operator-owned Compose override for api environment:
+`TASK_CREDENTIALS_FILE: /run/secrets/task-credentials.json` and
+`TASK_STORAGE_DIR: /app/staging/tasks`; mount the protected credential JSON file
+read-only at that first path. The existing staging volume retains task sources
+until their original expiry. A minimal credential entry has token (at least32
+characters), ownerKey, principalId, docKeys array and taskRead boolean; supply
+trusted server identities, never caller-claimed identities. Do not commit secrets.
+Use the same override file for migration/start/stop. Check actual Init=true,
+Service/Core versions and archive SHA, migrations through024, authenticated
+feedback/PDF/hash/closing boundary, denied-owner lookup and interruption cleanup
+in an isolated instance before enabling real requests. Backup task storage and
+credentials consistently with the DB. Roll back using a matching DB/files/image
+backup in a separate instance; do not run an older binary against migrated data.
+Send `Authorization: Bearer <configured-task-token>`, `Doc-Key: <authorized-key>`,
+`Content-Type: multipart/form-data; boundary=<request-boundary>` and optionally
+`Accept: multipart/mixed`. The first part is `payload` with application/json:
+`{"data":{},"sections":[{"id":"<saved-section-id>","data":{...}}]}` for model19;
+model18 retains its Section map. Root docKey/taskId are not generation selectors.
+
+An image value is `{"image":{"upload":true}}`, optionally with assetKey. A matching
+binary part name is the original JSON Pointer ending at that image object. A keyed
+reference `{"assetKey":"seal"}` can reuse a definition only in the same Section,
+including definitions in that Section's assets array. Never send local paths in data.
+No declared-size header, opening request, polling loop or error-level mode is needed.
+
+Read multipart JSON feedback incrementally, then save the final exact-length PDF
+and verify its SHA256 and closing boundary. HTTP200 or artifact metadata alone is
+not success. If an error closes without a PDF, retain taskId for optional lookup.
+If disconnected, the worker stops safely; only received originals remain until the
+original expiresAt. A later JSON POST to the same route contains only taskId and
+optional findings pagination; it returns status, never a PDF or new child job.

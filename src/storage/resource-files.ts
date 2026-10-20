@@ -1,4 +1,4 @@
-import {mkdir,rename,unlink,readdir,stat,rm} from 'node:fs/promises';
+import {mkdir,rename,unlink,readdir,stat,rm,statfs} from 'node:fs/promises';
 import {createWriteStream} from 'node:fs';
 import {resolve,join} from 'node:path';
 import {createHash} from 'node:crypto';
@@ -13,6 +13,7 @@ export async function createResourceFiles(directory:string){
  const jobDirectory=(id:string)=>{if(!/^[0-9a-f-]{36}$/.test(id)||! /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id))throw Error('Invalid job ID');return join(root,'jobs',id);};
  return {
   remove,path,jobDirectory,
+  async freeBytes(){const s=await statfs(root,{bigint:true});return Number(s.bavail*s.bsize);},
   async removeJob(id:string){await rm(jobDirectory(id),{recursive:true,force:true});},
   async exists(name:string,size:number){try{return (await stat(path(name))).size===size;}catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return false;throw e;}},
   async names(){return (await readdir(root)).filter(name=>owned.test(name));},

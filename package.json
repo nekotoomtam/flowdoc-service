@@ -1,6 +1,6 @@
 {
   "name": "@flowdoc/service",
-  "version": "0.4.3",
+  "version": "0.4.8",
   "private": true,
   "type": "module",
   "license": "UNLICENSED",
@@ -16,21 +16,25 @@
     "start": "node dist/server.js",
     "tools:authoring": "node dist/tools/server.js",
     "check:api": "node scripts/checkApi.mjs",
-    "check:uploads": "node scripts/checkUploads.mjs"
+    "check:uploads": "node scripts/checkUploads.mjs",
+    "check:process-reaping": "node scripts/checkProcessReaping.mjs"
   },
   "dependencies": {
-    "@flowdoc/core": "file:vendor/flowdoc-core-0.4.3.tgz",
+    "@fastify/busboy": "3.2.3",
+    "@flowdoc/core": "file:vendor/flowdoc-core-0.4.7-release.tgz",
     "@modelcontextprotocol/server": "2.3.1",
     "fastify": "5.12.5",
     "ipaddr.js": "2.5.0",
     "pg": "8.23.1",
     "sharp": "0.35.5",
+    "stream-json": "1.9.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "2.3.1",
     "@types/node": "24.10.0",
     "@types/pg": "8.23.1",
+    "@types/stream-json": "1.7.8",
     "typescript": "6.0.3",
     "vitest": "4.1.9"
   }
