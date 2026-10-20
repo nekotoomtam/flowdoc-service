@@ -493,7 +493,7 @@ clone ผ่าน `POST /authoring/drafts/:id/clone` ด้วย sourceRevisio
 idempotencyKey; สิทธิ์ retired มาจาก revision ที่ server เก็บ ไม่ใช่ client แนบเอง.
 FlowDocMake ใช้ `get_font_catalog`, `get_draft_font_readiness`, `clone_template_draft`;
 ไม่มีคำสั่ง admin ในช่องทางนี้. ใช้ชุด client ที่เข้าคู่กับ Service/Core ปัจจุบัน.
-ชุดส่งมอบนี้ใช้ FlowDocMake 0.2.5 ซึ่งตรึง checksum ของ Core tarball ใน
+ชุดส่งมอบนี้ใช้ FlowDocMake 0.2.7 ซึ่งตรึง checksum ของ Core tarball ใน
 `vendor/manifest.json`; client 0.2.0 ตรึงแพ็กเกจก่อนปรับคู่มือและใช้แทนกันไม่ได้.
 job ตรึงฟอนต์/ไฟล์/license ที่รับไว้ แม้เปลี่ยน default หรือ retire ระหว่างรอ;
 ไฟล์หายหรือ hash ไม่ตรงต้องแก้ storage ไม่ข้ามการตรวจ. Sarabun schema 1 ยังใช้
