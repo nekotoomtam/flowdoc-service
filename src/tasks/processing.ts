@@ -113,15 +113,16 @@ export async function createTaskProcessing(deps: Dependencies) {
             })().catch(() => abort.abort(taskError('WORKER_INTERRUPTED'))).finally(() => { renewing = false; });
         }, Math.min(queueMode?10000:1000, Math.floor(p.leaseMs / 3)));
 
-        let started = false, lastState = '', lastFeedback = 0;
+        let started = false, lastState = '', lastFeedback = 0, terminalFeedback = false;
         async function transport(operation: () => Promise<void>) {
-            abort.signal.throwIfAborted();
+            const transportSignal=terminalFeedback?request.signal:abort.signal;
+            transportSignal?.throwIfAborted();
             let timer: NodeJS.Timeout | undefined, onAbort!: () => void;
-            const stop = new Promise<never>((_, reject) => { onAbort = () => reject(abort.signal.reason); abort.signal.addEventListener('abort', onAbort, { once: true }); timer = setTimeout(() => abort.abort(taskError('CONNECTION_TIMEOUT')), p.writeMs); });
+            const stop = new Promise<never>((_, reject) => { onAbort = () => reject(transportSignal?.reason); transportSignal?.addEventListener('abort', onAbort, { once: true }); timer = setTimeout(() => {const e=taskError('CONNECTION_TIMEOUT');abort.abort(e);reject(e);}, p.writeMs); });
             const pending = operation();
             try {
                 await Promise.race([pending, stop]);
-                abort.signal.throwIfAborted();
+                transportSignal?.throwIfAborted();
             }
             catch (e) {
                 await request.response.abort();
@@ -130,7 +131,7 @@ export async function createTaskProcessing(deps: Dependencies) {
             }
             finally {
                 clearTimeout(timer);
-                abort.signal.removeEventListener('abort', onAbort);
+                transportSignal?.removeEventListener('abort', onAbort);
             }
         }
         const wire=request.wire??taskWire({start:t=>request.response.start(t),write:b=>transport(()=>request.response.write(b)),end:()=>transport(()=>request.response.end()),abort:()=>request.response.abort()},id);
@@ -200,6 +201,7 @@ export async function createTaskProcessing(deps: Dependencies) {
                 generation = 'succeeded';
             await repo.finish(id, reason(cause), undefined, facts(await repo.get(id), generation, delivery, pdf));
             if (started) {
+                terminalFeedback=true;
                 if(!abort.signal.aborted||!request.signal?.aborted)await wire.error(publicCode(reason(cause)),generation==='succeeded'?'sending':'composing',(await repo.get(id)).status).catch(()=>request.response.abort());
                 else await request.response.abort();
             }

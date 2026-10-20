@@ -3,15 +3,24 @@ import type {TaskValue} from '@flowdoc/core';
 import {taskReadBudget,type ReadGrant} from './read-cache-budget.js';
 import {taskReadWindows,type ReadAt} from './read-cache.js';
 import {fieldIndex} from './field-index.js';
+import {performance} from 'node:perf_hooks';
+import {setImmediate as yieldTurn} from 'node:timers/promises';
 const invalid=()=>Object.assign(Error('Invalid staged JSON'),{code:'INVALID_DATA'});
 /** Read-only byte ranges; no container is decoded or retained as a JS object. */
 export async function openTaskJson(path:string,signal?:AbortSignal,options:{grant?:ReadGrant;readAt?:ReadAt}={}){
  const grant=options.grant??await taskReadBudget.acquire('standalone',signal,false);let source:ReturnType<typeof taskReadWindows>,size=0;
  type RecordView={start:number;end:number;buffer:Buffer|undefined};const records=new Set<RecordView>();
- const recordStats={recordReadHits:0,recordBytesCopied:0,recordRetains:0,recordReuses:0,recordFallbacks:0,currentRecordBytes:0,peakRecordBytes:0,activeRecordLeases:0,peakRecordLeases:0};
+ const recordStats={recordReadHits:0,recordBytesCopied:0,recordRetains:0,recordReuses:0,recordFallbacks:0,currentRecordBytes:0,peakRecordBytes:0,activeRecordLeases:0,peakRecordLeases:0,cooperativeYields:0};
+ let operations=0,nextYield=performance.now()+8,paused:Promise<void>|undefined;
+ const cooperate=()=>{
+  source.check();if(paused)return paused;
+  if(++operations%1024!==0||performance.now()<nextYield)return;
+  recordStats.cooperativeYields++;
+  paused=yieldTurn().then(()=>{source.check();}).finally(()=>{paused=undefined;nextYield=performance.now()+8;});return paused;
+ };
  const release=(r:RecordView)=>{if(!records.delete(r))return;r.buffer=undefined;recordStats.currentRecordBytes-=r.end-r.start;recordStats.activeRecordLeases--;};
  const clearRecords=()=>{for(const r of records)r.buffer=undefined;records.clear();recordStats.currentRecordBytes=0;recordStats.activeRecordLeases=0;};
- const byte=(pos:number,r?:RecordView)=>{if(r?.buffer&&pos>=r.start&&pos<r.end){source.check();recordStats.recordReadHits++;return Promise.resolve(r.buffer[pos-r.start]!);}return source.byte(pos);};
+ const byte=(pos:number,r?:RecordView):Promise<number>=>{const pause=cooperate();if(pause)return pause.then(()=>byte(pos,r));if(r?.buffer&&pos>=r.start&&pos<r.end){source.check();recordStats.recordReadHits++;return Promise.resolve(r.buffer[pos-r.start]!);}return source.byte(pos);};
  const index=fieldIndex(grant.indexBytes,()=>source.check());
  grant.claim();
  try{signal?.throwIfAborted();const st=await lstat(path);if(!st.isFile()||st.isSymbolicLink())throw invalid();const file=await open(path,'r');

@@ -12,6 +12,17 @@ beforeAll(async()=>{await db.setup();expect((await migrate(pool)).ok).toBe(true)
 beforeEach(async()=>{await close();paused=true;root=await mkdtemp(join(tmpdir(),'queue-api-'));intake=await createTaskIntake({pool,root:join(root,'tasks'),resolveCredential:identity,freeBytes:async()=>20_000_000_000});manager=await createTaskProcessing({pool,intake,workerReady:()=>paused||processor?.isReady()});app=createServer({pool,outputs:{},isReady:()=>true,authoring:{token,principal:'author'},tasks:{intake,processing:manager}});base=await app.listen({host:'127.0.0.1',port:0});});
 afterAll(async()=>{await close();await db.close();});
 const capability=async()=>{const r=await(await fetch(base+'/authoring/contract',{headers:{authorization:auth}})).json();return r.value.documents.queue;};
+it('delivers terminal metric-loss feedback through HTTP and FlowDocMake for two processing tasks',async()=>{
+ await close();let fault=false,entered=0;
+ intake=await createTaskIntake({pool,root:join(root,'metric-worker-tasks'),resolveCredential:identity,freeBytes:async()=>20_000_000_000,queueResources:{sampleMs:10,readMemory:async()=>{if(fault)throw Error('metric loss');return{current:100*1048576,max:1024*1048576};}}});
+ manager=await createTaskProcessing({pool,intake,workerReady:()=>true,render:async(_c,_r,_t,_f,signal)=>{entered++;return new Promise((_,reject)=>{const stopped=()=>reject(signal.reason);signal.addEventListener('abort',stopped,{once:true});if(signal.aborted)stopped();});}});
+ app=createServer({pool,outputs:{},isReady:()=>true,authoring:{token,principal:'author'},tasks:{intake,processing:manager}});base=await app.listen({host:'127.0.0.1',port:0});
+ const cap=await capability(),events=[[],[]],calls=[];for(let n=0;n<2;n++){const path=join(root,'metric-'+n+'.json');await writeFile(path,JSON.stringify(payload(n)));calls.push(generateDocumentTask({baseUrl:base,token,docKey:'queue-api',payloadPath:path,outputPath:join(root,'metric-'+n+'.pdf'),queueMode:true,queueCapability:cap,onFeedback:e=>events[n].push(e)}).catch(e=>e));}
+ processor=await startProcessor({pool,tasks:manager,files:{writePdf:async()=>{throw Error('unexpected legacy');}},policy:{retain:false,ttlHours:1,tempHours:1},pollMs:10});paused=false;
+ await until(()=>entered===2);fault=true;const results=await Promise.all(calls);expect(results.every(r=>!r.ok)).toBe(true);
+ for(const es of events){expect(es.some(e=>e.type==='error'&&e.detail.code==='UNAVAILABLE')).toBe(true);expect(es.some(e=>e.type==='artifact')).toBe(false);const id=es.find(e=>e.type==='task').taskId;expect((await pool.query('SELECT terminal_reason FROM tasks WHERE id=$1',[id])).rows[0].terminal_reason).toBe('UNAVAILABLE');expect((await pool.query('SELECT count(*) n FROM task_usage WHERE task_id=$1',[id])).rows[0].n).toBe('1');}
+ expect(intake.queueSnapshot()).toMatchObject({workers:0,intakes:0,senders:0});
+});
 it('fails closed for old mode during transient metric loss while two queue pipelines hold grants, then recovers',async()=>{
  await close();let fault=false,release;const held=new Promise(r=>release=r);let entered=0;
  intake=await createTaskIntake({pool,root:join(root,'metric-tasks'),resolveCredential:h=>h==='Bearer other-metric-owner'?{ownerKey:'other-metric-owner',principalId:'other',taskRead:true,docKeys:['queue-api']}:identity(h),freeBytes:async()=>20_000_000_000,queueResources:{sampleMs:10,readMemory:async()=>{if(fault)throw Error('metric unavailable');return{current:128*1048576,max:1024*1048576};}}});

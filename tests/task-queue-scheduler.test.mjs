@@ -7,10 +7,10 @@ function template(){const t=JSON.parse(readFileSync('examples/area-document-temp
 const payload=n=>({data:{},sections:[{id:sid,data:{parts:[{format:'item',data:{text:'QUEUE INPUT '+n}}]}}]}),multipart=n=>'--api-queue\r\nContent-Disposition: form-data; name="payload"\r\nContent-Type: application/json\r\n\r\n'+JSON.stringify(payload(n))+'\r\n--api-queue--\r\n';
 const headers={authorization:auth,'doc-key':'queue-api','content-type':'multipart/form-data; boundary=api-queue',accept:'multipart/mixed'};
 const until=async check=>{const end=Date.now()+15000;while(!await check()){if(Date.now()>end)throw Error('condition timeout');await new Promise(r=>setTimeout(r,10));}};
-let free=20_000_000_000,memory=128*1048576,renderer,policy={},entered=[],controllers=new Map(),live=0,peak=0;
+let free=20_000_000_000,memory=128*1048576,renderer,policy={},entered=[],controllers=new Map(),live=0,peak=0,metricFault=false;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function heldRenderer(_c,row,_t,_f,signal){entered.push(row.id);live++;peak=Math.max(peak,live);return new Promise((resolve,reject)=>{let settled=false;const stop=()=>{if(settled)return;settled=true;live--;reject(signal.reason??Object.assign(Error(),{code:'RENDER_FAILED'}));};controllers.set(row.id,stop);signal.addEventListener('abort',stop,{once:true});});}
-async function setup(){intake=await createTaskIntake({pool,root,resolveCredential:identity,freeBytes:async()=>free,queueResources:{sampleMs:10,readMemory:async()=>({current:memory,max:1024*1048576})},policy:{sweepMs:100000,...policy}});manager=await createTaskProcessing({pool,intake,workerReady:()=>true,...(renderer?{render:renderer}:{})});}
+async function setup(){intake=await createTaskIntake({pool,root,resolveCredential:identity,freeBytes:async()=>free,queueResources:{sampleMs:10,readMemory:async()=>{if(metricFault)throw Error('injected metric loss');return{current:memory,max:1024*1048576};}},policy:{sweepMs:100000,...policy}});manager=await createTaskProcessing({pool,intake,workerReady:()=>true,...(renderer?{render:renderer}:{})});}
 async function start(extra={}){processor=await startProcessor({pool,tasks:manager,files:{writePdf:async()=>{throw Error('unexpected legacy');}},policy:{retain:false,ttlHours:1,tempHours:1},pollMs:10,...extra});}
 async function input(n){const t=await intake.open({authorization:auth,docKey:'queue-api',contentType:headers['content-type'],queueMode:true});await intake.receiveQueued({authorization:auth,taskId:t.taskId,contentType:headers['content-type'],body:Readable.from([Buffer.from(multipart(n))])});return t.taskId;}
 function output(){return{parts:[],start(){},async write(b){this.parts.push(Buffer.from(b));},async end(){},async abort(){}};}
@@ -20,9 +20,22 @@ beforeAll(async()=>{await db.setup();expect((await migrate(pool)).ok).toBe(true)
 beforeEach(async()=>{await manager?.stop();await processor?.stop();await intake?.stop();if(intake){await pool.query('ALTER TABLE tasks DISABLE TRIGGER task_identity_guard');try{await pool.query("UPDATE tasks SET created_at=now()-interval '4 hours',expires_at=now()-interval '1 hour'");}finally{await pool.query('ALTER TABLE tasks ENABLE TRIGGER task_identity_guard');}await intake.sweep();}manager=processor=intake=undefined;root=await mkdtemp(join(tmpdir(),'queue-scheduler-'));free=20_000_000_000;memory=128*1048576;renderer=undefined;policy={};entered=[];controllers=new Map();live=peak=0;});
 afterAll(async()=>{await manager?.stop();await processor?.stop();await intake?.stop();await db.close();});
 it('starts two FIFO tasks without awaiting the first, never starts a third, and releases only the stopped worker',async()=>{
+ metricFault=false;
  renderer=heldRenderer;await setup();const ids=[];const calls=[];for(let n=0;n<3;n++){ids.push(await input(n));calls.push(await queue(ids[n]));}await start();
  await sleep(600);expect(entered).toEqual(ids.slice(0,2));expect(intake.queueSnapshot()).toMatchObject({workers:2,creditsMiB:768});await sleep(150);expect(entered).toHaveLength(2);
  controllers.get(ids[0])();await calls[0].done;await until(()=>entered.length===3);expect(entered[2]).toBe(ids[2]);expect(peak).toBe(2);await manager.stop();await Promise.all(calls.map(v=>v.done));expect(intake.queueSnapshot()).toMatchObject({workers:0,senders:0,creditsMiB:128});
+});
+it('stops two active workers on metric loss, preserves originals and emits failure feedback without PDF',async()=>{
+ metricFault=false;renderer=heldRenderer;await setup();const ids=[await input(1),await input(2)],calls=[await queue(ids[0]),await queue(ids[1])];await start();await until(()=>entered.length===2);metricFault=true;
+ try{const results=await Promise.all(calls.map(c=>c.done));expect(results.map(r=>r.code)).toEqual(['UNAVAILABLE','UNAVAILABLE']);expect(live).toBe(0);expect(intake.queueSnapshot()).toMatchObject({workers:0,senders:0,creditsMiB:128});
+ for(let n=0;n<ids.length;n++){expect((await row(ids[n])).terminal_reason).toBe('UNAVAILABLE');const f=(await pool.query('SELECT role FROM task_files WHERE task_id=$1 AND storage_key IS NOT NULL',[ids[n]])).rows;expect(f.map(v=>v.role)).toEqual(['payload']);expect(calls[n].out.parts.map(b=>b.toString()).join('')).toContain('UNAVAILABLE');expect(calls[n].out.parts.some(b=>b.includes(Buffer.from('%PDF-')))).toBe(false);expect((await pool.query('SELECT count(*) n FROM task_usage WHERE task_id=$1',[ids[n]])).rows[0].n).toBe('1');}
+ }finally{metricFault=false;}
+});
+it('stops the newest worker under emergency pressure, resumes intake and sender waits without deadlock',async()=>{
+ metricFault=false;renderer=heldRenderer;await setup();const ids=[await input(1),await input(2)],calls=[await queue(ids[0]),await queue(ids[1])];await start();await until(()=>entered.length===2);
+ const resources=intake.processingContext.resources,abort=new AbortController(),req={order:5,expiresAt:Date.now()+10000,signal:abort.signal};let intakeGrant,senderGrant;
+ const waitingIntake=resources.acquire('overlap-intake',{...req,kind:'intake'}).then(g=>intakeGrant=g),waitingSender=resources.acquire('overlap-sender',{...req,kind:'sender'}).then(g=>senderGrant=g);await sleep(30);expect(intakeGrant).toBeUndefined();expect(senderGrant).toBeUndefined();
+ memory=900*1048576;const result=await calls[1].done;expect(result.code).toBe('RESOURCE_LIMIT');memory=100*1048576;await Promise.all([waitingIntake,waitingSender]);expect(intakeGrant).toBeDefined();expect(senderGrant).toBeDefined();intakeGrant.release();senderGrant.release();await manager.stop();await calls[0].done;expect(intake.queueSnapshot()).toMatchObject({workers:0,intakes:0,senders:0,creditsMiB:128});
 });
 it('waits for shared storage before claiming any worker, then starts the FIFO head after capacity returns',async()=>{
  renderer=heldRenderer;await setup();const a=await input(1),b=await input(2),calls=[await queue(a),await queue(b)];free=1;await start();await sleep(200);expect(entered).toEqual([]);expect((await row(a)).status).toBe('queued');expect((await row(b)).status).toBe('queued');expect(intake.queueSnapshot().workers).toBe(0);
