@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import sharp from 'sharp';
 import { openTaskJson } from './json-reader.js';
 import { delegatedReadGrant } from './read-cache-budget.js';
+import {createPdfOutputBuffer} from './output-buffer.js';
 import { imageNodes } from '../images/nodes.js';
 import { snapshotResources } from '../fonts/snapshot.js';
 const zip = promisify(deflate), abort = new AbortController();
@@ -113,6 +114,7 @@ async function run(input: any) {
     if (await digest(input.path) !== input.digest)
         throw error('INPUT_INTEGRITY');
     const reader = await openTaskJson(input.path, abort.signal, {grant:delegatedReadGrant(input.taskId,input.readCacheBytes,()=>{},input.fieldIndexBytes,input.recordReuseBytes)});
+    let pdfOutput:ReturnType<typeof createPdfOutputBuffer>|undefined;
     let task: TaskValue | undefined, resources: any[] = [];
     try {
         for await (const [key, value] of reader.value.properties()) {
@@ -217,19 +219,21 @@ async function run(input: any) {
         if (!engine.ok)
             throw error(engine.issues[0]?.code ?? 'FONT_CHECK_UNAVAILABLE');
         let output: string | undefined;
+        pdfOutput=createPdfOutputBuffer(async b=>{
+            if(!output){
+                await rpc('workspaceSealed');
+                output=await store(new Uint8Array(),'output');
+            }
+            await store(b,'output',output);
+        },abort.signal);
         const result = await engine.value.generatePdfTo(document, { contract: PDF_STREAM_CONTRACT, images, async *open(ref, signal) {
                 const path = await rpc('path', { key: ref.key });
                 for await (const b of createReadStream(path, { highWaterMark: 65536, ...(signal ? { signal } : {}) }))
                     yield b;
-            } }, { async write(b) {
-                if (!output) {
-                    await rpc('workspaceSealed');
-                    output = await store(new Uint8Array(), 'output');
-                }
-                await store(b, 'output', output);
-            }, async abort() { } }, { signal: abort.signal, maxBytes: input.policy.pdfBytes });
+            } }, {write:b=>pdfOutput!.write(b),async abort(){pdfOutput!.abort();}}, { signal: abort.signal, maxBytes: input.policy.pdfBytes });
         if (!result.ok)
             throw error(result.issues[0]?.code ?? 'RENDER_FAILED');
+        await pdfOutput.finish();
         if (!output)
             throw error('RENDER_FAILED');
         const ref = await rpc('seal', { key: output });
@@ -242,6 +246,7 @@ async function run(input: any) {
         await rpc('complete', { output, receipt: result.value, warningCount: warnings.length, warnings: warnings.slice(0, 100), summary });
     }
     finally {
+        pdfOutput?.abort();
         await reader.close();
     }
 }
