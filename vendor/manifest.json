@@ -2,7 +2,7 @@
   "name": "@flowdoc/core",
   "version": "0.4.7",
   "file": "flowdoc-core-0.4.7-segmenter-session.tgz",
-  "sha256": "b35c9f8a1d7d67ef2cc00393c4d911b5dc3a6d5314c615192b9b27812835167c",
+  "sha256": "938c8627ec86c03d040dffc7fc8892b7a146182f4f4ed25f99b5cf099b62fe1a",
   "sourceCommit": "5fc454c7360b4837b363669ebc09eac67364a81b",
   "sourceArtifact": "C:\\Users\\nekot\\Documents\\Codex\\2026-10-20\\segmenter-session/artifacts/flowdoc-core-0.4.7.tgz",
   "runtime": "linux-x64 glibc, Node24, Python3.11, fontTools4.58.2",
