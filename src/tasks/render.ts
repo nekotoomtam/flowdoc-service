@@ -8,6 +8,7 @@ import { transaction } from '../db/connection.js';
 import { quotaLock, taskError } from './quota.js';
 import { workspaceSize, clearWorkspace, groupStopped } from './workspace.js';
 import {taskReadBudget} from './read-cache-budget.js';
+import {taskPolicy} from './policy.js';
 import type { createTaskIntake } from './intake.js';
 type Context = Awaited<ReturnType<typeof createTaskIntake>>['processingContext'];
 export interface GenerationSummary {
@@ -44,6 +45,9 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
         throw taskError('TASK_RUNTIME_UNAVAILABLE');
     signal.throwIfAborted();
     const { pool, files, repo } = c, p = row.resource_policy, bound = fontWorkspaceBound(snapshot), workspace = await files.workspace(row.id);
+    // The shared coordinator allows active groups to progress until its global
+    // emergency action; two independent decode pause gates can deadlock together.
+    const globalGuard=c.resources.holds('worker:'+row.id,'worker')&&p.memoryPauseBytes===taskPolicy.memoryPauseBytes&&p.memoryStopBytes===taskPolicy.memoryStopBytes;
     await clearWorkspace(workspace);
     const used = Number((await pool.query('SELECT storage_used_bytes FROM task_resource_reservations WHERE task_id=$1', [row.id])).rows[0].storage_used_bytes);
     await repo.reserve(row.id, used + bound.bytes + 64 * 1048576, row.lease_token);
@@ -77,9 +81,13 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
             catch { }
     };
     const abort = () => {
-        if (child.connected)
-            child.send({ type: 'abort', code: (signal.reason as any)?.code ?? 'WORKER_INTERRUPTED' });
+        send({ type: 'abort', code: (signal.reason as any)?.code ?? 'WORKER_INTERRUPTED' });
     };
+    function send(message:any){
+        if(!child.connected)return;
+        try{child.send(message,error=>{if(error){failed??=taskError('RENDER_FAILED');kill();}});}
+        catch{failed??=taskError('RENDER_FAILED');kill();}
+    }
     const stop = async () => {
         abort();
         if (!closed) {
@@ -89,7 +97,7 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
         }
     };
     const closure = new Promise<void>(resolve => {
-        child.once('error', e => { failed = e; });
+        child.once('error', () => { failed ??= taskError('RENDER_FAILED'); });
         child.once('close', (code) => {
             closed = true;
             if (code !== 0 && !completion && !failed)
@@ -114,7 +122,7 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
             throw taskError('INVALID_DATA');
         if(m.op==='reader-closed'){readGrant.release();return null;}
         if (m.op === 'decode') {
-            while (await groupMemory(child.pid!) >= p.memoryPauseBytes) {
+            while (!globalGuard&&await groupMemory(child.pid!) >= p.memoryPauseBytes) {
                 signal.throwIfAborted();
                 if (closed || failed)
                     throw failed ?? taskError('WORKER_INTERRUPTED');
@@ -208,13 +216,11 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
         chain = chain.then(async () => {
             try {
                 const value = await operation(m);
-                if (child.connected)
-                    child.send({ ack: m.id, value });
+                send({ ack: m.id, value });
             }
             catch (e) {
                 failed = e;
-                if (child.connected)
-                    child.send({ ack: m.id, error: (e as any)?.code ?? 'STORAGE_IO' });
+                send({ ack: m.id, error: (e as any)?.code ?? 'STORAGE_IO' });
                 kill();
             }
             finally {
@@ -224,7 +230,7 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
     });
     let checking = false;
     const memory = setInterval(() => {
-        if (checking || closed)
+        if (checking || closed || globalGuard)
             return;
         checking = true;
         void groupMemory(child.pid!).then(n => {
@@ -238,7 +244,7 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
         if (!child.pid)
             throw taskError('TASK_RUNTIME_UNAVAILABLE');
         await pool.query('UPDATE tasks SET child_pid=$2,child_host=$3 WHERE id=$1', [row.id, child.pid, hostname()]);
-        child.send({ type: 'init', input: { taskId:row.id,readCacheBytes:readGrant.cacheBytes,fieldIndexBytes:readGrant.indexBytes,recordReuseBytes:readGrant.recordBytes,path: await files.path(normalized.storage_key), digest: row.normalized_digest, template, templateFingerprint: row.template_pin.fingerprint, core: { version: row.normalization_summary.coreVersion, sha256: row.normalization_summary.coreSha256 }, fontSnapshot: snapshot, fontRoot: process.env.FONT_STORAGE_DIR ?? 'staging/fonts', workspace, sources, policy: p } });
+        send({ type: 'init', input: { taskId:row.id,readCacheBytes:readGrant.cacheBytes,fieldIndexBytes:readGrant.indexBytes,recordReuseBytes:readGrant.recordBytes,path: await files.path(normalized.storage_key), digest: row.normalized_digest, template, templateFingerprint: row.template_pin.fingerprint, core: { version: row.normalization_summary.coreVersion, sha256: row.normalization_summary.coreSha256 }, fontSnapshot: snapshot, fontRoot: process.env.FONT_STORAGE_DIR ?? 'staging/fonts', workspace, sources, policy: p } });
         const cancelled = new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }));
         await Promise.race([closure, cancelled]);
         if (signal.aborted)

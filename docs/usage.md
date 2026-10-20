@@ -1,4 +1,4 @@
-# คู่มือใช้งาน FlowDoc Service 0.4.8
+# คู่มือใช้งาน FlowDoc Service 0.4.9
 
 รุ่นนี้มีทางประมวลผล task (migration024) ใช้ Core0.4.7 จาก
 vendor/manifest.json อ่านข้อมูลที่ normalize แล้วจากไฟล์ เตรียมภาพทีละรายการ
@@ -16,7 +16,7 @@ PID1 สำหรับงาน task เพราะเมื่อ worker ถ�
 
 Candidate เซลล์ชื่อกลุ่ม: ตรวจ `groupLabelSpans.version:1` ใน authoring contract
 ก่อนส่ง rowGroups.groupLabel (model19/schema1,2). Core package/checksum อยู่ใน
-vendor/manifest.json; ชุดส่งมอบ Service0.4.8/Core0.4.7 ยังไม่ใช่คำอนุญาตติดตั้ง.
+vendor/manifest.json; ชุดส่งมอบ Service0.4.9/Core0.4.7 ยังไม่ใช่คำอนุญาตติดตั้ง.
 save/read/clone/import คง declaration; job ตรึง revision/ข้อมูล/engine/font เดิม.
 auto ตรวจฟอนต์รวม ` (ต่อ)`; fixed ไม่มีหน้าต่อและส่ง FORMAT_CONTENT_OMITTED
 พร้อม groupId/groupIndex/itemIndex ของส่วนค้าง. ถ้าชื่อเต็มใส่ auto ไม่ได้
@@ -56,12 +56,12 @@ adapter ใหม่ โดยไม่ลบไฟล์ของ process ท�
 API task ต้องเปิด credentials อย่างชัดเจน; การจอง scratch/PDF ใช้ budget ของ task.
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-ชุด Service0.4.8/Core0.4.7 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
+ชุด Service0.4.9/Core0.4.7 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
 
-คู่มือนี้ตาม Service0.4.8/Core0.4.7; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
+คู่มือนี้ตาม Service0.4.9/Core0.4.7; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
 annotated tag หลังผ่านเกณฑ์ออกรุ่น ไม่อนุมานจากชื่อ image. รองรับ Area18 ทั้ง schemaVersion 1
 (Sarabun เดิม) และ 2 (คลังฟอนต์). เลข schema, รุ่นฟอนต์, รุ่นแม่แบบ และรุ่น Service
 เป็นคนละค่า. คำสั่ง publish ด้านล่างคือเผยแพร่เวอร์ชันแม่แบบ ไม่ใช่ Git release;
@@ -110,7 +110,7 @@ proxy; ไม่เพิ่ม CORS หรือ static route ให้ product
 สำหรับ model19 ใช้ sections เป็น array ระบุ ID ตาม contract; ห้ามแปลงชื่อเป็น ID เอง.
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด Service0.4.8
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด Service0.4.9
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
@@ -121,7 +121,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.4.8'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.4.9'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -493,7 +493,7 @@ clone ผ่าน `POST /authoring/drafts/:id/clone` ด้วย sourceRevisio
 idempotencyKey; สิทธิ์ retired มาจาก revision ที่ server เก็บ ไม่ใช่ client แนบเอง.
 FlowDocMake ใช้ `get_font_catalog`, `get_draft_font_readiness`, `clone_template_draft`;
 ไม่มีคำสั่ง admin ในช่องทางนี้. ใช้ชุด client ที่เข้าคู่กับ Service/Core ปัจจุบัน.
-ชุดส่งมอบนี้ใช้ FlowDocMake 0.2.7 ซึ่งตรึง checksum ของ Core tarball ใน
+ชุดส่งมอบนี้ใช้ FlowDocMake 0.2.8 ซึ่งตรึง checksum ของ Core tarball ใน
 `vendor/manifest.json`; client 0.2.0 ตรึงแพ็กเกจก่อนปรับคู่มือและใช้แทนกันไม่ได้.
 job ตรึงฟอนต์/ไฟล์/license ที่รับไว้ แม้เปลี่ยน default หรือ retire ระหว่างรอ;
 ไฟล์หายหรือ hash ไม่ตรงต้องแก้ storage ไม่ข้ามการตรวจ. Sarabun schema 1 ยังใช้
@@ -591,7 +591,7 @@ UPLOAD_GONE จึงยังไม่ใช่หลักฐาน same-revis
 ของผลิตภัณฑ์เพื่อให้ตัวทดสอบเก่าผ่าน.
 ใช้ผลล่าสุดของ candidate ที่จะออกรุ่นตัดสินตามเกณฑ์รับงาน ไม่ขยายผลจากการตรวจเอกสาร.
 
-### 8.2 ขอเสนอและยืนยันขนาด (Service0.4.8/Core0.4.7)
+### 8.2 ขอเสนอและยืนยันขนาด (Service0.4.9/Core0.4.7)
 
 POST `/authoring/drafts/:id/font-height-adjustments` รับ expectedRevision/styleId/
 targetFont/idempotencyKey. ใช้ credential เจ้าของ; metric และ pt อ่านจาก draft กับ
@@ -612,8 +612,8 @@ Migration 020 เพิ่มตารางข้อเสนอเท่าน
 
 ### 8.3 เตรียมส่งมอบตัวช่วยความสูงและการกู้คืน
 
-ชุดส่งมอบใช้ Service `0.4.8` / Core `0.4.7` กับ FlowDocMake
-`0.2.7` และ Core SHA256 ใน vendor/manifest.json.
+ชุดส่งมอบใช้ Service `0.4.9` / Core `0.4.7` กับ FlowDocMake
+`0.2.8` และ Core SHA256 ใน vendor/manifest.json.
 ตัวตน release ต้องตรวจ tag/snapshot ของแต่ละส่วน; การติดตั้งจริงต้องได้รับอนุญาตแยก.
 Core schema/renderer เดิมไม่เปลี่ยน; helper ต้องยืนยันก่อนบันทึกและตรวจ PDF ทุกครั้ง.
 IBM Plex Sans Thai, Pridi, Noto Sans Thai Looped และ Noto Serif Thai ชุดที่ได้รับ
@@ -655,7 +655,7 @@ complete and omission warnings are distinct from skipped input indices.
 No migration or Area/request sizing field is introduced. Existing backup,
 restore and installation steps still apply; this candidate is not installed.
 
-### Streamed document task API (Service0.4.8 / Core0.4.7)
+### Streamed document task API (Service0.4.9 / Core0.4.7)
 
 Enable only with the trusted `TASK_CREDENTIALS_FILE` mapping described in README.
 Base Compose keeps tasks disabled. After separately authorized backup/upgrade,
@@ -672,6 +672,27 @@ feedback/PDF/hash/closing boundary, denied-owner lookup and interruption cleanup
 in an isolated instance before enabling real requests. Backup task storage and
 credentials consistently with the DB. Roll back using a matching DB/files/image
 backup in a separate instance; do not run an older binary against migrated data.
+
+For the checked queue profile, that operator-owned override also sets the API's
+hard memory limit and CPU budget (the base Compose does not set these):
+
+```yaml
+services:
+  api:
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 2.0
+```
+
+Keep the credential and task-storage settings above in the same override. The
+queue requires readable Linux cgroup v2 counters and exactly 1 GiB `memory.max`;
+without that checked profile, do not assume queue capability is available.
+The trial pool remains 1.5 GB with a 256-MiB free-disk floor; 10 GB is deferred.
+No migration after 024 is added by this queue update. Before enabling real traffic,
+check the authenticated queue capability, nine accepted requests versus at most
+two active workers, cancellation and cleanup in an isolated instance. This is an
+operator checklist for a future authorized installation, not a claim it ran here.
+
 Send `Authorization: Bearer <configured-task-token>`, `Doc-Key: <authorized-key>`,
 `Content-Type: multipart/form-data; boundary=<request-boundary>` and optionally
 `Accept: multipart/mixed`. The first part is `payload` with application/json:
@@ -690,3 +711,14 @@ not success. If an error closes without a PDF, retain taskId for optional lookup
 If disconnected, the worker stops safely; only received originals remain until the
 original expiresAt. A later JSON POST to the same route contains only taskId and
 optional findings pagination; it returns status, never a PDF or new child job.
+
+Queue addition in the prepared 0.4.9 candidate (not yet tagged or installed): only when the
+authenticated contract advertises `documents.queue.mode: queue-v1`, a multipart
+generation request may add `Task-Mode: queue-v1`. Upload the complete body while
+reading early feedback; do not stop uploading on HTTP200. Ten outstanding tasks
+include active work; intake/normalization, document processing and sending each
+have separate ceilings of two, subject to RAM credits and disk reservations.
+The checked trial is Linux cgroup / 1 GiB hard RAM with 2 CPU; unavailable/stale
+metrics stop grants and affected work safely. Waiting does not extend the original
+three-hour expiry. Without the selector, old clients retain their existing mode.
+See README's queue addition for scope; deploy still requires separate approval.

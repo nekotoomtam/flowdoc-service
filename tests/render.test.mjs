@@ -46,3 +46,10 @@ it('cleans parent-owned render workspace after forced termination',async()=>{
  await renderPinnedJob(p,t.definition,abort.signal,500,52428800,root);clearInterval(timer);expect(saw).toBe(true);
  expect(await readdir(root)).toEqual([]);
 });
+it('confirms native descendant exit before resolving a legacy renderer whose direct child was killed',async()=>{
+ const {mkdtemp,writeFile,readFile,readdir,chmod}=await import('node:fs/promises'),{tmpdir}=await import('node:os'),{join}=await import('node:path');const root=await mkdtemp(join(tmpdir(),'legacy-group-')),marker=join(root,'native.json'),shim=join(root,'python-shim'),renders=join(root,'renders');const old=process.env.PYTHON_EXECUTABLE;
+ await writeFile(shim,'#!/usr/bin/env python3\nimport os,json,time\nwith open('+JSON.stringify(marker)+',"w") as f: json.dump({"pid":os.getpid(),"parent":os.getppid(),"group":os.getpgrp()},f)\nwhile True: time.sleep(1)\n');await chmod(shim,0o755);process.env.PYTHON_EXECUTABLE=shim;let native;
+ const pending=renderPinnedJob(p,t.definition,undefined,10000,52428800,renders);try{const end=Date.now()+5000;while(!native){try{native=JSON.parse(await readFile(marker,'utf8'));}catch{}if(Date.now()>end)throw Error('native shim was not invoked');await new Promise(r=>setTimeout(r,10));}process.kill(native.parent,'SIGKILL');expect((await pending).ok).toBe(false);
+ const stoppedBy=Date.now()+1000;let alive=true;while(Date.now()<stoppedBy){try{process.kill(native.pid,0);}catch{alive=false;break;}await new Promise(r=>setTimeout(r,10));}expect(alive).toBe(false);expect(await readdir(renders)).toEqual([]);
+ }finally{if(native)try{process.kill(-native.group,'SIGKILL');}catch{}if(old===undefined)delete process.env.PYTHON_EXECUTABLE;else process.env.PYTHON_EXECUTABLE=old;await pending;}
+},15000);

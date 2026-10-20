@@ -20,14 +20,25 @@ export function renderDocumentJob(imageInput:JobImageInput,signal?:AbortSignal,f
 // Mutate a holder instead so that retained argument cannot keep the JSON alive.
 async function renderSerializedJob(payload:{text:string},signal?:AbortSignal,deadlineMs=120000,maxBytes=52428800,tempRoot=join(tmpdir(),'flowdoc-job-renders')):Promise<Result<Pick<PdfArtifact,"bytes"|"mediaType">>>{
  const root=resolvePath(tempRoot);await mkdir(root,{recursive:true});const temporary=await mkdtemp(join(root,'render-'));
- try{return await new Promise<Result<Pick<PdfArtifact,'bytes'|'mediaType'>>>(resolve=>{
+ let safeToRemove=true;
+ try{return await new Promise<Result<Pick<PdfArtifact,'bytes'|'mediaType'>>>((resolve,reject)=>{
   const child=spawn(process.execPath,[fileURLToPath(new URL('./render-child.js',import.meta.url))],{stdio:['pipe','pipe','ignore'],detached:process.platform!=='win32',env:{FLOWDOC_RENDER_TEMP:temporary,PATH:process.env.PATH,...(process.env.PYTHON_EXECUTABLE?{PYTHON_EXECUTABLE:process.env.PYTHON_EXECUTABLE}:{})}});
+  if(child.pid)safeToRemove=false;
   const chunks:Buffer[]=[];let size=0,failed=false,done=false;
   const kill=()=>{failed=true;try{if(process.platform!=='win32'&&child.pid)process.kill(-child.pid,'SIGKILL');else child.kill('SIGKILL');}catch{}};
   const timer=setTimeout(kill,deadlineMs);signal?.addEventListener('abort',kill,{once:true});if(signal?.aborted)kill();
   child.stdout.on('data',(chunk:Buffer)=>{size+=chunk.length;if(size>maxBytes)kill();else chunks.push(chunk);});
   const finish=async(code:number|null)=>{
    if(done)return;done=true;clearTimeout(timer);signal?.removeEventListener('abort',kill);
+   try{
+    // A direct child can close while a native descendant still owns scratch.
+    // Keep the promise (and its shared worker credit) until the whole group,
+    // including adopted zombies, has disappeared from this Linux namespace.
+    if(child.pid&&process.platform==='linux'){
+     if(!await legacyGroupGone(child.pid)){kill();const end=Date.now()+5000;while(!await legacyGroupGone(child.pid)){if(Date.now()>=end)throw Error('unconfirmed');await new Promise(r=>setTimeout(r,20));}}
+    }
+    safeToRemove=true;
+   }catch{reject(Object.assign(Error('Worker group termination unconfirmed'),{code:'WORKER_STOP_UNCONFIRMED'}));return;}
    const bytes=Buffer.concat(chunks);let warnings=[];
    try{warnings=JSON.parse(await readFile(join(temporary,'warnings.json'),'utf8'));}catch{}
    if(code===0&&!failed&&bytes.subarray(0,5).toString()==='%PDF-'){resolve({ok:true,value:{bytes,mediaType:'application/pdf'},warnings});return;}
@@ -55,7 +66,12 @@ async function renderSerializedJob(payload:{text:string},signal?:AbortSignal,dea
   // The processor validates the pinned template before composing/preparing images.
   // Send only the branch the child consumes; retain composition for direct callers.
   child.on('error',()=>void finish(1));child.on('close',code=>void finish(code));child.stdin.on('error',()=>{});child.stdin.end(payload.text);payload.text='';
- });}finally{await rm(temporary,{recursive:true,force:true});}
+ });}finally{if(safeToRemove)await rm(temporary,{recursive:true,force:true});}
+}
+
+async function legacyGroupGone(group:number){
+ for(const id of await readdir('/proc')){if(!/^\d+$/.test(id))continue;try{const stat=await readFile('/proc/'+id+'/stat','utf8'),fields=stat.slice(stat.lastIndexOf(')')+2).split(' ');if(Number(fields[2])===group)return false;}catch(e){if(!['ENOENT','ESRCH'].includes((e as NodeJS.ErrnoException).code??''))throw e;}}
+ return true;
 }
 
 export async function cleanupRenderTemps(root:string){const base=resolvePath(root);await mkdir(base,{recursive:true});for(const e of await readdir(base,{withFileTypes:true})){if(e.isDirectory()&&/^render-[a-zA-Z0-9]{6}$/.test(e.name))await rm(join(base,e.name),{recursive:true,force:true});}}
