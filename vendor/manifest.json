@@ -1,10 +1,10 @@
 {
   "name": "@flowdoc/core",
   "version": "0.4.7",
-  "file": "flowdoc-core-0.4.7-read-reuse-stage3.tgz",
-  "sha256": "9a5068c80a7b332155aa454f4d72240012c25b44a08d0a446b3a995d7a39bf2e",
-  "sourceCommit": "87f50e47c4c418b1452d041c01ae06588748a641",
-  "sourceArtifact": "C:\\Users\\nekot\\Documents\\Codex\\2026-10-20\\record-reuse-stage3/artifacts/flowdoc-core-0.4.7.tgz",
+  "file": "flowdoc-core-0.4.7-template-access-stage4.tgz",
+  "sha256": "ef855ab550d9951ab2f9e9901881df2b98bcd4750a9a11c7216e7f7816c45395",
+  "sourceCommit": "96befec347b1977ae5e57a173edb30f0f2ebaf6d",
+  "sourceArtifact": "C:\\Users\\nekot\\Documents\\Codex\\2026-10-20\\template-access-stage4/artifacts/flowdoc-core-0.4.7.tgz",
   "runtime": "linux-x64 glibc, Node24, Python3.11, fontTools4.58.2",
-  "candidate": "isolated record-reuse-stage3; not a published0.4.7 release"
+  "candidate": "isolated template-access-stage4; not a published0.4.7 release"
 }
