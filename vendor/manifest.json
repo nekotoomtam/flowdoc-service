@@ -6,5 +6,5 @@
   "sourceCommit": "8f8a739aea5597b6d8c9932c790f9bd716e8ebc7",
   "sourceArtifact": "C:\\Users\\nekot\\Documents\\Codex\\2026-10-20\\release-047-048/flowdoc-core-0.4.7.tgz",
   "runtime": "linux-x64 glibc, Node24, Python3.11, fontTools4.58.2",
-  "delivery": "Core0.4.7 / Service0.4.8 / FlowDocMake0.2.7; Git release identity is its annotated snapshot tag; installation separate"
+  "delivery": "Core0.4.7 / Service0.4.9 / FlowDocMake0.2.8; Git release identity is its annotated snapshot tag; installation separate"
 }

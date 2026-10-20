@@ -15,7 +15,7 @@ services:
     networks: [private]
   registry:
     init: true
-    image: ${FLOWDOC_REGISTRY_IMAGE:-flowdoc-service:0.4.8}
+    image: ${FLOWDOC_REGISTRY_IMAGE:-flowdoc-service:0.4.9}
     build:
       context: .
       target: runtime
@@ -27,7 +27,7 @@ services:
     networks: [private]
   api:
     init: true
-    image: ${FLOWDOC_REGISTRY_IMAGE:-flowdoc-service:0.4.8}
+    image: ${FLOWDOC_REGISTRY_IMAGE:-flowdoc-service:0.4.9}
     build:
       context: .
       target: runtime
@@ -64,7 +64,7 @@ services:
   verification:
     init: true
     profiles: [verify]
-    image: ${FLOWDOC_VERIFY_IMAGE:-flowdoc-service-tests:0.4.8}
+    image: ${FLOWDOC_VERIFY_IMAGE:-flowdoc-service-tests:0.4.9}
     build:
       context: .
       target: verification

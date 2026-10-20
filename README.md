@@ -1,6 +1,6 @@
 # FlowDoc Service
 
-Package `0.4.8` supports model19 Section instance authoring
+Package `0.4.9` supports model19 Section instance authoring
 beside unchanged model18. `POST /authoring/drafts/:id/sections` creates an empty
 authored Section; `POST /authoring/drafts/:id/sections/import` copies saved source
 Sections into an owned target with new public/normalized IDs. Import accepts
@@ -25,7 +25,7 @@ Project Control Section–Area contract; this paragraph covers this repository.
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Package version: 0.4.8. A release identity requires an annotated tag on the
+Package version: 0.4.9. A release identity requires an annotated tag on the
 snapshot branch; a package version alone does not establish release acceptance.
 This package pins Core 0.4.7 for streamed document tasks, group-label spans,
 the bounded segmenter session, and opt-in font-height proposal/confirmation.
@@ -38,7 +38,7 @@ an administrator UI and production scaling remain outside this slice.
 
 Start with the Thai [usage guide](docs/usage.md): first PDF, draft publication,
 API requests, uploads, Area examples, font administration/readiness and backup/upgrade.
-It describes candidate 0.4.8; shared release status remains in Project Control.
+It describes candidate 0.4.9; shared release status remains in Project Control.
 
 ## Local setup and acceptance
 
@@ -53,7 +53,7 @@ checked; full decoding/preparation belongs to the internal task processor below.
 Normalization writes a private version1 artifact and remains at `validating`;
 its summary is historical normalization evidence, not job/PDF readiness.
 
-Task processing (migration024, Service0.4.8/Core0.4.7): `createTaskProcessing`
+Task processing (migration024, Service0.4.9/Core0.4.7): `createTaskProcessing`
 connects normalized task files to one immutable `flowdoc-task-job/1` child job.
 Pass its hook to the existing serial `startProcessor({tasks: manager, ...})` and
 stop the manager before the intake/pool. This adapter is not a public endpoint.
@@ -104,9 +104,9 @@ seals complete input, expires it after three hours from creation, and recovers
 interrupted local writers. It starts a ten-second cleanup sweep when instantiated;
 call its `stop()` before closing its pool. Trusted adapters supply credential and
 template permissions; client actor references are attribution only.
-`POST /documents` is still unavailable. Receipt does not validate Core input,
-start a job or create a PDF. Public API wiring and legacy render scratch/
-PDF reservation integration remain later-stage prerequisites; existing limits stay.
+Receipt alone does not validate Core input or create a PDF. The authenticated
+`POST /documents` path now connects intake, normalization and processing as
+described below; the isolated intake adapter alone does not start a job.
 
 Install dependencies with `npm ci --ignore-scripts`; build with `npm run build`.
 With Docker Desktop's Linux engine ready, run `npm run check:database`.
@@ -121,7 +121,7 @@ retains its volume/network/images. Failures leave inspection data. Generated
 fixtures/isolated schemas and temporarily alter constraints; never use shared data.
 
 For a persistent local registry, copy .env.example to .env and choose a random
-URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.4.8` explicitly
+URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.4.9` explicitly
 to identify the image built from this candidate; verify its image ID separately.
 Apply migrations through 024 before
 starting this package. For fonts/authoring, add the environment override in the
@@ -284,8 +284,8 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 Core 0.4.7 is installed solely from `vendor/flowdoc-core-0.4.7-release.tgz`.
 Exact SHA256 and Core source commit are recorded in `vendor/manifest.json` and
-the lockfile; earlier candidate archives remain immutable. Service0.4.8 uses
-FlowDocMake0.2.7 with the same exact pin. Installation is separately authorized.
+the lockfile; earlier candidate archives remain immutable. Service0.4.9 uses
+FlowDocMake0.2.8 with the same exact pin. Installation is separately authorized.
 `/authoring/contract` advertises optional `groupLabelSpans`
 v1 for model19/schema1,2. Stored definitions, clones/imports and queued jobs retain
 the declaration. Font snapshots pin this exact engine checksum; a different engine
@@ -592,7 +592,7 @@ complete and omission warnings are distinct from skipped input indices.
 No migration or Area/request sizing field is introduced. Existing backup,
 restore and installation steps still apply; this candidate is not installed.
 
-## Opt-in streamed document tasks (Service0.4.8)
+## Opt-in streamed document tasks (Service0.4.9)
 
 Core remains exactly0.4.7 from the pinned vendor archive; migration024 remains
 latest. The new HTTP path is disabled unless `TASK_CREDENTIALS_FILE` names a private
@@ -616,7 +616,8 @@ Success requires actual server transport finish and the conditional DB transitio
 Client file save/hash and complete multipart framing are separately verified; they
 do not prove the final DB receipt committed. Lookup can inspect that lasting record.
 
-Development queue addition (not a new tagged release): when the authenticated
+Queue addition in the prepared 0.4.9 candidate (not yet tagged or installed):
+when the authenticated
 contract advertises `documents.queue.mode: queue-v1`, multipart callers can send
 `Task-Mode: queue-v1`. Continue uploading while reading early task/progress feedback;
 an early HTTP response is not permission to truncate the request. Fast uploads may
@@ -633,6 +634,15 @@ all waits. Legacy jobs take an exclusive turn. Source retention, cancellation,
 backup/recovery and installation boundaries below remain unchanged. Shared trial
 policy and evidence belong to Project Control's
 `docs/domains/flowdoc-task-queue-concurrency-plan-2026-10-20.md`.
+
+Use the operator override in the usage guide for the checked 1-GiB / 2-CPU queue
+profile; base Compose does not impose that memory limit or enable task credentials.
+The queue samples whole-cgroup RAM, including file cache and shared work, separately
+from the legacy owned-process RSS guard above. It grants at most 768 MiB of
+conservative credits, pauses at 832 MiB and stops work after sustained 896 MiB
+pressure; stale/unreadable counters fail closed. Admission is bounded by disk
+reservations as well as task count, so ten slots do not guarantee ten large inputs
+will fit the 1.5-GB trial pool. This update adds no migration after 024.
 
 Backup/recovery includes migrations and the private task storage directory. Startup
 reconciles old leases and expiry; it never automatically resumes an abandoned job.
