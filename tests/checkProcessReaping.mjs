@@ -7,7 +7,7 @@ import {readFile, readdir} from 'node:fs/promises';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const exists = async pid => {
   try { await readFile(`/proc/${pid}/stat`); return true; }
-  catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+  catch (error) { if (['ENOENT', 'ESRCH'].includes(error.code)) return false; throw error; }
 };
 const until = async condition => {
   const deadline = Date.now() + 5000;
@@ -72,7 +72,7 @@ for (const pid of await readdir('/proc')) {
   try {
     const stat = await readFile(`/proc/${pid}/stat`, 'utf8');
     if (stat.slice(stat.lastIndexOf(')') + 2).split(' ')[0] === 'Z') zombies.push(Number(pid));
-  } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  } catch (error) { if (!['ENOENT', 'ESRCH'].includes(error.code)) throw error; }
 }
 assert.deepEqual(zombies, []);
 const init = (await readFile('/proc/1/cmdline', 'utf8')).split('\0')[0];
