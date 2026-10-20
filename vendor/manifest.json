@@ -1,10 +1,10 @@
 {
   "name": "@flowdoc/core",
   "version": "0.4.7",
-  "file": "flowdoc-core-0.4.7-template-access-stage4.tgz",
-  "sha256": "ef855ab550d9951ab2f9e9901881df2b98bcd4750a9a11c7216e7f7816c45395",
-  "sourceCommit": "96befec347b1977ae5e57a173edb30f0f2ebaf6d",
-  "sourceArtifact": "C:\\Users\\nekot\\Documents\\Codex\\2026-10-20\\template-access-stage4/artifacts/flowdoc-core-0.4.7.tgz",
+  "file": "flowdoc-core-0.4.7-segmenter-session.tgz",
+  "sha256": "b35c9f8a1d7d67ef2cc00393c4d911b5dc3a6d5314c615192b9b27812835167c",
+  "sourceCommit": "5fc454c7360b4837b363669ebc09eac67364a81b",
+  "sourceArtifact": "C:\\Users\\nekot\\Documents\\Codex\\2026-10-20\\segmenter-session/artifacts/flowdoc-core-0.4.7.tgz",
   "runtime": "linux-x64 glibc, Node24, Python3.11, fontTools4.58.2",
-  "candidate": "isolated template-access-stage4; not a published0.4.7 release"
+  "candidate": "isolated persistent-segmenter experiment; not a published0.4.7 release"
 }
