@@ -690,3 +690,14 @@ not success. If an error closes without a PDF, retain taskId for optional lookup
 If disconnected, the worker stops safely; only received originals remain until the
 original expiresAt. A later JSON POST to the same route contains only taskId and
 optional findings pagination; it returns status, never a PDF or new child job.
+
+Development queue addition (not a new release or installation): only when the
+authenticated contract advertises `documents.queue.mode: queue-v1`, a multipart
+generation request may add `Task-Mode: queue-v1`. Upload the complete body while
+reading early feedback; do not stop uploading on HTTP200. Ten outstanding tasks
+include active work; intake/normalization, document processing and sending each
+have separate ceilings of two, subject to RAM credits and disk reservations.
+The checked trial is Linux cgroup / 1 GiB hard RAM with 2 CPU; unavailable/stale
+metrics stop grants and affected work safely. Waiting does not extend the original
+three-hour expiry. Without the selector, old clients retain their existing mode.
+See README's queue addition for scope; deploy still requires separate approval.

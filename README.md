@@ -31,7 +31,7 @@ This package pins Core 0.4.7 for streamed document tasks, group-label spans,
 the bounded segmenter session, and opt-in font-height proposal/confirmation.
 The exact file/checksum/source commit are in vendor/manifest.json. Installation
 is separate from the Git release; this repository does not identify a running server.
-The local HTTP API includes a serial export processor,
+The local HTTP API includes a legacy serial export processor,
 temporary PDF lifecycle and JPEG/PNG resource preparation. Release/tag promotion
 is separate. Font administration uses the CLI and scoped administrator permission;
 an administrator UI and production scaling remain outside this slice.
@@ -608,13 +608,31 @@ a supplied ID only reads its owned record, never resumes/downloads/regenerates i
 Creator reads its own work; other principals in that owner require taskRead.
 Lookup does not renew expiry. Section assets cannot cross Section boundaries.
 
-After complete receipt, the same response streams task-v1 JSON events and one final
+Without a queue selector, after complete receipt the same response streams task-v1 JSON events and one final
 PDF part; early failures use JSON/status, late failures use a closed error envelope
 before PDF or abort incomplete binary framing. A trusted proxy must stream rather
 than buffer responses, preserve request size/time budgets and permit long uploads.
 Success requires actual server transport finish and the conditional DB transition.
 Client file save/hash and complete multipart framing are separately verified; they
 do not prove the final DB receipt committed. Lookup can inspect that lasting record.
+
+Development queue addition (not a new tagged release): when the authenticated
+contract advertises `documents.queue.mode: queue-v1`, multipart callers can send
+`Task-Mode: queue-v1`. Continue uploading while reading early task/progress feedback;
+an early HTTP response is not permission to truncate the request. Fast uploads may
+finish before the caller receives its first feedback. Without that header, old
+clients keep response-after-upload behavior.
+
+The bounded trial separates ten outstanding tasks (including running/sending work)
+from two intake/normalization pipelines, two document workers and two senders.
+These are ceilings, not guaranteed simultaneous grants: RAM credits and shared
+disk reservations may keep work waiting. Queue capability requires the checked
+Linux cgroup profile (1 GiB hard RAM); the verified comparison used 2 CPU. Missing
+or stale metrics fail closed; expiry stays three hours from creation, including
+all waits. Legacy jobs take an exclusive turn. Source retention, cancellation,
+backup/recovery and installation boundaries below remain unchanged. Shared trial
+policy and evidence belong to Project Control's
+`docs/domains/flowdoc-task-queue-concurrency-plan-2026-10-20.md`.
 
 Backup/recovery includes migrations and the private task storage directory. Startup
 reconciles old leases and expiry; it never automatically resumes an abandoned job.
