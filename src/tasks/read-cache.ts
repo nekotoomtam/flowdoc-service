@@ -41,6 +41,10 @@ export function taskReadWindows(file:FileHandle,initial:Stats,grant:ReadGrant,si
   });
  }
  const byte=async(pos:number)=>{check();if(pos>=size)return -1;return window(pos,(b,i,n)=>{if(i>=n)throw invalid();return b[i]!;});};
+ const copyInto=async(start:number,end:number,out:Buffer)=>{
+  check();if(start<0||end<start||end>size||end-start>393218||out.length!==end-start)throw invalid();
+  for(let pos=start;pos<end;){const n=await window(pos,(b,i,length)=>{const n=Math.min(end-pos,length-i);if(n<=0)throw invalid();b.copy(out,pos-start,i,i+n);return n;});pos+=n;}check();
+ };
  const text=async(start:number,end:number)=>{
   check();if(start<0||end<start||end>size||end-start>393218)throw invalid();const out=Buffer.alloc(end-start);
   for(let pos=start;pos<end;){const n=await window(pos,(b,i,length)=>{const n=Math.min(end-pos,length-i);if(n<=0)throw invalid();b.copy(out,pos-start,i,i+n);return n;});pos+=n;}
@@ -51,5 +55,5 @@ export function taskReadWindows(file:FileHandle,initial:Stats,grant:ReadGrant,si
   closePromise=(async()=>{try{await tail;if(!signal?.aborted)await identity();}finally{entries.clear();scratch=undefined;stats.currentCacheBytes=0;stats.scratchBytes=0;signal?.removeEventListener('abort',onAbort);try{await file.close();}finally{grant.release();channel('flowdoc.task.read').publish({taskId:grant.taskId,cacheLimit:grant.cacheBytes,indexLimit:grant.indexBytes,...stats,...extraStats()});}}})();return closePromise;
  }
  const onAbort=()=>{void close().catch(()=>{});};signal?.addEventListener('abort',onAbort,{once:true});
- return {byte,text,close,check,stats:()=>({...stats,...extraStats()})};
+ return {byte,text,copyInto,close,check,stats:()=>({...stats,...extraStats()})};
 }
