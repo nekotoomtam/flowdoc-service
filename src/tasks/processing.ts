@@ -1,3 +1,4 @@
+import {artifactSpec,validateReceipt,DOCX_MAX_BYTES,docxDisclosure} from './artifact.js';
 import type { Pool, PoolClient } from 'pg';
 import {taskWire,type TaskWire} from './wire.js';
 import {taskSnapshot,publicCode,stageFor} from './public.js';
@@ -172,12 +173,12 @@ export async function createTaskProcessing(deps: Dependencies) {
                 throw taskError('RENDER_FAILED');
             generation = 'succeeded';
             const output = (await pool.query('SELECT o.* FROM document_outputs o JOIN generation_jobs j ON j.id=o.job_id WHERE j.task_id=$1 AND o.deleted_at IS NULL', [id])).rows[0];
-            if (!output || output.sha256 !== pdf.receipt.sha256 || Number(output.byte_size) !== pdf.receipt.byteLength)
+            if (!output || output.output_format !== row.output_format || output.media_type !== artifactSpec(row.output_format).mediaType || output.page_count !== pdf.receipt.pageCount || output.sha256 !== pdf.receipt.sha256 || Number(output.byte_size) !== pdf.receipt.byteLength)
                 throw taskError('STORAGE_IO');
             const snapshot=await taskSnapshot(pool,intake,request.authorization,id,undefined,10);
             if(snapshot.task.counts.findingCount||pdf.warningCount){const detail={findings:[...snapshot.findings],...snapshot.task.counts,detailsTruncated:snapshot.task.detailsTruncated||snapshot.nextCursor!==null};while(Buffer.byteLength(JSON.stringify(detail))>30000&&detail.findings.length){detail.findings.pop();detail.detailsTruncated=true;}await wire.event('warning','sending',detail);}
             delivery = 'interrupted';
-            await wire.pdf(await files.path(pdf.output),{bytes:Number(output.byte_size),sha256:output.sha256,pageCount:pdf.receipt.pageCount,completeness:snapshot.task.completeness,...snapshot.task.counts},abort.signal);
+            await wire.artifact(await files.path(pdf.output),{outputFormat:row.output_format,...(row.output_format==='docx'?docxDisclosure:{}),bytes:Number(output.byte_size),sha256:output.sha256,pageCount:pdf.receipt.pageCount,completeness:snapshot.task.completeness,...snapshot.task.counts},abort.signal);
             const n = await transaction(pool, async (c) => {
                 await quotaLock(c);
                 const r = await repo.row(c, id);
@@ -206,7 +207,7 @@ export async function createTaskProcessing(deps: Dependencies) {
             await repo.finish(id, reason(cause), undefined, facts(await repo.get(id), generation, delivery, pdf));
             if (started) {
                 terminalFeedback=true;
-                if(!abort.signal.aborted||!request.signal?.aborted)await wire.error(publicCode(reason(cause)),generation==='succeeded'?'sending':'composing',(await repo.get(id)).status).catch(()=>request.response.abort());
+                if(!abort.signal.aborted||!request.signal?.aborted)await wire.error(publicCode(reason(cause),row.output_format),generation==='succeeded'?'sending':'composing',(await repo.get(id)).status).catch(()=>request.response.abort());
                 else await request.response.abort();
             }
             throw taskError((await repo.get(id)).terminal_reason ?? reason(cause));
@@ -264,7 +265,10 @@ export async function createTaskProcessing(deps: Dependencies) {
                         const v=(await pool.query('SELECT definition_json FROM template_versions WHERE id=$1',[row.template_version_id])).rows[0];validateFontSnapshot(execution.snapshot,row.template_pin.fingerprint,row.normalized_digest);
                         abort.signal.throwIfAborted();
                         const receipt=await(deps.render??renderTask)(intake.processingContext,row,v.definition_json,execution.snapshot,abort.signal);
-                        abort.signal.throwIfAborted();execution.receipt=receipt;
+                        abort.signal.throwIfAborted();
+                        if(receipt.outputFormat!==row.output_format||receipt.mediaType!==artifactSpec(row.output_format).mediaType)throw taskError('STORAGE_IO');
+                        validateReceipt(row.output_format,receipt.receipt,row.output_format==='docx'?(row.resource_policy.docxBytes??DOCX_MAX_BYTES):row.resource_policy.pdfBytes);
+                        execution.receipt=receipt;
                         clearTimeout(timer);timer=undefined;
                         // renderTask resolves only after process-group reaping and scratch cleanup.
                         releaseWorker();
@@ -273,7 +277,7 @@ export async function createTaskProcessing(deps: Dependencies) {
                             if(r.status!=='processing'||r.stop_requested_at||r.lease_due||r.lease_token!==execution.leaseToken)throw taskError('WORKER_INTERRUPTED');
                             await c.query("UPDATE generation_jobs SET status='succeeded',finished_at=clock_timestamp(),task_warning_count=$2 WHERE id=$1",[job.id,receipt.warningCount]);
                             await c.query("INSERT INTO job_processing(job_id,stage,completed,total,warnings_json) VALUES($1,'complete',1,1,$2)",[job.id,JSON.stringify(receipt.warnings)]);
-                            await c.query("INSERT INTO document_outputs(id,job_id,path,media_type,byte_size,retain,expires_at,sha256,page_count) VALUES(uuidv7(),$1,$2,'application/pdf',$3,false,$4,$5,$6)",[job.id,await files.path(receipt.output),receipt.receipt.byteLength,r.expires_at,receipt.receipt.sha256,receipt.receipt.pageCount]);
+                            await c.query("INSERT INTO document_outputs(id,job_id,path,media_type,byte_size,retain,expires_at,sha256,page_count,output_format) VALUES(uuidv7(),$1,$2,$3,$4,false,$5,$6,$7,$8)",[job.id,await files.path(receipt.output),receipt.mediaType,receipt.receipt.byteLength,r.expires_at,receipt.receipt.sha256,receipt.receipt.pageCount,row.output_format]);
                             const n=(await c.query("UPDATE tasks SET status='sending',state_version=state_version+1,updated_at=now() WHERE id=$1 RETURNING *",[r.id])).rows[0];await repo.event(c,n,'sending',r.status);
                         });
                         execution.waitReason='send_slot';
@@ -316,4 +320,4 @@ export async function createTaskProcessing(deps: Dependencies) {
 
 
 }
-function facts(r: any, generation: string, delivery: string, pdf?: TaskRenderReceipt) { return { ownerKey: r.owner_key, principalId: r.created_by_principal, clientActorRef: r.client_actor_ref, billingSubjectKey: r.billing_subject_key, requestKind: r.request_kind, createdAt: r.created_at, expiresAt: r.expires_at, template: r.template_pin, policyVersion: r.resource_policy.version, status: r.status, reason: r.terminal_reason, core: { version: r.normalization_summary?.coreVersion ?? null, sha256: r.normalization_summary?.coreSha256 ?? null }, normalization: r.normalization_summary, processingStartedAt: r.processing_started_at, sendStartedAt: r.send_started_at, terminalAt: r.terminal_at, requestBytes: r.request_bytes === null ? null : Number(r.request_bytes), requestBytesMeasurement: r.request_bytes === null ? 'unknown_after_interruption' : 'observed', generation, delivery, pdfBytes: pdf?.receipt.byteLength ?? null, pageCount: pdf?.receipt.pageCount ?? null, pdfSha256: pdf?.receipt.sha256 ?? null, generationWarningCount: pdf?.warningCount ?? null, generationSummary: pdf?.summary ?? r.generation_summary ?? null, completeness: taskCompleteness(r, pdf?.summary ?? r.generation_summary) }; }
+function facts(r: any, generation: string, delivery: string, pdf?: TaskRenderReceipt) { return { ownerKey: r.owner_key, principalId: r.created_by_principal, clientActorRef: r.client_actor_ref, billingSubjectKey: r.billing_subject_key, requestKind: r.request_kind, createdAt: r.created_at, expiresAt: r.expires_at, template: r.template_pin, policyVersion: r.resource_policy.version, status: r.status, reason: r.terminal_reason, core: { version: r.normalization_summary?.coreVersion ?? null, sha256: r.normalization_summary?.coreSha256 ?? null }, normalization: r.normalization_summary, processingStartedAt: r.processing_started_at, sendStartedAt: r.send_started_at, terminalAt: r.terminal_at, requestBytes: r.request_bytes === null ? null : Number(r.request_bytes), requestBytesMeasurement: r.request_bytes === null ? 'unknown_after_interruption' : 'observed', generation, delivery, outputFormat:r.output_format,output:pdf?{outputFormat:pdf.outputFormat,mediaType:pdf.mediaType,bytes:pdf.receipt.byteLength,sha256:pdf.receipt.sha256,pageCount:pdf.receipt.pageCount,...(pdf.outputFormat==='docx'?docxDisclosure:{})}:null,pdfBytes:r.output_format==='pdf'?pdf?.receipt.byteLength??null:null,pageCount:pdf?.receipt.pageCount??null,pdfSha256:r.output_format==='pdf'?pdf?.receipt.sha256??null:null, generationWarningCount: pdf?.warningCount ?? null, generationSummary: pdf?.summary ?? r.generation_summary ?? null, completeness: taskCompleteness(r, pdf?.summary ?? r.generation_summary) }; }

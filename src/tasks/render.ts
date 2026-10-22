@@ -1,3 +1,5 @@
+import {artifactSpec,validateReceipt,DOCX_MAX_BYTES,type ArtifactReceipt} from './artifact.js';
+import type {OutputFormat} from './output-format.js';
 import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
@@ -23,13 +25,11 @@ export interface GenerationSummary {
     completeness: 'complete' | 'partial';
 }
 export interface TaskRenderReceipt {
+    outputFormat: OutputFormat;
+    mediaType: string;
     summary: GenerationSummary;
     output: string;
-    receipt: {
-        byteLength: number;
-        sha256: string;
-        pageCount: number;
-    };
+    receipt: ArtifactReceipt;
     warnings: any[];
     warningCount: number;
 }
@@ -142,7 +142,7 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
         }
         if (m.op === 'write') {
             const h = handles.get(m.key);
-            if (!h || !Buffer.isBuffer(m.chunk) || m.chunk.length > 65536 || h.size + m.chunk.length > (h.kind === 'output' ? p.pdfBytes : p.imageBytes))
+            if (!h || !Buffer.isBuffer(m.chunk) || m.chunk.length > 65536 || h.size + m.chunk.length > (h.kind === 'output' ? (row.output_format==='docx'?(p.docxBytes??DOCX_MAX_BYTES):p.pdfBytes) : p.imageBytes))
                 throw taskError('LIMIT_EXCEEDED');
             const q = (await pool.query('SELECT storage_used_bytes FROM task_resource_reservations WHERE task_id=$1', [row.id])).rows[0];
             await repo.reserve(row.id, Number(q.storage_used_bytes) + m.chunk.length + (workspaceClosed ? 0 : bound.bytes), row.lease_token);
@@ -196,12 +196,13 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
             if (completion || handles.size || JSON.stringify(m).length > 131072 || !Array.isArray(m.warnings) || m.warnings.length > 100)
                 throw taskError('INVALID_DATA');
             const ref = sealed.get(m.output.replace(/\.part$/, ''));
-            if (!ref || ref.sha256 !== m.receipt?.sha256 || ref.byteLength !== m.receipt?.byteLength || !Number.isSafeInteger(m.receipt.pageCount) || m.receipt.pageCount < 1 || m.receipt.pageCount > 2000)
+            if (!ref || ref.sha256 !== m.receipt?.sha256 || ref.byteLength !== m.receipt?.byteLength || m.outputFormat !== row.output_format)
                 throw taskError('STORAGE_IO');
+            validateReceipt(row.output_format,m.receipt,row.output_format==='docx'?(p.docxBytes??DOCX_MAX_BYTES):p.pdfBytes);
             const summary = m.summary;
             if (!summary || summary.version !== 1 || summary.scope !== 'expanded-image-nodes' || !['complete', 'partial'].includes(summary.completeness) || ['imagePlacementCount', 'normalizedOmittedPlacementCount', 'preparationOmittedPlacementCount', 'omittedPlacementCount', 'findingCount', 'formatOmissionCount'].some(k => !Number.isSafeInteger(summary[k]) || summary[k] < 0 || summary[k] > 10000) || summary.findingCount !== preparationFindings || summary.preparationOmittedPlacementCount !== preparationOmitted || summary.omittedPlacementCount !== summary.normalizedOmittedPlacementCount + preparationOmitted || summary.omittedPlacementCount > summary.imagePlacementCount || summary.omittedPlacementCount && summary.completeness !== 'partial' || Buffer.byteLength(JSON.stringify(summary)) > 8192)
                 throw taskError('INVALID_DATA');
-            completion = { summary, output: ref.key, receipt: { byteLength: ref.byteLength, sha256: ref.sha256, pageCount: m.receipt.pageCount }, warnings: m.warnings, warningCount: m.warningCount };
+            completion = { outputFormat:row.output_format,mediaType:artifactSpec(row.output_format).mediaType,summary, output: ref.key, receipt: { byteLength: ref.byteLength, sha256: ref.sha256, pageCount: m.receipt.pageCount,mediaType:m.receipt.mediaType,...(row.output_format==='docx'?{fieldRefresh:m.receipt.fieldRefresh,wordVerified:m.receipt.wordVerified,buffered:m.receipt.buffered}:{}) }, warnings: m.warnings, warningCount: m.warningCount };
             return null;
         }
         throw taskError('INVALID_DATA');

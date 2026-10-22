@@ -146,10 +146,10 @@ it('tracks preparation-only omissions per shared variant with exact Section loca
  const usage=(await pool.query('SELECT facts FROM task_usage WHERE task_id=$1',[task.taskId])).rows[0].facts;expect(usage).toMatchObject({status:'succeeded',generation:'succeeded',delivery:'succeeded',completeness:'partial',generationSummary:result.generationSummary});expect(usage.normalization.completeness).toBe('complete');expect((await intake.inspect(auth,task.taskId)).generationSummary).toEqual(result.generationSummary);await expect(pool.query("UPDATE tasks SET generation_summary='{}' WHERE id=$1",[task.taskId])).rejects.toMatchObject({code:'55000'});expect((await pool.query('SELECT task_warning_count FROM generation_jobs WHERE task_id=$1',[task.taskId])).rows[0].task_warning_count).toBe(0);expect(Buffer.concat(out.parts).toString('latin1')).not.toContain('/Subtype /Image');await proofPdf(out,'generation-omissions');
 },30000);
 
-it('pins DOCX in both job descriptors and refuses PDF rendering before I5',async()=>{
- await start();const id=await task({outputFormat:'DOCX'}),out=response();
+it('pins DOCX in both job descriptors and renders DOCX without PDF fallback',async()=>{
+ await start();const id=await task({outputFormat:'DOCX',images:1}),out=response();
  await manager.execute({authorization:auth,taskId:id,response:out}).catch(()=>{});
  const row=(await pool.query('SELECT * FROM tasks WHERE id=$1',[id])).rows[0],job=(await pool.query('SELECT * FROM generation_jobs WHERE task_id=$1',[id])).rows[0];
  expect(job.output_format).toBe('docx');expect(job.original_input).toMatchObject({contract:'flowdoc-task-request/2',outputFormat:'docx'});expect(job.prepared_input).toMatchObject({contract:'flowdoc-task-job/2',outputFormat:'docx'});
- expect(row.status).toBe('failed');expect(row.terminal_reason).toBe('UNAVAILABLE');expect(Buffer.concat(out.parts).includes(Buffer.from('%PDF-'))).toBe(false);expect((await pool.query('SELECT * FROM document_outputs WHERE job_id=$1',[job.id])).rows).toHaveLength(0);
+ expect(row.status).toBe('succeeded');expect(row.terminal_reason).toBe(null);expect(Buffer.concat(out.parts).includes(Buffer.from('%PDF-'))).toBe(false);expect((await pool.query('SELECT output_format,page_count FROM document_outputs WHERE job_id=$1',[job.id])).rows).toEqual([{output_format:'docx',page_count:null}]);
 },30000);

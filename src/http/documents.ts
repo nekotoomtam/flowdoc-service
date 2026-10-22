@@ -7,7 +7,7 @@ export async function registerDocuments(app:FastifyInstance,pool:Pool,tasks:Docu
  // Encapsulated parser: generation bytes remain a stream, lookup is independently bounded.
  app.removeAllContentTypeParsers();app.addContentTypeParser('*',(req,payload,done)=>done(null,payload));
  app.post('/documents',async(req,reply)=>{
-  const auth=req.headers.authorization??'',type=req.headers['content-type']??'';let id:string|null=null,wire:ReturnType<typeof taskWire>|undefined;
+  const auth=req.headers.authorization??'',type=req.headers['content-type']??'';let outputFormat:'pdf'|'docx'='pdf';let id:string|null=null,wire:ReturnType<typeof taskWire>|undefined;
   const abort=new AbortController();const lost=()=>{if(!reply.raw.writableFinished)abort.abort(taskError('CONNECTION_LOST'));};
   req.raw.once('aborted',lost);reply.raw.once('close',lost);
   const cleanup=()=>{req.raw.removeListener('aborted',lost);reply.raw.removeListener('close',lost);};
@@ -39,7 +39,7 @@ export async function registerDocuments(app:FastifyInstance,pool:Pool,tasks:Docu
    }
    if(!isReady())throw taskError('UNAVAILABLE');
    if(keys.length!==1)throw taskError('INVALID_REQUEST');
-   const opened=await tasks.intake.open({authorization:auth,docKey:keys[0],outputFormat:formats,contentType:type,queueMode,...(req.headers['content-encoding']?{contentEncoding:req.headers['content-encoding']}:{})});const taskId=opened.taskId;id=taskId;
+   const opened=await tasks.intake.open({authorization:auth,docKey:keys[0],outputFormat:formats,contentType:type,queueMode,...(req.headers['content-encoding']?{contentEncoding:req.headers['content-encoding']}:{})});const taskId=opened.taskId;id=taskId;outputFormat=opened.outputFormat;
    const first=async(status:string)=>{wire=taskWire(response,taskId);await wire.event('task',status,{createdAt:opened.createdAt,expiresAt:opened.expiresAt,template:opened.template,outputFormat:opened.outputFormat,...(queueMode&&tasks.intake.queueSnapshot().intakes>=2?{waitReason:'receive_slot'}:{})});};
    if(queueMode)await first('awaiting_input');
    if(queueMode||tasks.intake.sharedQueueEnabled()){
@@ -53,7 +53,7 @@ export async function registerDocuments(app:FastifyInstance,pool:Pool,tasks:Docu
    if(!wire)throw taskError('UNAVAILABLE');await tasks.processing.execute({authorization:auth,taskId,response,signal:abort.signal,wire});return reply;
   }catch(e:any){
    abort.abort(e);await normalizing;
-   const code=publicCode(e.code??'UNAVAILABLE');if(id)await tasks.intake.fail(id,e.code??'UNAVAILABLE').catch(()=>{});
+   const code=publicCode(e.code??'UNAVAILABLE',outputFormat);if(id)await tasks.intake.fail(id,e.code??'UNAVAILABLE').catch(()=>{});
    if(wire?.started){if(!wire.ended&&!reply.raw.destroyed){const state=id?(await pool.query('SELECT status,receive_started_at,validation_started_at FROM tasks WHERE id=$1',[id])).rows[0]:null;const stage=state?.validation_started_at?'validating':state?.receive_started_at?'receiving':'awaiting_input';await wire.error(code,stage,state?.status??'failed').catch(()=>response.abort());}return reply;}
    if(reply.raw.destroyed)return reply;
    const status=e.statusCode??({UNAUTHORIZED:401,FORBIDDEN:403,TASK_NOT_FOUND:404,TEMPLATE_NOT_FOUND:404,INVALID_REQUEST:400,TASK_REQUEST_CONFLICT:409,LIMIT_EXCEEDED:413,UNSUPPORTED_MEDIA:415,INVALID_DATA:422} as Record<string,number>)[code]??503;
