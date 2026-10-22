@@ -69,7 +69,11 @@ export async function createTaskProcessing(deps: Dependencies) {
             if (!fonts.snapshot)
                 throw taskError(fonts.readiness.issues[0]?.code ?? 'FONT_CHECK_UNAVAILABLE');
             const snapshot = makeFontSnapshot(v.fingerprint, row.normalized_digest, fonts.snapshot.bindings, fonts.snapshot.legacy), core = { version: rendererIdentity.version, sha256: rendererIdentity.sha256 }, job = randomUUID();
-            await c.query('INSERT INTO generation_jobs(id,task_id,template_version_id,original_input,prepared_input) VALUES($1,$2,$3,$4,$5)', [job, id, row.template_version_id, JSON.stringify({ contract: 'flowdoc-task-request/1', taskId: id, inputDigest: row.input_digest }), JSON.stringify({ contract: 'flowdoc-task-job/1', taskId: id, normalizedFileId: row.normalized_file_id, normalizedDigest: row.normalized_digest, core })]);
+            const version = row.normalization_version, format = row.output_format;
+            if (version !== 1 && version !== 2 || version === 1 && format !== 'pdf' || version === 2 && (row.normalization_summary.outputFormat !== format || row.normalization_summary.normalizationVersion !== 2))
+                throw taskError('INPUT_INTEGRITY');
+            const selection = version === 2 ? {outputFormat: format} : {};
+            await c.query('INSERT INTO generation_jobs(id,task_id,template_version_id,original_input,prepared_input,output_format) VALUES($1,$2,$3,$4,$5,$6)', [job, id, row.template_version_id, JSON.stringify({ contract: 'flowdoc-task-request/'+version, taskId: id, inputDigest: row.input_digest, ...selection }), JSON.stringify({ contract: 'flowdoc-task-job/'+version, taskId: id, normalizedFileId: row.normalized_file_id, normalizedDigest: row.normalized_digest, core, ...selection }), format]);
             await persistJobFonts(c, job, snapshot);
             const n = (await c.query("UPDATE tasks SET status='queued',lease_token=$2,lease_expires_at=LEAST(expires_at,clock_timestamp()+((resource_policy->>'leaseMs')::int*interval '1 millisecond')),writer_pid=$3,writer_host=$4,writer_start_identity=$5,state_version=state_version+1,updated_at=now() WHERE id=$1 RETURNING *", [id, randomUUID(), process.pid, hostname(), await processIdentity(process.pid)])).rows[0];
             await repo.event(c, n, 'queued', row.status);

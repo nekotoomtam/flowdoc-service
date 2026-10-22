@@ -1,3 +1,4 @@
+import {verifyEnvelopeFormat} from './output-format.js';
 import { composeTaskDocument, validateTemplate, createPdfEngine, PDF_STREAM_CONTRACT } from '@flowdoc/core';
 import type { TaskValue, StreamPdfImage, PdfStreamRef } from '@flowdoc/core';
 import { createReadStream } from 'node:fs';
@@ -116,9 +117,12 @@ async function run(input: any) {
     const reader = await openTaskJson(input.path, abort.signal, {grant:delegatedReadGrant(input.taskId,input.readCacheBytes,()=>{},input.fieldIndexBytes,input.recordReuseBytes)});
     let pdfOutput:ReturnType<typeof createPdfOutputBuffer>|undefined;
     let task: TaskValue | undefined, resources: any[] = [];
+    let envelopeVersion:unknown, outputFormat:unknown;
     try {
         for await (const [key, value] of reader.value.properties()) {
-            if (key === 'input')
+            if (key === 'version') envelopeVersion = await decode(value, 64);
+            else if (key === 'outputFormat') outputFormat = await decode(value, 64);
+            else if (key === 'input')
                 task = value;
             else if (key === 'resources')
                 resources = await decode(value, 8 * 1048576);
@@ -128,6 +132,9 @@ async function run(input: any) {
                     throw error('RENDERER_PIN_MISMATCH');
             }
         }
+        const format = verifyEnvelopeFormat(envelopeVersion, outputFormat, input.normalizationVersion, input.outputFormat);
+        // I4 persists DOCX intent; its packed writer is connected in I5. Never emit PDF for it.
+        if (format === 'docx') throw error('UNAVAILABLE');
         const template = validateTemplate(input.template);
         if (!template.ok || template.value.fingerprint !== input.templateFingerprint || !task)
             throw error('INVALID_DATA');

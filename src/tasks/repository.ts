@@ -1,3 +1,4 @@
+import type {OutputFormat} from './output-format.js';
 import type {Pool,PoolClient} from 'pg';import {randomUUID} from 'node:crypto';import {hostname} from 'node:os';
 import {groupStopped,processIdentity} from './workspace.js';
 import {queuePolicy} from './policy.js';
@@ -5,7 +6,7 @@ import {transaction} from '../db/connection.js';import {quotaLock,storageTotals,
 export const terminal=(s:string)=>['failed','expired','succeeded'].includes(s);
 export interface TaskIdentity{ownerKey:string;principalId:string;billingSubjectKey?:string;docKeys:readonly string[];taskRead:boolean}
 export const taskCompleteness=(r:any,summary=r.generation_summary)=>r.normalization_summary?.completeness==='partial'||summary?.completeness==='partial'?'partial':r.normalization_summary?.completeness==='complete'&&summary?.completeness==='complete'?'complete':'unknown';
-export const safeTask=(r:any)=>({taskId:r.id,status:r.status,createdAt:r.created_at.toISOString(),expiresAt:r.expires_at.toISOString(),
+export const safeTask=(r:any)=>({taskId:r.id,outputFormat:r.output_format,status:r.status,createdAt:r.created_at.toISOString(),expiresAt:r.expires_at.toISOString(),
  creator:{principalId:r.created_by_principal,actorRef:r.client_actor_ref},billingSubjectKey:r.billing_subject_key,
  template:r.template_pin,inputDigest:r.input_digest,...(r.normalized_at?{normalization:{completedAt:r.normalized_at.toISOString(),digest:r.normalized_digest,summary:r.normalization_summary}}:{}),...(r.generation_summary?{generationSummary:r.generation_summary,completeness:taskCompleteness(r)}:{}),cleanup:{status:r.cleanup_status},error:r.terminal_reason});
 export function taskRepository(pool:Pool,policy:TaskPolicy,freeBytes:()=>Promise<number>){
@@ -24,7 +25,7 @@ export function taskRepository(pool:Pool,policy:TaskPolicy,freeBytes:()=>Promise
   await capacity(c,target-held,p);if(target>held)await c.query('UPDATE task_resource_reservations SET storage_held_bytes=$2,updated_at=now() WHERE task_id=$1',[r.id,target]);return target;
  }
  return {row,event,live,reserveLocked,
-  async create(identity:TaskIdentity,versionId:string,pin:unknown,queueMode=false){return transaction(pool,async c=>{
+  async create(identity:TaskIdentity,versionId:string,pin:unknown,queueMode=false,outputFormat:OutputFormat='pdf'){return transaction(pool,async c=>{
    const p=queueMode?queuePolicy(policy):policy;
    await quotaLock(c);
    const counts=(await c.query(`SELECT count(*) AS tasks,count(*) FILTER(WHERE t.owner_key=$1) AS owned,count(*) FILTER(WHERE t.status IN ('awaiting_input','receiving')) AS receivers FROM tasks t JOIN task_resource_reservations r ON r.task_id=t.id WHERE r.queue_slot_held`,[identity.ownerKey])).rows[0];
@@ -32,7 +33,7 @@ export function taskRepository(pool:Pool,policy:TaskPolicy,freeBytes:()=>Promise
    if(Number(counts.tasks)>=p.maxTasks||Number(counts.owned)>=p.maxOwnerTasks||!queueMode&&Number(counts.receivers)>=p.maxReceivers||jobs+Number(counts.tasks)>=p.maxOutstanding)throw taskError('QUEUE_FULL');
    await capacity(c,p.initialBytes,p);
    const identityAware=await hasIdentityColumn(c);
-   const r=(await c.query(`INSERT INTO tasks(owner_key,created_by_principal,billing_subject_key,template_version_id,template_pin,resource_policy,lease_token,lease_expires_at,writer_pid,writer_host${identityAware?',writer_start_identity':''}) VALUES($1,$2,$3,$4,$5,$6,$7,clock_timestamp()+($8*interval '1 millisecond'),$9,$10${identityAware?',$11':''}) RETURNING *`,[identity.ownerKey,identity.principalId,identity.billingSubjectKey??null,versionId,JSON.stringify(pin),JSON.stringify(p),randomUUID(),p.leaseMs,process.pid,hostname(),...(identityAware?[await processIdentity(process.pid)]:[])])).rows[0];
+   const r=(await c.query(`INSERT INTO tasks(owner_key,created_by_principal,billing_subject_key,template_version_id,template_pin,resource_policy,lease_token,lease_expires_at,writer_pid,writer_host,output_format${identityAware?',writer_start_identity':''}) VALUES($1,$2,$3,$4,$5,$6,$7,clock_timestamp()+($8*interval '1 millisecond'),$9,$10,$11${identityAware?',$12':''}) RETURNING *`,[identity.ownerKey,identity.principalId,identity.billingSubjectKey??null,versionId,JSON.stringify(pin),JSON.stringify(p),randomUUID(),p.leaseMs,process.pid,hostname(),outputFormat,...(identityAware?[await processIdentity(process.pid)]:[])])).rows[0];
    await c.query('INSERT INTO task_resource_reservations(task_id,storage_held_bytes,policy_version) VALUES($1,$2,$3)',[r.id,p.initialBytes,p.version]);await event(c,r,'created',null);return r;
   });},
   async get(id:string){return (await pool.query('SELECT *,expires_at<=clock_timestamp() AS due FROM tasks WHERE id=$1',[id])).rows[0];},

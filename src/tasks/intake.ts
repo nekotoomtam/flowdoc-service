@@ -1,3 +1,4 @@
+import {parseOutputFormat} from './output-format.js';
 import type {Pool} from 'pg';import type {FileHandle} from 'node:fs/promises';import {Readable,Transform} from 'node:stream';import {pipeline} from 'node:stream/promises';
 import {createHash,randomUUID} from 'node:crypto';import {hostname} from 'node:os';
 import {Busboy} from '@fastify/busboy';import {transaction} from '../db/connection.js';import {loadTemplate} from '../templates/registry.js';
@@ -9,7 +10,7 @@ import {inspectPayload} from './payload.js';import {headerBudget,taskBoundary} f
 import {createQueueResources,type QueueResourceOptions} from './queue-resources.js';
 import {QUEUE_POLICY_VERSION} from './policy.js';
 interface Dependencies{pool:Pool;root:string;resolveCredential:(header:string)=>TaskIdentity|null|Promise<TaskIdentity|null>;policy?:Partial<TaskPolicy>;queueResources?:QueueResourceOptions;freeBytes?:()=>Promise<number>;removeFile?:(path:string)=>Promise<void>;writeChunk?:(handle:FileHandle,chunk:Buffer)=>Promise<void>}
-interface Opening{authorization:string;docKey:unknown;contentType:string;contentEncoding?:string;queueMode?:boolean}
+interface Opening{outputFormat?:unknown;authorization:string;docKey:unknown;contentType:string;contentEncoding?:string;queueMode?:boolean}
 interface Receiving{authorization:string;taskId:string;contentType:string;body:Readable;signal?:AbortSignal}
 export async function createTaskIntake(deps:Dependencies){
  const {pool}=deps,p=policyWith(deps.policy),files=await taskFiles(deps.root,deps.removeFile),repo=taskRepository(pool,p,deps.freeBytes??files.freeBytes);
@@ -50,12 +51,12 @@ export async function createTaskIntake(deps:Dependencies){
   }await cleanup(r.id);}quarantined=blocked;
  }
  async function open(request:Opening){
-  if(closing||quarantined)throw taskError('UNAVAILABLE');const identity=await authenticate(request.authorization);
+  if(closing||quarantined)throw taskError('UNAVAILABLE');const identity=await authenticate(request.authorization);const outputFormat=parseOutputFormat(request.outputFormat);
   if(typeof request.docKey!=='string'||!request.docKey.trim()||request.docKey.includes(',')||request.docKey.length>200)throw taskError('INVALID_REQUEST');
   if(request.contentEncoding&&request.contentEncoding!=='identity')throw taskError('UNSUPPORTED_MEDIA');taskBoundary(request.contentType);
   if(!identity.docKeys.includes(request.docKey))throw taskError('TEMPLATE_NOT_FOUND');const selected=await loadTemplate(pool,request.docKey);if(!selected.ok)throw taskError('TEMPLATE_NOT_FOUND');
   if((request.queueMode||resources.enabled())&&!resources.ready())throw taskError('UNAVAILABLE');
-  const v=selected.value,r=await repo.create(identity,v.versionId,{docKey:request.docKey,version:v.template.definition.version,fingerprint:v.template.fingerprint},request.queueMode);opened.add(r.id);return safeTask(r);
+  const v=selected.value,r=await repo.create(identity,v.versionId,{docKey:request.docKey,version:v.template.definition.version,fingerprint:v.template.fingerprint},request.queueMode,outputFormat);opened.add(r.id);return safeTask(r);
  }
  async function receive(request:Receiving){
   if(closing)throw taskError('UNAVAILABLE');const {r,i}=await owned(request.authorization,request.taskId,true),boundary=taskBoundary(request.contentType);

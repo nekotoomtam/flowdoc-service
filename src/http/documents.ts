@@ -23,7 +23,7 @@ export async function registerDocuments(app:FastifyInstance,pool:Pool,tasks:Docu
    write:chunk=>waitFor(done=>{reply.raw.write(chunk,done);}),end:()=>waitFor(()=>{reply.raw.end();},true),async abort(){reply.raw.destroy();}};
   try{
    if(req.headers['content-encoding']&&req.headers['content-encoding']!=='identity')throw taskError('UNSUPPORTED_MEDIA');
-   const raw=req.raw.rawHeaders,keys=[],modes=[];for(let j=0;j<raw.length;j+=2){const name=raw[j]!.toLowerCase();if(name==='doc-key')keys.push(raw[j+1]);if(name==='task-mode')modes.push(raw[j+1]);if(['x-flowdoc-template','x-flowdoc-doc-key','x-flowdoc-declared-max-bytes'].includes(name))throw taskError('INVALID_REQUEST');}
+   const raw=req.raw.rawHeaders,keys=[],modes=[],formats=[];for(let j=0;j<raw.length;j+=2){const name=raw[j]!.toLowerCase();if(name==='doc-key')keys.push(raw[j+1]);if(name==='task-mode')modes.push(raw[j+1]);if(name==='output-format')formats.push(raw[j+1]);if(['x-flowdoc-template','x-flowdoc-doc-key','x-flowdoc-declared-max-bytes'].includes(name))throw taskError('INVALID_REQUEST');}
    if(modes.length>1||modes.length===1&&modes[0]!=='queue-v1')throw taskError('INVALID_REQUEST');
    const queueMode=modes.length===1;
    const lookup=type.split(';')[0]?.trim().toLowerCase()==='application/json';
@@ -34,13 +34,13 @@ export async function registerDocuments(app:FastifyInstance,pool:Pool,tasks:Docu
     let size=0;const chunks:Buffer[]=[];const expired=()=>{(req.body as any).destroy(taskError('TASK_TIMEOUT'));};let idle=setTimeout(expired,lookupIdle);const total=setTimeout(expired,lookupTotal);
     try{for await(const b of req.body as AsyncIterable<Buffer>){clearTimeout(idle);idle=setTimeout(expired,lookupIdle);size+=b.length;if(size>16384)throw taskError('LIMIT_EXCEEDED');chunks.push(b);}}finally{clearTimeout(idle);clearTimeout(total);}
     let q:any;try{const {readGenerationJson}=await import('@flowdoc/core');const p=readGenerationJson(Buffer.concat(chunks).toString('utf8'));if(!p.ok)throw Error();q=p.value;}catch{throw taskError('INVALID_REQUEST');}
-    if(!q||Array.isArray(q)||typeof q!=='object'||keys.length||Object.keys(q).some(k=>!['taskId','findingsCursor','findingsLimit'].includes(k)))throw taskError('TASK_REQUEST_CONFLICT');
+    if(!q||Array.isArray(q)||typeof q!=='object'||keys.length||formats.length||Object.keys(q).some(k=>!['taskId','findingsCursor','findingsLimit'].includes(k)))throw taskError('TASK_REQUEST_CONFLICT');
     return reply.header('Cache-Control','no-store').send(await taskSnapshot(pool,tasks.intake,auth,q.taskId,q.findingsCursor,q.findingsLimit));
    }
    if(!isReady())throw taskError('UNAVAILABLE');
    if(keys.length!==1)throw taskError('INVALID_REQUEST');
-   const opened=await tasks.intake.open({authorization:auth,docKey:keys[0],contentType:type,queueMode,...(req.headers['content-encoding']?{contentEncoding:req.headers['content-encoding']}:{})});const taskId=opened.taskId;id=taskId;
-   const first=async(status:string)=>{wire=taskWire(response,taskId);await wire.event('task',status,{createdAt:opened.createdAt,expiresAt:opened.expiresAt,template:opened.template,...(queueMode&&tasks.intake.queueSnapshot().intakes>=2?{waitReason:'receive_slot'}:{})});};
+   const opened=await tasks.intake.open({authorization:auth,docKey:keys[0],outputFormat:formats,contentType:type,queueMode,...(req.headers['content-encoding']?{contentEncoding:req.headers['content-encoding']}:{})});const taskId=opened.taskId;id=taskId;
+   const first=async(status:string)=>{wire=taskWire(response,taskId);await wire.event('task',status,{createdAt:opened.createdAt,expiresAt:opened.expiresAt,template:opened.template,outputFormat:opened.outputFormat,...(queueMode&&tasks.intake.queueSnapshot().intakes>=2?{waitReason:'receive_slot'}:{})});};
    if(queueMode)await first('awaiting_input');
    if(queueMode||tasks.intake.sharedQueueEnabled()){
     normalizing=tasks.intake.receiveQueued({authorization:auth,taskId,contentType:type,body:req.body as any,signal:abort.signal,legacyPipeline:!queueMode,...(!queueMode?{onReceived:()=>first('validating')}:{})}).then(()=>({done:true as const}),error=>({done:true as const,error}));
