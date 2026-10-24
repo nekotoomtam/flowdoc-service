@@ -1,5 +1,16 @@
 # คู่มือใช้งาน FlowDoc Service 0.4.9
 
+## สถานะคู่รุ่นก่อน release
+
+Core development0.4.8 รวมงาน DOCX/fidelity แล้ว แต่ Service checkout นี้ยังเป็น
+0.4.9 และ pin Core0.4.7 ตาม vendor/manifest.json; ไม่ได้ติดตั้ง0.4.8 ด้วยการแก้คู่มือ.
+DOCX candidate เดิมยังมี I6 combined-suite gate ค้าง ต้องแยกจาก Core checks
+ที่ผ่านแล้ว. ตรวจ archive/hash/source และ migration ของชุดที่จะใช้ก่อนติดตั้ง;
+การเปลี่ยนฟอนต์/ข้อความใน Word ของ source-layout mode อาจต้องสร้าง DOCX ใหม่.
+รายละเอียดโหมด/receipt และ baseline อยู่ใน
+[คู่รุ่นและขอบเขต DOCX](../../flowdoc-project-control/docs/developer/authoring/verification.md#core048-development-and-docx-boundary).
+การเปลี่ยน Core pin, snapshot/tag หรือ deploy ยังเป็นขั้นตอนแยก.
+
 รุ่นนี้มีทางประมวลผล task (migration024) ใช้ Core0.4.7 จาก
 vendor/manifest.json อ่านข้อมูลที่ normalize แล้วจากไฟล์ เตรียมภาพทีละรายการ
 และส่ง feedback กับ PDF แบบ multipart โดยไม่รวม PDF ทั้งก้อนใน RAM.

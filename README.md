@@ -1,5 +1,17 @@
 # FlowDoc Service
 
+## Core0.4.8 documentation preparation
+
+Core development0.4.8 is integrated separately at source8c2332d. This Service
+checkout remains0.4.9 and still pins Core0.4.7 through vendor/manifest.json;
+its DOCX candidate hash is067b7678c410e7413968159f7495fb3b0e6f3909f9c14d51eae20f7e5b7f4c3e.
+The Core font-signature/source-layout improvements are not installed here by a
+documentation update. Before selecting a new Core package, verify its exact
+archive/source, migrations and affected Service checks. I6 combined-suite
+acceptance remains open. Version labels alone do not identify this candidate.
+See [version and DOCX boundaries](../flowdoc-project-control/docs/developer/authoring/verification.md#core048-development-and-docx-boundary)
+for the separate development-lane instructions; no release/deployment is authorized here.
+
 Package `0.4.9` supports model19 Section instance authoring
 beside unchanged model18. `POST /authoring/drafts/:id/sections` creates an empty
 authored Section; `POST /authoring/drafts/:id/sections/import` copies saved source
