@@ -1,17 +1,13 @@
-# คู่มือใช้งาน FlowDoc Service 0.4.9
+# คู่มือใช้งาน FlowDoc Service 0.5.0
 
-## สถานะคู่รุ่นก่อน release
+## ชุดเตรียม 0.5.0
 
-Core development0.4.8 รวมงาน DOCX/fidelity แล้ว แต่ Service checkout นี้ยังเป็น
-0.4.9 และ pin Core0.4.7 ตาม vendor/manifest.json; ไม่ได้ติดตั้ง0.4.8 ด้วยการแก้คู่มือ.
-DOCX candidate เดิมยังมี I6 combined-suite gate ค้าง ต้องแยกจาก Core checks
-ที่ผ่านแล้ว. ตรวจ archive/hash/source และ migration ของชุดที่จะใช้ก่อนติดตั้ง;
-การเปลี่ยนฟอนต์/ข้อความใน Word ของ source-layout mode อาจต้องสร้าง DOCX ใหม่.
-รายละเอียดโหมด/receipt และ baseline อยู่ใน
-[คู่รุ่นและขอบเขต DOCX](../../flowdoc-project-control/docs/developer/authoring/verification.md#core048-development-and-docx-boundary).
-การเปลี่ยน Core pin, snapshot/tag หรือ deploy ยังเป็นขั้นตอนแยก.
+Service0.5.0 ตรึง Core0.5.0 ผ่าน vendor/manifest.json ให้ตรวจ checksum ก่อน
+build. รองรับ DOCX เซลล์รวม, border none, Area สุดท้ายชิดล่าง และการปรับ
+ขอบเซลล์ native โดยคง line height. ชุดทดสอบ Service รวมและคู่มือ/plugin ต้อง
+ผ่านก่อนเรียกพร้อม release; ไม่ใช่ผลติดตั้งจริง. ดูข้อจำกัด DOCX ด้านท้าย.
 
-รุ่นนี้มีทางประมวลผล task (migration024) ใช้ Core0.4.7 จาก
+รุ่นนี้มีทางประมวลผล task (migration024) ใช้ Core0.5.0 จาก
 vendor/manifest.json อ่านข้อมูลที่ normalize แล้วจากไฟล์ เตรียมภาพทีละรายการ
 และส่ง feedback กับ PDF แบบ multipart โดยไม่รวม PDF ทั้งก้อนใน RAM.
 มี `/documents` และ FlowDocMake manage_document_task เมื่อเปิด task credentials
@@ -27,7 +23,7 @@ PID1 สำหรับงาน task เพราะเมื่อ worker ถ�
 
 Candidate เซลล์ชื่อกลุ่ม: ตรวจ `groupLabelSpans.version:1` ใน authoring contract
 ก่อนส่ง rowGroups.groupLabel (model19/schema1,2). Core package/checksum อยู่ใน
-vendor/manifest.json; ชุดส่งมอบ Service0.4.9/Core0.4.7 ยังไม่ใช่คำอนุญาตติดตั้ง.
+vendor/manifest.json; ชุดส่งมอบ Service0.5.0/Core0.5.0 ยังไม่ใช่คำอนุญาตติดตั้ง.
 save/read/clone/import คง declaration; job ตรึง revision/ข้อมูล/engine/font เดิม.
 auto ตรวจฟอนต์รวม ` (ต่อ)`; fixed ไม่มีหน้าต่อและส่ง FORMAT_CONTENT_OMITTED
 พร้อม groupId/groupIndex/itemIndex ของส่วนค้าง. ถ้าชื่อเต็มใส่ auto ไม่ได้
@@ -67,12 +63,12 @@ adapter ใหม่ โดยไม่ลบไฟล์ของ process ท�
 API task ต้องเปิด credentials อย่างชัดเจน; การจอง scratch/PDF ใช้ budget ของ task.
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-ชุด Service0.4.9/Core0.4.7 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
+ชุด Service0.5.0/Core0.5.0 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
 
-คู่มือนี้ตาม Service0.4.9/Core0.4.7; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
+คู่มือนี้ตาม Service0.5.0/Core0.5.0; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
 annotated tag หลังผ่านเกณฑ์ออกรุ่น ไม่อนุมานจากชื่อ image. รองรับ Area18 ทั้ง schemaVersion 1
 (Sarabun เดิม) และ 2 (คลังฟอนต์). เลข schema, รุ่นฟอนต์, รุ่นแม่แบบ และรุ่น Service
 เป็นคนละค่า. คำสั่ง publish ด้านล่างคือเผยแพร่เวอร์ชันแม่แบบ ไม่ใช่ Git release;
@@ -121,7 +117,7 @@ proxy; ไม่เพิ่ม CORS หรือ static route ให้ product
 สำหรับ model19 ใช้ sections เป็น array ระบุ ID ตาม contract; ห้ามแปลงชื่อเป็น ID เอง.
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด Service0.4.9
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด Service0.5.0
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
@@ -132,7 +128,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.4.9'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.5.0'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -332,7 +328,7 @@ authoring/admin ใช้ token และ principal แยกตามส่ว�
 ไม่ได้เพิ่มระบบบัญชีผู้ใช้หรือหน้า admin.
 หลัง restart งาน queued ทำต่อ แต่งาน running ที่ถูกตัดจบเป็น PROCESS_INTERRUPTED
 รายละเอียด configuration และการทดสอบอยู่ใน [README](../README.md)
-ยังไม่รวม DOCX, หน้าแก้ไขเอกสาร หรือ SLA งานพร้อมกันจำนวนมาก; ระบบหน้าและหัวท้ายใช้สัญญา Area18
+ชุด0.5.0 เพิ่ม DOCX แบบ opt-in แต่ไม่รวมหน้าแก้ไขเอกสารหรือ SLA งานพร้อมกันจำนวนมาก; รองรับ Area18 และ Section19 ตาม contract
 
 
 ## รูปแบบแม่แบบ Area 18
@@ -504,7 +500,7 @@ clone ผ่าน `POST /authoring/drafts/:id/clone` ด้วย sourceRevisio
 idempotencyKey; สิทธิ์ retired มาจาก revision ที่ server เก็บ ไม่ใช่ client แนบเอง.
 FlowDocMake ใช้ `get_font_catalog`, `get_draft_font_readiness`, `clone_template_draft`;
 ไม่มีคำสั่ง admin ในช่องทางนี้. ใช้ชุด client ที่เข้าคู่กับ Service/Core ปัจจุบัน.
-ชุดส่งมอบนี้ใช้ FlowDocMake 0.2.8 ซึ่งตรึง checksum ของ Core tarball ใน
+ชุดส่งมอบนี้ใช้ FlowDocMake 0.3.0 ซึ่งตรึง checksum ของ Core tarball ใน
 `vendor/manifest.json`; client 0.2.0 ตรึงแพ็กเกจก่อนปรับคู่มือและใช้แทนกันไม่ได้.
 job ตรึงฟอนต์/ไฟล์/license ที่รับไว้ แม้เปลี่ยน default หรือ retire ระหว่างรอ;
 ไฟล์หายหรือ hash ไม่ตรงต้องแก้ storage ไม่ข้ามการตรวจ. Sarabun schema 1 ยังใช้
@@ -515,7 +511,7 @@ job ตรึงฟอนต์/ไฟล์/license ที่รับไว้
 ส่วนนี้อธิบายโค้ดช่วง 1 ที่ยังไม่ออก tag/ติดตั้ง; ไม่ใช่คำสั่งของ release 0.4.0 เดิม.
 ข้อตกลงร่วมอยู่ Project Control
 `docs/domains/flowdoc-font-height-adjustment-design-plan-2026-10-16.md` ข้อ 7.
-ชุดปัจจุบันตรึง Core `0.4.7` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
+ชุดปัจจุบันตรึง Core `0.5.0` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
 Core export `calculateFontHeightAdjustment` เป็น pure API รับ pt และ metric ต้นทาง/ปลายทาง
 แล้วคืน pt ที่ปัด half-up หกตำแหน่ง หรือ error; ไม่เขียน draft และไม่เปลี่ยน renderer.
 เครื่องมือ propose/confirm ของช่วง 3 มีแล้วตามข้อ 8.2; ต้องยืนยันก่อนเปลี่ยน pt.
@@ -602,7 +598,7 @@ UPLOAD_GONE จึงยังไม่ใช่หลักฐาน same-revis
 ของผลิตภัณฑ์เพื่อให้ตัวทดสอบเก่าผ่าน.
 ใช้ผลล่าสุดของ candidate ที่จะออกรุ่นตัดสินตามเกณฑ์รับงาน ไม่ขยายผลจากการตรวจเอกสาร.
 
-### 8.2 ขอเสนอและยืนยันขนาด (Service0.4.9/Core0.4.7)
+### 8.2 ขอเสนอและยืนยันขนาด (Service0.5.0/Core0.5.0)
 
 POST `/authoring/drafts/:id/font-height-adjustments` รับ expectedRevision/styleId/
 targetFont/idempotencyKey. ใช้ credential เจ้าของ; metric และ pt อ่านจาก draft กับ
@@ -623,8 +619,8 @@ Migration 020 เพิ่มตารางข้อเสนอเท่าน
 
 ### 8.3 เตรียมส่งมอบตัวช่วยความสูงและการกู้คืน
 
-ชุดส่งมอบใช้ Service `0.4.9` / Core `0.4.7` กับ FlowDocMake
-`0.2.8` และ Core SHA256 ใน vendor/manifest.json.
+ชุดส่งมอบใช้ Service `0.5.0` / Core `0.5.0` กับ FlowDocMake
+`0.3.0` และ Core SHA256 ใน vendor/manifest.json.
 ตัวตน release ต้องตรวจ tag/snapshot ของแต่ละส่วน; การติดตั้งจริงต้องได้รับอนุญาตแยก.
 Core schema/renderer เดิมไม่เปลี่ยน; helper ต้องยืนยันก่อนบันทึกและตรวจ PDF ทุกครั้ง.
 IBM Plex Sans Thai, Pridi, Noto Sans Thai Looped และ Noto Serif Thai ชุดที่ได้รับ
@@ -652,7 +648,7 @@ Profile/assignment/review และ proposals/receipts ต้องอยู่�
 
 ## Format sizing development candidate
 
-Core 0.4.7 accepts model19 Format `sizing` (auto/fixed), with independent
+Core 0.5.0 accepts model19 Format `sizing` (auto/fixed), with independent
 fixed maximum heights per Area entry at Section flow roots. Each call reserves
 min(declared height, current body remainder), including short/empty content.
 Positive space shows fitting whole units; only zero space omits the frame.
@@ -666,7 +662,7 @@ complete and omission warnings are distinct from skipped input indices.
 No migration or Area/request sizing field is introduced. Existing backup,
 restore and installation steps still apply; this candidate is not installed.
 
-### Streamed document task API (Service0.4.9 / Core0.4.7)
+### Streamed document task API (Service0.5.0 / Core0.5.0)
 
 Enable only with the trusted `TASK_CREDENTIALS_FILE` mapping described in README.
 Base Compose keeps tasks disabled. After separately authorized backup/upgrade,
@@ -678,7 +674,7 @@ until their original expiry. A minimal credential entry has token (at least32
 characters), ownerKey, principalId, docKeys array and taskRead boolean; supply
 trusted server identities, never caller-claimed identities. Do not commit secrets.
 Use the same override file for migration/start/stop. Check actual Init=true,
-Service/Core versions and archive SHA, migrations through024, authenticated
+Service/Core versions and archive SHA, migrations through025, authenticated
 feedback/PDF/hash/closing boundary, denied-owner lookup and interruption cleanup
 in an isolated instance before enabling real requests. Backup task storage and
 credentials consistently with the DB. Roll back using a matching DB/files/image
@@ -723,7 +719,7 @@ If disconnected, the worker stops safely; only received originals remain until t
 original expiresAt. A later JSON POST to the same route contains only taskId and
 optional findings pagination; it returns status, never a PDF or new child job.
 
-Queue addition in the prepared 0.4.9 candidate (not yet tagged or installed): only when the
+Queue addition in the prepared 0.5.0 candidate (not yet tagged or installed): only when the
 authenticated contract advertises `documents.queue.mode: queue-v1`, a multipart
 generation request may add `Task-Mode: queue-v1`. Upload the complete body while
 reading early feedback; do not stop uploading on HTTP200. Ten outstanding tasks
@@ -733,3 +729,30 @@ The checked trial is Linux cgroup / 1 GiB hard RAM with 2 CPU; unavailable/stale
 metrics stop grants and affected work safely. Waiting does not extend the original
 three-hour expiry. Without the selector, old clients retain their existing mode.
 See README's queue addition for scope; deploy still requires separate approval.
+
+## DOCX candidate ในพื้นที่แยก (I5/I6)
+
+ส่วนนี้เป็นคู่มือเฉพาะ Service development candidate ภายใต้แผน DOCX ใน Project
+Control ไม่ใช่คำสั่งติดตั้ง release. ใช้ Core archive/hash ใน vendor/manifest.json
+และ migration025 ที่ตรงกัน; สำรองฐานข้อมูลและไฟล์ทรัพยากรแยกก่อนการทดลอง.
+`POST /documents` รับ `Output-Format: DOCX` ทั้งโหมดปกติและ `Task-Mode: queue-v1`.
+ถ้าไม่ส่ง Output-Format หรือส่ง PDF จะสร้าง PDF ตามเดิม. ข้อมูลธุรกิจและ template
+เหมือนกัน; ระบบตรึง format กับงานและส่ง MIME/นามสกุลตรงชนิดจริง ไม่มี PDF fallback.
+DOCX มี pageCount:null และต้องอัปเดตฟิลด์/สารบัญใน Word; ห้ามอนุมานว่าตรวจ Word แล้ว
+จากการสร้างไฟล์สำเร็จ. ตัวเขียนเก็บข้อมูลระหว่างสร้างและจำกัดไฟล์32MiB.
+บางความสัมพันธ์ข้อความ/ภาพที่เกินกรอบและภาพที่เตรียมใช้ไม่ได้ยังเป็นข้อจำกัดชัดเจน.
+เครื่องมือ FlowDocMake task เดิมอ่านผล PDF; ยังไม่เพิ่ม DOCX UX ให้เครื่องมือนั้น.
+หลังเริ่ม candidate ให้ตรวจ health, authoring contract, Core archive checksum
+และส่งเอกสารเล็กทั้งสองชนิดก่อนใช้งานเพิ่มเติม. ตรวจ Word ของเอกสารเล็กสี่ไฟล์แล้ว;
+รอบ0.5.0 ชุด Service รวมผ่าน581กรณี ไม่มีล้ม รวม I6ครบ18กรณี ภายใต้1GiB
+และ init. อีก5กรณีฟอนต์เฉพาะสภาพแวดล้อมไม่ได้รัน ไม่รวมเป็น PASS; รายละเอียด
+และข้อจำกัดอยู่ใน Project Control. ไม่รับรอง Word fidelity ของเอกสารทุกชนิด.
+การรันทดสอบ candidate ต้องเตรียม `I6_FONT_DIR` ที่มี Bai Jamjuree สี่หน้าและ OFL.txt,
+`FLOWDOC_TASK_PROOF_DIR` ที่มีอยู่และเขียนได้, `STAGE5_PLUGIN_ROOT` และ
+`FLOWDOCMAKE_PLUGIN_ROOT` ที่ชี้ candidate แยก พร้อม DATABASE_URL ของฐานทดลอง.
+ใช้ container Linux ลิมิต1GiB ตามสัญญาคิว และขั้นตอนในหัวข้อ
+Isolated I6 test prerequisites ของ README. ชุดทดสอบ18กรณีนี้ไม่ข้ามเมื่อขาดฟอนต์;
+การเตรียมข้อมูลครบไม่ใช่ผล PASS ของชุดรวม. รัน container ด้วย --init และ
+mount client0.2.7 เดิมที่ /legacy-plugin สำหรับกรณี compatibility; API ทดลองอื่น
+ต้องใช้ฐานข้อมูลแยก เพราะ schema ไม่แยก advisory lock. Snapshot/tag และ deploy
+ยังเป็นขั้นตอนแยกจาก candidate ที่ตรวจผ่าน.

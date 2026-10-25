@@ -15,10 +15,14 @@ it.each([false,true])('delivers real DOCX through HTTP, queue=%s',async queue=>{
  const url=await f.server(),r=await fetch(url+'/documents',{method:'POST',headers:{authorization:auth,'doc-key':'docx-small','content-type':contentType,'output-format':'DOCX',...(queue?{'task-mode':'queue-v1'}:{})},body:await body(2)});expect(r.status).toBe(200);const parts=[Buffer.from(await r.arrayBuffer())],file=artifact(parts);expect(file.bytes.subarray(0,2).toString()).toBe('PK');expect(file.headers).toContain('application/vnd.openxmlformats-officedocument.wordprocessingml.document');await f.save('http-'+(queue?'queue':'normal')+'.docx',file.bytes);
 },30000);
 
-it('retains the Core required-relation limitation without publishing a PDF or DOCX fallback',async()=>{
+it('exports the previously unsupported mixed Thai/English relation as real DOCX without a PDF fallback',async()=>{
  const id=await f.task('docx',1,false,'ภาษาไทย Mixed English'),out=response();
- await expect(f.manager.execute({authorization:auth,taskId:id,response:out})).rejects.toHaveProperty('code','DOCX_REQUIRED_RELATION_UNSUPPORTED');
- expect(Buffer.concat(out.parts).toString()).toContain('DOCX_UNSUPPORTED');expect((await f.pool.query('SELECT * FROM document_outputs o JOIN generation_jobs j ON j.id=o.job_id WHERE j.task_id=$1',[id])).rows).toHaveLength(0);
+ const result=await f.manager.execute({authorization:auth,taskId:id,response:out});expect(result.status).toBe('succeeded');
+ const file=artifact(out.parts);expect(file.bytes.subarray(0,2).toString()).toBe('PK');expect(file.headers).toContain('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+ const xml=spawnSync('python',['-c',"import sys,zipfile,io,xml.etree.ElementTree as E;z=zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read()));print(''.join(E.fromstring(z.read('word/document.xml')).itertext()))"],{input:file.bytes,encoding:'utf8'});
+ expect(xml.status,xml.stderr).toBe(0);expect(xml.stdout).toContain('ภาษาไทย Mixed English');
+ const stored=(await f.pool.query('SELECT o.* FROM document_outputs o JOIN generation_jobs j ON j.id=o.job_id WHERE j.task_id=$1',[id])).rows;expect(stored).toHaveLength(1);expect(stored[0].output_format).toBe('docx');expect(stored[0].page_count).toBe(null);
+ await f.save('supported-mixed-relation.docx',file.bytes);
 },30000);
 
 it('reports unavailable image placements as an explicit DOCX capability limit',async()=>{
