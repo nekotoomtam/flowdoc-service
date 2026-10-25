@@ -1,6 +1,15 @@
 # FlowDoc Service
 
-Package `0.4.9` supports model19 Section instance authoring
+## 0.5.0 release candidate
+
+This candidate pins Core0.5.0 through `vendor/manifest.json`; verify its checksum
+before building. It includes native DOCX vertical merges, borderless tables,
+final-Area alignment and native cell-margin adaptation. Full Service acceptance
+is recorded separately in Project Control, not inferred from Core tests.
+PDF remains the default output. DOCX is opt-in; see the DOCX section below.
+This is release preparation, not an installed or published release.
+
+Package `0.5.0` supports model19 Section instance authoring
 beside unchanged model18. `POST /authoring/drafts/:id/sections` creates an empty
 authored Section; `POST /authoring/drafts/:id/sections/import` copies saved source
 Sections into an owned target with new public/normalized IDs. Import accepts
@@ -25,9 +34,9 @@ Project Control Section–Area contract; this paragraph covers this repository.
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Package version: 0.4.9. A release identity requires an annotated tag on the
+Package version: 0.5.0. A release identity requires an annotated tag on the
 snapshot branch; a package version alone does not establish release acceptance.
-This package pins Core 0.4.7 for streamed document tasks, group-label spans,
+This package pins Core 0.5.0 for streamed document tasks, group-label spans,
 the bounded segmenter session, and opt-in font-height proposal/confirmation.
 The exact file/checksum/source commit are in vendor/manifest.json. Installation
 is separate from the Git release; this repository does not identify a running server.
@@ -38,7 +47,7 @@ an administrator UI and production scaling remain outside this slice.
 
 Start with the Thai [usage guide](docs/usage.md): first PDF, draft publication,
 API requests, uploads, Area examples, font administration/readiness and backup/upgrade.
-It describes candidate 0.4.9; shared release status remains in Project Control.
+It describes candidate 0.5.0; shared release status remains in Project Control.
 
 ## Local setup and acceptance
 
@@ -53,7 +62,7 @@ checked; full decoding/preparation belongs to the internal task processor below.
 Normalization writes a private version1 artifact and remains at `validating`;
 its summary is historical normalization evidence, not job/PDF readiness.
 
-Task processing (migration024, Service0.4.9/Core0.4.7): `createTaskProcessing`
+Task processing (migration024, Service0.5.0/Core0.5.0): `createTaskProcessing`
 connects normalized task files to one immutable `flowdoc-task-job/1` child job.
 Pass its hook to the existing serial `startProcessor({tasks: manager, ...})` and
 stop the manager before the intake/pool. This adapter is not a public endpoint.
@@ -117,13 +126,14 @@ CLI editing, source-versus-snapshot PDF equality and restart persistence.
 Results are in `artifacts/<run>/result.json`. Success stops the environment but
 retains its volume/network/images. Failures leave inspection data. Generated
 `compose.env` contains a local password; never distribute it with reports.
-`npm test` requires a fresh dedicated DATABASE_URL after build. Tests create
-fixtures/isolated schemas and temporarily alter constraints; never use shared data.
+`npm test` requires a fresh dedicated DATABASE_URL after build. The isolated
+DOCX candidate additionally requires the I6 fixture/output setup below. Tests
+create isolated schemas and temporarily alter constraints; never use shared data.
 
 For a persistent local registry, copy .env.example to .env and choose a random
-URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.4.9` explicitly
+URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.5.0` explicitly
 to identify the image built from this candidate; verify its image ID separately.
-Apply migrations through 024 before
+Apply migrations through 025 before
 starting this package. For fonts/authoring, add the environment override in the
 usage guide; base Compose does not pass those secrets to the API. Run:
 
@@ -150,7 +160,7 @@ decoded JSON keys in raw template, draft and HTTP request input.
 
 ## Font-aware draft and job candidate
 
-This candidate vendors Core 0.4.7 with its verified checksum in `vendor/manifest.json`.
+This candidate vendors Core 0.5.0 with its verified checksum in `vendor/manifest.json`.
 Schema 1 retains the four verified Sarabun hashes. Schema 2 uses exact library
 release/weight/style references. Save/get/validate return `fontReadiness` separately
 from the saved revision: `ready`, `blocked` or `incomplete`, with `checkedScope`
@@ -282,10 +292,10 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.4.7 is installed solely from `vendor/flowdoc-core-0.4.7-release.tgz`.
+Core 0.5.0 is installed solely from `vendor/flowdoc-core-0.5.0.tgz`.
 Exact SHA256 and Core source commit are recorded in `vendor/manifest.json` and
-the lockfile; earlier candidate archives remain immutable. Service0.4.9 uses
-FlowDocMake0.2.8 with the same exact pin. Installation is separately authorized.
+the lockfile; earlier candidate archives remain immutable. Service0.5.0 uses
+FlowDocMake0.3.0 with the same exact pin. Installation is separately authorized.
 `/authoring/contract` advertises optional `groupLabelSpans`
 v1 for model19/schema1,2. Stored definitions, clones/imports and queued jobs retain
 the declaration. Font snapshots pin this exact engine checksum; a different engine
@@ -514,7 +524,7 @@ for its one/two/six-request flow and failed-job handling.
 
 Prepared jobs send only the document and required image input to the child.
 Core validation and immutable snapshot integrity checks remain in place.
-Apply migrations through 024 using the matching CLI before starting the API.
+Apply migrations through 025 using the matching CLI before starting the API.
 
 ## Candidate Area18 authoring tools
 
@@ -578,7 +588,7 @@ for this input. Validation/composition is not a substitute for rendering preview
 
 ## Format sizing development candidate
 
-Core 0.4.7 accepts model19 Format `sizing` (auto/fixed), with independent
+Core 0.5.0 accepts model19 Format `sizing` (auto/fixed), with independent
 fixed maximum heights per Area entry at Section flow roots. Each call reserves
 min(declared height, current body remainder), including short/empty content.
 Positive space shows fitting whole units; only zero space omits the frame.
@@ -592,9 +602,9 @@ complete and omission warnings are distinct from skipped input indices.
 No migration or Area/request sizing field is introduced. Existing backup,
 restore and installation steps still apply; this candidate is not installed.
 
-## Opt-in streamed document tasks (Service0.4.9)
+## Opt-in streamed document tasks (Service0.5.0)
 
-Core remains exactly0.4.7 from the pinned vendor archive; migration024 remains
+Core remains exactly0.5.0 from the pinned vendor archive; migration024 remains
 latest. The new HTTP path is disabled unless `TASK_CREDENTIALS_FILE` names a private
 JSON array of explicit `{token,ownerKey,principalId,docKeys,taskRead,billingSubjectKey?}`
 mappings. Tokens are at least32 characters. No authoring/legacy token fallback or
@@ -616,7 +626,7 @@ Success requires actual server transport finish and the conditional DB transitio
 Client file save/hash and complete multipart framing are separately verified; they
 do not prove the final DB receipt committed. Lookup can inspect that lasting record.
 
-Queue addition in the prepared 0.4.9 candidate (not yet tagged or installed):
+Queue addition in the prepared 0.5.0 candidate (not yet tagged or installed):
 when the authenticated
 contract advertises `documents.queue.mode: queue-v1`, multipart callers can send
 `Task-Mode: queue-v1`. Continue uploading while reading early task/progress feedback;
@@ -648,3 +658,68 @@ Backup/recovery includes migrations and the private task storage directory. Star
 reconciles old leases and expiry; it never automatically resumes an abandoned job.
 Do not edit applied migration bytes, expose credentials/storage paths, install or
 promote this candidate as part of isolated development verification.
+
+## Isolated DOCX integration candidate
+
+This development checkout is governed by Project Control's
+`flowdoc-docx-export-plan-2026-10-20.md`, I5/I6; it is not a release or an
+installation authorization. The installed Core candidate is pinned to SHA256
+`2bec67cf379d5913cd8d6881b7eeb973b7b4159b95231e07cd04db4faf1c43b1`.
+Keep the retained released archive separate and run `node scripts/verifyVendor.mjs`
+before building. Apply migration025 before starting this candidate.
+
+For `POST /documents`, `Output-Format: DOCX` selects DOCX in both normal and
+`Task-Mode: queue-v1` requests. Explicit `PDF` and an omitted header keep PDF.
+DOCX uses the same template, business data and resource preparation, then a
+separate Core writer. Its receipt has the DOCX MIME type, null page count,
+`wordVerified:false`, required field refresh and buffered generation. The writer
+is bounded to32MiB and transports bounded chunks; it is not constant-memory
+streaming. Do not use PDF-only FlowDocMake task parsing for DOCX responses.
+Unsupported required text/image relations or unavailable image placements return
+an explicit DOCX capability failure; no PDF fallback or invented placeholders.
+The previous complete-suite blocker is closed in this0.5.0 preparation:
+581 tests pass,0 fail, with5 environment-specific optional font-height tests
+not run. The18 mandatory paired I6 cases pass in the same complete run under
+1GiB with init. Word/PDF layout acceptance remains bounded to the retained
+examples and owner-accepted trials; no arbitrary-document fidelity claim.
+Project Control records the exact evidence and accepted limitations.
+
+### Isolated I6 test prerequisites
+
+Run in a dedicated Linux test container with exactly1GiB memory.max: the current
+queue coordinator requires that exact limit. A1.5GiB run does not qualify queue
+capability. Use the reviewed OFL-licensed Bai Jamjuree files
+`BaiJamjuree-Regular.ttf`, `BaiJamjuree-Bold.ttf`, `BaiJamjuree-Italic.ttf`,
+`BaiJamjuree-BoldItalic.ttf` and `OFL.txt` in a read-only mounted folder. They are
+external test inputs; the published Core package supplies the separate Sarabun set.
+Create a writable proof folder before starting the mandatory18-case test. For
+an already prepared isolated container/database, set:
+
+```sh
+export I6_FONT_DIR=/fixtures/BaiJamjuree
+export FLOWDOC_TASK_PROOF_DIR=/tmp/flowdoc-i6-proof
+export STAGE5_PLUGIN_ROOT=/candidate
+export FLOWDOCMAKE_PLUGIN_ROOT=/candidate
+mkdir -p "$FLOWDOC_TASK_PROOF_DIR"
+node --input-type=module -e 'import fs from "node:fs"; import path from "node:path"; for (const n of ["Regular","Bold","Italic","BoldItalic"]) fs.accessSync(path.join(process.env.I6_FONT_DIR,"BaiJamjuree-"+n+".ttf")); fs.accessSync(path.join(process.env.I6_FONT_DIR,"OFL.txt")); fs.accessSync(process.env.FLOWDOC_TASK_PROOF_DIR,fs.constants.W_OK);'
+node scripts/verifyVendor.mjs
+npm run build
+node dist/cli.js migrate
+npm test -- --testTimeout 15000
+```
+
+DATABASE_URL must already name the dedicated disposable database. `/candidate`
+must contain the separately built exact-pin FlowDocMake candidate, with installed
+Service dependencies available to its entry; it does not refer to the installed
+release plugin. When using Docker, mount the reviewed font folder read-only,
+mount/create the writable proof directory, and pass these variables at `docker run`;
+the default verification image does not bake in external fixture paths.
+The15s checker budget accommodates the CLI test's5s connection timeout plus
+child starts; it does not change any product deadline. These are reproducible
+prerequisites, not by themselves a passing combined-suite result. The full0.5.0 combined run is recorded in Project Control; isolated file counts
+and optional skips are still reported separately and never added as unique tests.
+Use Docker --init (Compose already sets init:true) so native descendants are
+reaped before worker credits and temporary storage are released. Mount the
+reviewed0.2.7 task-client fixture at /legacy-plugin for its compatibility case;
+never substitute the current client for that historical input. Run simultaneous
+acceptance APIs against a separate database: schemas do not isolate advisory locks.

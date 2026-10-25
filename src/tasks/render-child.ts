@@ -1,4 +1,6 @@
-import { composeTaskDocument, validateTemplate, createPdfEngine, PDF_STREAM_CONTRACT } from '@flowdoc/core';
+import {artifactSpec,docxDisclosure,DOCX_MAX_BYTES} from './artifact.js';
+import {verifyEnvelopeFormat} from './output-format.js';
+import { composeTaskDocument, validateTemplate, createPdfEngine, createDocxEngine, PDF_STREAM_CONTRACT } from '@flowdoc/core';
 import type { TaskValue, StreamPdfImage, PdfStreamRef } from '@flowdoc/core';
 import { createReadStream } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
@@ -116,9 +118,12 @@ async function run(input: any) {
     const reader = await openTaskJson(input.path, abort.signal, {grant:delegatedReadGrant(input.taskId,input.readCacheBytes,()=>{},input.fieldIndexBytes,input.recordReuseBytes)});
     let pdfOutput:ReturnType<typeof createPdfOutputBuffer>|undefined;
     let task: TaskValue | undefined, resources: any[] = [];
+    let envelopeVersion:unknown, outputFormat:unknown;
     try {
         for await (const [key, value] of reader.value.properties()) {
-            if (key === 'input')
+            if (key === 'version') envelopeVersion = await decode(value, 64);
+            else if (key === 'outputFormat') outputFormat = await decode(value, 64);
+            else if (key === 'input')
                 task = value;
             else if (key === 'resources')
                 resources = await decode(value, 8 * 1048576);
@@ -128,6 +133,7 @@ async function run(input: any) {
                     throw error('RENDERER_PIN_MISMATCH');
             }
         }
+        const format = verifyEnvelopeFormat(envelopeVersion, outputFormat, input.normalizationVersion, input.outputFormat);
         const template = validateTemplate(input.template);
         if (!template.ok || template.value.fingerprint !== input.templateFingerprint || !task)
             throw error('INVALID_DATA');
@@ -214,8 +220,10 @@ async function run(input: any) {
                 }
             }
         }
+        // The packed DOCX API requires complete image resources; never insert placeholders.
+        if(format==='docx'&&omitted.size)throw error('DOCX_CAPABILITY_UNSUPPORTED');
         const fonts = await snapshotResources(input.fontSnapshot, input.workspace, input.fontRoot);
-        const engine = await createPdfEngine(fonts);
+        const engine = format==='docx'?await createDocxEngine(fonts):await createPdfEngine(fonts);
         if (!engine.ok)
             throw error(engine.issues[0]?.code ?? 'FONT_CHECK_UNAVAILABLE');
         let output: string | undefined;
@@ -226,11 +234,15 @@ async function run(input: any) {
             }
             await store(b,'output',output);
         },abort.signal);
-        const result = await engine.value.generatePdfTo(document, { contract: PDF_STREAM_CONTRACT, images, async *open(ref, signal) {
-                const path = await rpc('path', { key: ref.key });
-                for await (const b of createReadStream(path, { highWaterMark: 65536, ...(signal ? { signal } : {}) }))
-                    yield b;
-            } }, {write:b=>pdfOutput!.write(b),async abort(){pdfOutput!.abort();}}, { signal: abort.signal, maxBytes: input.policy.pdfBytes });
+        const provider = { contract: PDF_STREAM_CONTRACT, images, async *open(ref:PdfStreamRef, signal?:AbortSignal) {
+            const path = await rpc('path', { key: ref.key });
+            for await (const b of createReadStream(path, { highWaterMark: 65536, ...(signal ? { signal } : {}) })) yield b;
+        }};
+        const sink = {write:(b:Uint8Array)=>pdfOutput!.write(b),async abort(){pdfOutput!.abort();}};
+        // Both writers consume the same composition, prepared images and verified fonts.
+        const result = format==='docx'
+            ? await (engine.value as import('@flowdoc/core').DocxEngine).generateDocxTo(document,provider,sink,{signal:abort.signal,maxBytes:input.policy.docxBytes??DOCX_MAX_BYTES})
+            : await (engine.value as import('@flowdoc/core').PdfEngine).generatePdfTo(document,provider,sink,{signal:abort.signal,maxBytes:input.policy.pdfBytes});
         if (!result.ok)
             throw error(result.issues[0]?.code ?? 'RENDER_FAILED');
         await pdfOutput.finish();
@@ -243,7 +255,7 @@ async function run(input: any) {
         if (warnings.length > 10000)
             throw error('LIMIT_EXCEEDED');
         const summary = { version: 1, scope: 'expanded-image-nodes', imagePlacementCount: nodes.length, normalizedOmittedPlacementCount: normalizedOmitted, preparationOmittedPlacementCount: preparationOmitted, omittedPlacementCount: normalizedOmitted + preparationOmitted, findingCount, formatOmissionCount: warnings.filter(w=>w.code==='FORMAT_CONTENT_OMITTED').length, completeness: omitted.size || warnings.some(w => w.code === 'FORMAT_CONTENT_OMITTED') ? 'partial' : 'complete' };
-        await rpc('complete', { output, receipt: result.value, warningCount: warnings.length, warnings: warnings.slice(0, 100), summary });
+        await rpc('complete', { outputFormat:format,output, receipt: {...result.value,mediaType:artifactSpec(format).mediaType,...(format==='docx'?docxDisclosure:{})}, warningCount: warnings.length, warnings: warnings.slice(0, 100), summary });
     }
     finally {
         pdfOutput?.abort();
