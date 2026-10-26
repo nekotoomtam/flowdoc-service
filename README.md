@@ -24,13 +24,13 @@ Apply migrations through 026 before starting it.
 | Format | existing Output-Format header; omitted/PDF stays PDF, DOCX opts in |
 | Wire | multipart task events plus one binary part; verify bytes/hash and complete response |
 | Client save path | chosen by client independently; Content-Disposition is server attachment metadata |
-| Plugin | released0.3.0/profile0.5.0 unchanged; no0.5.2 plugin compatibility is implied |
+| Plugin | prepared0.3.1 pins this exact0.5.2 archive; installed0.3.0/profile0.5.0 remains unchanged |
 
 See the matching usage guide for explicit image selection, migration026,
 consistent DB/files backup and separately verified restore/post-install checks.
-Core's packed README may precede later source-manual edits: before release,
-repack final documented Core source, update exact Service provenance/lock and
-verify consumers. A docs commit changes neither the running image nor the pin.
+This candidate repacks final documented Core source0401b87 and records the exact
+archive in the manifest/lock. Check the Project Control prerelease evidence before
+promotion. A docs commit changes neither the installed image nor its pin.
 
 Empty Area declarations: new18/19 records preserve the difference between an
 omitted areaFormats field and an explicitly empty object, so Core fingerprints
@@ -372,7 +372,8 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 Core is installed solely from `vendor/flowdoc-core-0.5.2.tgz`. Older0.5.0/0.5.1 archives are retained as history.
 Exact SHA256 and Core source commit are recorded in `vendor/manifest.json` and
 the lockfile; earlier candidate archives remain immutable. Service0.5.0 uses
-FlowDocMake0.3.0 with the same exact pin. Installation is separately authorized.
+FlowDocMake0.3.0 with its0.5.0 pin; prepared Service0.5.2 uses FlowDocMake0.3.1
+with the0.5.2 pin above. Installation is separately authorized.
 `/authoring/contract` advertises optional `groupLabelSpans`
 v1 for model19/schema1,2. Stored definitions, clones/imports and queued jobs retain
 the declaration. Font snapshots pin this exact engine checksum; a different engine

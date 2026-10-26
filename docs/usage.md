@@ -9,6 +9,9 @@ build. รองรับ DOCX เซลล์รวม, border none, Area ส�
 หัวข้อที่ระบุ0.5.0 ด้านล่างอธิบายชุดส่งมอบก่อนหน้า ตัวตนแพ็กเกจ candidate
 ปัจจุบันให้อ้าง `vendor/manifest.json` เป็นหลัก
 
+ชุดเตรียมนี้ใช้ FlowDocMake0.3.1 ที่ตรึง Core0.5.2 ตาม manifest/lock;
+ชุดติดตั้ง FlowDocMake0.3.0/Service-Core0.5.0 ยังคงเดิม ต้องติดตั้งแยกเมื่ออนุญาต
+
 ตารางเลือก `borderStyle:"thickThinWideGap"` และ `borderWidth:{value:0.35,unit:"pt"}`
 เพื่อใช้เส้น B จาก Core โดยตรงทั้ง PDF/DOCX ได้แล้ว DOCX จำกัดเซลล์ข้อความ ASCII
 ที่ไม่รวมเซลล์/ไม่ลงสีพื้น และข้อมูลหนึ่งบรรทัดต่อแถว หัวตารางใช้บรรทัดที่ระบุได้
