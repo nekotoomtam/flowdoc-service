@@ -1,8 +1,8 @@
 # FlowDoc Service
 
-## 0.5.1 development candidate
+## 0.5.2 development candidate
 
-This candidate pins Core `0.5.1-dev.section-assembly.2` through `vendor/manifest.json`; verify its checksum
+This candidate pins Core `0.5.2` through `vendor/manifest.json`; verify its checksum
 before building. It includes native DOCX vertical merges, borderless tables,
 final-Area alignment and native cell-margin adaptation. Full Service acceptance
 is recorded separately in Project Control, not inferred from Core tests.
@@ -11,7 +11,7 @@ This is release preparation, not an installed or published release.
 Sections explicitly describing0.5.0 below document the earlier delivery; the
 current candidate package/archive identity is always `vendor/manifest.json`.
 
-### Output base names (candidate; migration026)
+### Output base names (0.5.2 candidate; migration026)
 
 Templates may set `defaultFileName` beside `docKey`. The existing `/documents`
 multipart `payload` JSON may set a root `fileName` beside `data` and `sections`:
@@ -52,7 +52,7 @@ fail instead of using a different border. Word edits may require regeneration;
 intermediate-page closing borders remain an accepted limitation. Footer changes
 are deferred. This source candidate does not update a running installation.
 
-Package `0.5.1` supports model19 Section instance authoring
+Package `0.5.2` retains model19 Section instance authoring
 beside unchanged model18. `POST /authoring/drafts/:id/sections` creates an empty
 authored Section; `POST /authoring/drafts/:id/sections/import` copies saved source
 Sections into an owned target with new public/normalized IDs. Import accepts
@@ -77,9 +77,9 @@ Project Control Section–Area contract; this paragraph covers this repository.
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Package version: 0.5.0. A release identity requires an annotated tag on the
+Package version:0.5.2. A release identity requires an annotated tag on the
 snapshot branch; a package version alone does not establish release acceptance.
-This package pins Core 0.5.0 for streamed document tasks, group-label spans,
+This package pins Core0.5.2 for streamed document tasks, group-label spans,
 the bounded segmenter session, and opt-in font-height proposal/confirmation.
 The exact file/checksum/source commit are in vendor/manifest.json. Installation
 is separate from the Git release; this repository does not identify a running server.
@@ -203,7 +203,7 @@ decoded JSON keys in raw template, draft and HTTP request input.
 
 ## Font-aware draft and job candidate
 
-This candidate vendors Core 0.5.0 with its verified checksum in `vendor/manifest.json`.
+This candidate vendors Core0.5.2 with its verified checksum in `vendor/manifest.json`.
 Schema 1 retains the four verified Sarabun hashes. Schema 2 uses exact library
 release/weight/style references. Save/get/validate return `fontReadiness` separately
 from the saved revision: `ready`, `blocked` or `incomplete`, with `checkedScope`
@@ -335,7 +335,8 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.5.0 is installed solely from `vendor/flowdoc-core-0.5.0.tgz`.
+This development candidate installs Core solely from
+`vendor/flowdoc-core-0.5.2.tgz`. Older0.5.0/0.5.1 archives are retained as history.
 Exact SHA256 and Core source commit are recorded in `vendor/manifest.json` and
 the lockfile; earlier candidate archives remain immutable. Service0.5.0 uses
 FlowDocMake0.3.0 with the same exact pin. Installation is separately authorized.

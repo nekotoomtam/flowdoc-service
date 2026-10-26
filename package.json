@@ -1,6 +1,6 @@
 {
   "name": "@flowdoc/service",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "private": true,
   "type": "module",
   "license": "UNLICENSED",
@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@fastify/busboy": "3.2.3",
-    "@flowdoc/core": "file:vendor/flowdoc-core-0.5.1-dev.section-assembly.2.tgz",
+    "@flowdoc/core": "file:vendor/flowdoc-core-0.5.2.tgz",
     "@modelcontextprotocol/server": "2.3.1",
     "fastify": "5.12.5",
     "ipaddr.js": "2.5.0",

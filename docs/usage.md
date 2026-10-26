@@ -1,8 +1,8 @@
-# คู่มือใช้งาน FlowDoc Service 0.5.1
+# คู่มือใช้งาน FlowDoc Service 0.5.2
 
-## ชุดพัฒนา 0.5.1
+## ชุดพัฒนา 0.5.2
 
-Service0.5.1 ชุดนี้ตรึง Core `0.5.1-dev.section-assembly.2` ผ่าน vendor/manifest.json ให้ตรวจ checksum ก่อน
+Service0.5.2 ชุดนี้ตรึง Core `0.5.2` ผ่าน vendor/manifest.json ให้ตรวจ checksum ก่อน
 build. รองรับ DOCX เซลล์รวม, border none, Area สุดท้ายชิดล่าง และการปรับ
 ขอบเซลล์ native โดยคง line height. ชุดทดสอบ Service รวมและคู่มือ/plugin ต้อง
 ผ่านก่อนเรียกพร้อม release; ไม่ใช่ผลติดตั้งจริง. ดูข้อจำกัด DOCX ด้านท้าย.
@@ -15,7 +15,7 @@ build. รองรับ DOCX เซลล์รวม, border none, Area ส�
 กรณีเกินขอบเขตจะแจ้งข้อผิดพลาด ต้องสร้างใหม่หลังแก้ข้อความหรือฟอนต์ใน Word
 เส้นปิดตารางระหว่างหน้าของ Word ยังไม่รับประกัน และยังไม่เปลี่ยน footer รอบนี้
 
-### ชื่อไฟล์ PDF/DOCX ในชุดทดลอง
+### ชื่อไฟล์ PDF/DOCX ในชุดพัฒนา0.5.2
 
 ตั้ง `defaultFileName` ในโครงเอกสารระดับเดียวกับ `docKey` ได้ ส่วนผู้เรียกส่ง
 `fileName` ที่ root ของ JSON ใน multipart part `payload` ระดับเดียวกับ
@@ -43,7 +43,17 @@ build. รองรับ DOCX เซลล์รวม, border none, Area ส�
 การบันทึก/อ่าน/clone โครงและการเก็บ immutable version รักษาค่าเริ่มต้นไว้
 ไม่มีการติดตั้งหรือเผยแพร่จริงในงานนี้ และยังไม่เปิด Service ให้รับ Model20
 
-รุ่นนี้มีทางประมวลผล task (migration024) ใช้ Core0.5.1 จาก
+ก่อนติดตั้ง0.5.2 ต้องสำรอง DB และ staging/output เป็นชุดเดียวพร้อม hashes
+ตามขั้นตอน backup/recovery ด้านล่าง ทดสอบ restore ในฐานแยก แล้วใช้ CLI
+`migrate` ของ image0.5.2 ให้ครบถึง026 ไม่หยุดที่023/024 ซึ่งเป็นขั้นตอนรุ่นเก่า
+ตรวจ readiness, live Service/Core version/hash และลองออก PDF/DOCX พร้อมชื่อ
+ภาษาไทย/ค่าเริ่มต้น/งานเข้าคิวหลังติดตั้ง ต้องอ่านไฟล์จริงและ receipt จนครบ
+หากต้องย้อนกลับให้หยุด candidate แล้วคืน backup ทั้งชุดในฐาน/volumes แยก
+กับ image รุ่นเดิม ไม่ย้อน SQL และไม่เปิด binary เก่าทับฐานที่ migrate แล้ว
+รอบเตรียมนี้ตรวจเฉพาะ migration/API ในฐานทดสอบแยก ยังไม่ใช่ผล deploy
+หรือการซ้อม restore สำหรับการติดตั้ง0.5.2 จริง
+
+รุ่นนี้มีทางประมวลผล task (migration024) ใช้ Core0.5.2 จาก
 vendor/manifest.json อ่านข้อมูลที่ normalize แล้วจากไฟล์ เตรียมภาพทีละรายการ
 และส่ง feedback กับ PDF แบบ multipart โดยไม่รวม PDF ทั้งก้อนใน RAM.
 มี `/documents` และ FlowDocMake manage_document_task เมื่อเปิด task credentials
@@ -104,7 +114,7 @@ Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP 
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
 
-คู่มือนี้ตาม Service0.5.0/Core0.5.0; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
+คู่มือนี้ตาม development Service0.5.2/Core0.5.2; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
 annotated tag หลังผ่านเกณฑ์ออกรุ่น ไม่อนุมานจากชื่อ image. รองรับ Area18 ทั้ง schemaVersion 1
 (Sarabun เดิม) และ 2 (คลังฟอนต์). เลข schema, รุ่นฟอนต์, รุ่นแม่แบบ และรุ่น Service
 เป็นคนละค่า. คำสั่ง publish ด้านล่างคือเผยแพร่เวอร์ชันแม่แบบ ไม่ใช่ Git release;
@@ -547,7 +557,7 @@ job ตรึงฟอนต์/ไฟล์/license ที่รับไว้
 ส่วนนี้อธิบายโค้ดช่วง 1 ที่ยังไม่ออก tag/ติดตั้ง; ไม่ใช่คำสั่งของ release 0.4.0 เดิม.
 ข้อตกลงร่วมอยู่ Project Control
 `docs/domains/flowdoc-font-height-adjustment-design-plan-2026-10-16.md` ข้อ 7.
-ชุดปัจจุบันตรึง Core `0.5.0` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
+ชุดพัฒนาปัจจุบันตรึง Core `0.5.2` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
 Core export `calculateFontHeightAdjustment` เป็น pure API รับ pt และ metric ต้นทาง/ปลายทาง
 แล้วคืน pt ที่ปัด half-up หกตำแหน่ง หรือ error; ไม่เขียน draft และไม่เปลี่ยน renderer.
 เครื่องมือ propose/confirm ของช่วง 3 มีแล้วตามข้อ 8.2; ต้องยืนยันก่อนเปลี่ยน pt.

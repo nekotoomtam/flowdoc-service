@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs';
 import {it,expect,beforeAll,beforeEach,afterAll} from 'vitest';
 import {fixture,template,response,artifact,auth} from './taskDocxFixture.mjs';
 const t=template(),f=t.areaFormats.item.fragment,pt=value=>({value,unit:'pt'});
@@ -10,7 +11,7 @@ const fx=fixture(t);beforeAll(()=>fx.setup());beforeEach(()=>fx.reset());afterAl
 it.each(['pdf','docx'])('sends B %s through Service normalization and child rendering with the pinned Core',async format=>{
  const id=await fx.task(format,0,false,'X'),out=response(),result=await fx.manager.execute({authorization:auth,taskId:id,response:out});expect(result.status).toBe('succeeded');
  const file=artifact(out.parts),row=(await fx.pool.query('SELECT normalization_summary FROM tasks WHERE id=$1',[id])).rows[0];
- expect(row.normalization_summary.coreVersion).toBe('0.5.1');expect(file.bytes.length).toBeGreaterThan(1000);
+ expect(row.normalization_summary.coreVersion).toBe(JSON.parse(readFileSync('vendor/manifest.json','utf8')).version);expect(file.bytes.length).toBeGreaterThan(1000);
  if(format==='pdf'){
   expect(file.bytes.subarray(0,5).toString()).toBe('%PDF-');const content=file.bytes.toString('latin1');expect(content).toContain('[1.4 4.2] 0 d');expect(content).toContain('0.21 w');expect(content).toContain('0.07 w');
  }else expect(file.bytes.subarray(0,2).toString()).toBe('PK');
