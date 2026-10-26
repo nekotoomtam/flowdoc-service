@@ -1,15 +1,22 @@
 # FlowDoc Service
 
-## 0.5.0 release candidate
+## 0.5.1 development candidate
 
-This candidate pins Core0.5.0 through `vendor/manifest.json`; verify its checksum
+This candidate pins Core0.5.1 through `vendor/manifest.json`; verify its checksum
 before building. It includes native DOCX vertical merges, borderless tables,
 final-Area alignment and native cell-margin adaptation. Full Service acceptance
 is recorded separately in Project Control, not inferred from Core tests.
 PDF remains the default output. DOCX is opt-in; see the DOCX section below.
 This is release preparation, not an installed or published release.
 
-Package `0.5.0` supports model19 Section instance authoring
+The B table profile `thickThinWideGap` now renders directly through the pinned
+Core in PDF and DOCX. DOCX has an explicit unmerged, unshaded literal ASCII
+profile with one-line body cells and authored header breaks; unsupported cases
+fail instead of using a different border. Word edits may require regeneration;
+intermediate-page closing borders remain an accepted limitation. Footer changes
+are deferred. This source candidate does not update a running installation.
+
+Package `0.5.1` supports model19 Section instance authoring
 beside unchanged model18. `POST /authoring/drafts/:id/sections` creates an empty
 authored Section; `POST /authoring/drafts/:id/sections/import` copies saved source
 Sections into an owned target with new public/normalized IDs. Import accepts

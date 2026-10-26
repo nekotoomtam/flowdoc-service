@@ -1,13 +1,19 @@
-# คู่มือใช้งาน FlowDoc Service 0.5.0
+# คู่มือใช้งาน FlowDoc Service 0.5.1
 
-## ชุดเตรียม 0.5.0
+## ชุดพัฒนา 0.5.1
 
-Service0.5.0 ตรึง Core0.5.0 ผ่าน vendor/manifest.json ให้ตรวจ checksum ก่อน
+Service0.5.1 ตรึง Core0.5.1 ผ่าน vendor/manifest.json ให้ตรวจ checksum ก่อน
 build. รองรับ DOCX เซลล์รวม, border none, Area สุดท้ายชิดล่าง และการปรับ
 ขอบเซลล์ native โดยคง line height. ชุดทดสอบ Service รวมและคู่มือ/plugin ต้อง
 ผ่านก่อนเรียกพร้อม release; ไม่ใช่ผลติดตั้งจริง. ดูข้อจำกัด DOCX ด้านท้าย.
 
-รุ่นนี้มีทางประมวลผล task (migration024) ใช้ Core0.5.0 จาก
+ตารางเลือก `borderStyle:"thickThinWideGap"` และ `borderWidth:{value:0.35,unit:"pt"}`
+เพื่อใช้เส้น B จาก Core โดยตรงทั้ง PDF/DOCX ได้แล้ว DOCX จำกัดเซลล์ข้อความ ASCII
+ที่ไม่รวมเซลล์/ไม่ลงสีพื้น และข้อมูลหนึ่งบรรทัดต่อแถว หัวตารางใช้บรรทัดที่ระบุได้
+กรณีเกินขอบเขตจะแจ้งข้อผิดพลาด ต้องสร้างใหม่หลังแก้ข้อความหรือฟอนต์ใน Word
+เส้นปิดตารางระหว่างหน้าของ Word ยังไม่รับประกัน และยังไม่เปลี่ยน footer รอบนี้
+
+รุ่นนี้มีทางประมวลผล task (migration024) ใช้ Core0.5.1 จาก
 vendor/manifest.json อ่านข้อมูลที่ normalize แล้วจากไฟล์ เตรียมภาพทีละรายการ
 และส่ง feedback กับ PDF แบบ multipart โดยไม่รวม PDF ทั้งก้อนใน RAM.
 มี `/documents` และ FlowDocMake manage_document_task เมื่อเปิด task credentials

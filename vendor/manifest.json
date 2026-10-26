@@ -1,10 +1,10 @@
 {
   "name": "@flowdoc/core",
-  "version": "0.5.0",
-  "file": "flowdoc-core-0.5.0.tgz",
-  "sha256": "2bec67cf379d5913cd8d6881b7eeb973b7b4159b95231e07cd04db4faf1c43b1",
-  "sourceCommit": "b5218a81a5bd81d8c1885bdb893044bc8fad0793",
-  "sourceArtifact": "C:\\Users\\nekot\\Documents\\FlowDoc-recovery\\uat-real-2026-10-24\\docx-worktree\\artifacts\\1792905155275\\flowdoc-core-0.5.0-docx-candidate-1792905155275.tgz",
+  "version": "0.5.1",
+  "file": "flowdoc-core-0.5.1.tgz",
+  "sha256": "377919dcb18c66e1ac9edf72e79f853f835ab669677735d7dfefa3a1ee682244",
+  "sourceCommit": "412c495981a141913f0183614502169722612203",
+  "sourceArtifact": "C:\\Users\\nekot\\.codex\\worktrees\\shared-stroke-table-styles\\flowdoc-service\\vendor\\flowdoc-core-0.5.1.tgz",
   "runtime": "linux-x64 glibc, Node24, Python3.11, fontTools4.58.2",
-  "delivery": "0.5.0 release preparation; not installed or published"
+  "delivery": "0.5.1 development integration; not installed or published"
 }

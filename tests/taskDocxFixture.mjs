@@ -26,12 +26,12 @@ export async function body(images=0,text='ไทย EN'){
 }
 export function response(){const parts=[];return{parts,start(){},async write(b){parts.push(Buffer.from(b));},async end(){},async abort(){}};}
 export function artifact(parts){const all=Buffer.concat(parts),at=all.indexOf(Buffer.from('Content-Disposition: attachment;'));if(at<0)throw Error(all.toString());const end=all.indexOf(Buffer.from('\r\n\r\n'),at),headers=all.subarray(all.lastIndexOf(Buffer.from('--flowdoc-'),at),end).toString(),length=Number(headers.match(/Content-Length: (\d+)/)[1]);return {bytes:all.subarray(end+4,end+4+length),headers};}
-export function fixture(){
+export function fixture(definition=template()){
  const db=isolatedDatabase(),pool=db.pool;let intake,manager,processor,app,root;
  const identity=h=>h===auth?{ownerKey:'owner',principalId:'creator',taskRead:true,docKeys:['docx-small']}:null;
  async function close(){await app?.close();await manager?.stop();await processor?.stop();await intake?.stop();app=manager=processor=intake=undefined;}
  return {pool,db,get intake(){return intake;},get manager(){return manager;},get root(){return root;},
-  async setup(){await db.setup();const m=await migrate(pool);if(!m.ok)throw Error(JSON.stringify(m));const t=await registerTemplate(pool,JSON.stringify(template()));if(!t.ok)throw Error(JSON.stringify(t));},
+  async setup(){await db.setup();const m=await migrate(pool);if(!m.ok)throw Error(JSON.stringify(m));const t=await registerTemplate(pool,JSON.stringify(definition));if(!t.ok)throw Error(JSON.stringify(t));},
   async reset({processing={},...overrides}={}){await close();root=await mkdtemp(join(tmpdir(),'service-docx-'));intake=await createTaskIntake({pool,root,resolveCredential:identity,freeBytes:async()=>20_000_000_000,...overrides});manager=await createTaskProcessing({pool,intake,workerReady:()=>processor?.isReady()??false,...processing});processor=await startProcessor({pool,tasks:manager,files:{writePdf:async()=>{throw Error('legacy forbidden');}},policy:{retain:false,ttlHours:1,tempHours:1},pollMs:5});},
   async task(format='docx',images=1,queueMode=false,text){const t=await intake.open({authorization:auth,docKey:'docx-small',contentType,outputFormat:format,queueMode});await intake.receive({authorization:auth,taskId:t.taskId,contentType,body:Readable.from([await body(images,text)])});await intake.normalize({authorization:auth,taskId:t.taskId});return t.taskId;},
   async server(){app=createServer({pool,outputs:{},isReady:()=>true,tasks:{intake,processing:manager}});return app.listen({host:'127.0.0.1',port:0});},
