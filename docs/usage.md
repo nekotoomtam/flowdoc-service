@@ -1,13 +1,62 @@
-# คู่มือใช้งาน FlowDoc Service 0.5.0
+# คู่มือใช้งาน FlowDoc Service 0.5.2
 
-## ชุดเตรียม 0.5.0
+## ชุดพัฒนา 0.5.2
 
-Service0.5.0 ตรึง Core0.5.0 ผ่าน vendor/manifest.json ให้ตรวจ checksum ก่อน
+Service0.5.2 ชุดนี้ตรึง Core `0.5.2` ผ่าน vendor/manifest.json ให้ตรวจ checksum ก่อน
 build. รองรับ DOCX เซลล์รวม, border none, Area สุดท้ายชิดล่าง และการปรับ
 ขอบเซลล์ native โดยคง line height. ชุดทดสอบ Service รวมและคู่มือ/plugin ต้อง
 ผ่านก่อนเรียกพร้อม release; ไม่ใช่ผลติดตั้งจริง. ดูข้อจำกัด DOCX ด้านท้าย.
+หัวข้อที่ระบุ0.5.0 ด้านล่างอธิบายชุดส่งมอบก่อนหน้า ตัวตนแพ็กเกจ candidate
+ปัจจุบันให้อ้าง `vendor/manifest.json` เป็นหลัก
 
-รุ่นนี้มีทางประมวลผล task (migration024) ใช้ Core0.5.0 จาก
+ชุดเตรียมนี้ใช้ FlowDocMake0.3.1 ที่ตรึง Core0.5.2 ตาม manifest/lock;
+ชุดติดตั้ง FlowDocMake0.3.0/Service-Core0.5.0 ยังคงเดิม ต้องติดตั้งแยกเมื่ออนุญาต
+
+ตารางเลือก `borderStyle:"thickThinWideGap"` และ `borderWidth:{value:0.35,unit:"pt"}`
+เพื่อใช้เส้น B จาก Core โดยตรงทั้ง PDF/DOCX ได้แล้ว DOCX จำกัดเซลล์ข้อความ ASCII
+ที่ไม่รวมเซลล์/ไม่ลงสีพื้น และข้อมูลหนึ่งบรรทัดต่อแถว หัวตารางใช้บรรทัดที่ระบุได้
+กรณีเกินขอบเขตจะแจ้งข้อผิดพลาด ต้องสร้างใหม่หลังแก้ข้อความหรือฟอนต์ใน Word
+เส้นปิดตารางระหว่างหน้าของ Word ยังไม่รับประกัน และยังไม่เปลี่ยน footer รอบนี้
+
+### ชื่อไฟล์ PDF/DOCX ในชุดพัฒนา0.5.2
+
+ตั้ง `defaultFileName` ในโครงเอกสารระดับเดียวกับ `docKey` ได้ ส่วนผู้เรียกส่ง
+`fileName` ที่ root ของ JSON ใน multipart part `payload` ระดับเดียวกับ
+`data`/`sections` โดย `Doc-Key` ยังเป็น HTTP header ตามเดิม เช่น
+
+```json
+{"fileName":"รายงาน CLIS 2602S","data":{},"sections":[]}
+```
+
+ตัวอย่างแสดงตำแหน่งชื่อเท่านั้น ต้องเติมข้อมูล Section ตามโครงจริง ชื่อทั้งสอง
+ไม่ใส่นามสกุล ใช้ `Output-Format: DOCX` หรือ PDF ตามเดิมเพื่อเลือกนามสกุล
+ลำดับคือชื่อที่ส่งมา → ชื่อเริ่มต้นของโครง → `document` ช่องว่างล้วนถือว่าไม่ส่ง
+ระบบตัดช่องว่างหัวท้ายและ normalize Unicode เป็น NFC จำกัด200 code points/
+240 UTF-8 bytes และตัวรับ request จำกัดข้อความชื่อก่อน trim ไม่เกิน240 bytes
+ไม่รับชนิดข้อมูลอื่น อักขระควบคุม/format, path, อักขระหรือชื่ออุปกรณ์ต้องห้าม
+ของ Windows, จุดท้ายชื่อ และนามสกุล `.pdf`/`.docx`
+
+ค่าเริ่มต้นถูกตรึงตอนสร้าง task และชื่อจริงถูกตรึงตอน seal ก่อนเข้าคิว
+แก้โครงภายหลังจึงไม่เปลี่ยนชื่องานเก่า สถานะ task/output และ artifact event
+คืน `fileName` ที่ยังไม่มีนามสกุล ส่วน attachment header เติมนามสกุลแล้ว
+ชื่อไทยใช้ `filename*` พร้อม fallback ASCII `document` สำหรับตัวอ่านรุ่นเก่า
+ไม่ได้เปลี่ยนชื่อไฟล์จัดเก็บภายในหรือการวางเนื้อหาเอกสาร
+
+ต้องใช้ migration026 กับ candidate นี้ งานเก่าที่ seal แล้วคงชื่อ `document`
+การบันทึก/อ่าน/clone โครงและการเก็บ immutable version รักษาค่าเริ่มต้นไว้
+ไม่มีการติดตั้งหรือเผยแพร่จริงในงานนี้ และยังไม่เปิด Service ให้รับ Model20
+
+ก่อนติดตั้ง0.5.2 ต้องสำรอง DB และ staging/output เป็นชุดเดียวพร้อม hashes
+ตามขั้นตอน backup/recovery ด้านล่าง ทดสอบ restore ในฐานแยก แล้วใช้ CLI
+`migrate` ของ image0.5.2 ให้ครบถึง026 ไม่หยุดที่023/024 ซึ่งเป็นขั้นตอนรุ่นเก่า
+ตรวจ readiness, live Service/Core version/hash และลองออก PDF/DOCX พร้อมชื่อ
+ภาษาไทย/ค่าเริ่มต้น/งานเข้าคิวหลังติดตั้ง ต้องอ่านไฟล์จริงและ receipt จนครบ
+หากต้องย้อนกลับให้หยุด candidate แล้วคืน backup ทั้งชุดในฐาน/volumes แยก
+กับ image รุ่นเดิม ไม่ย้อน SQL และไม่เปิด binary เก่าทับฐานที่ migrate แล้ว
+รอบเตรียมนี้ตรวจเฉพาะ migration/API ในฐานทดสอบแยก ยังไม่ใช่ผล deploy
+หรือการซ้อม restore สำหรับการติดตั้ง0.5.2 จริง
+
+รุ่นนี้มีทางประมวลผล task (migration024) ใช้ Core0.5.2 จาก
 vendor/manifest.json อ่านข้อมูลที่ normalize แล้วจากไฟล์ เตรียมภาพทีละรายการ
 และส่ง feedback กับ PDF แบบ multipart โดยไม่รวม PDF ทั้งก้อนใน RAM.
 มี `/documents` และ FlowDocMake manage_document_task เมื่อเปิด task credentials
@@ -68,7 +117,7 @@ Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP 
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
 
-คู่มือนี้ตาม Service0.5.0/Core0.5.0; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
+คู่มือนี้ตาม development Service0.5.2/Core0.5.2; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
 annotated tag หลังผ่านเกณฑ์ออกรุ่น ไม่อนุมานจากชื่อ image. รองรับ Area18 ทั้ง schemaVersion 1
 (Sarabun เดิม) และ 2 (คลังฟอนต์). เลข schema, รุ่นฟอนต์, รุ่นแม่แบบ และรุ่น Service
 เป็นคนละค่า. คำสั่ง publish ด้านล่างคือเผยแพร่เวอร์ชันแม่แบบ ไม่ใช่ Git release;
@@ -117,9 +166,15 @@ proxy; ไม่เพิ่ม CORS หรือ static route ให้ product
 สำหรับ model19 ใช้ sections เป็น array ระบุ ID ตาม contract; ห้ามแปลงชื่อเป็น ID เอง.
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด Service0.5.0
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด development Service0.5.2
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
+
+Compose เดิมยัง default image0.5.0 จึงต้องตั้ง `FLOWDOC_REGISTRY_IMAGE`
+เป็น tag ที่ build จาก candidate0.5.2 อย่างชัดเจนตามตัวอย่าง ถ้าใช้ profile
+verification ให้ตั้ง `FLOWDOC_VERIFY_IMAGE` และ build target verification ที่ตรงกัน
+ด้วย ชื่อ tag ที่ตั้งเองไม่ใช่หลักฐานรุ่น ต้องตรวจ source/pin/image ID
+ไม่คัดลอกไฟล์ env ใหม่ทับการติดตั้งเดิม และไม่ใช้ขั้นตอนทดลองนี้อัปเกรดข้อมูลจริง
 
 สร้างไฟล์ตั้งค่าทดลองครั้งเดียว เก็บไฟล์นี้ไว้ ไม่ส่งรหัสผ่านไปกับรายงาน:
 
@@ -128,7 +183,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.5.0'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.5.2'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -146,7 +201,7 @@ docker @dc up -d api
 ของ project `flowdoc-manual` หาก port 4318 ใช้อยู่ ให้เปลี่ยนค่าก่อนเริ่ม API
 เปิด terminal ใหม่ให้กำหนด `$dc` อีกครั้ง ไม่ต้องสร้างรหัสผ่านหรือ import ซ้ำ
 `CURRENT_EXISTS` หมายถึงมีฉบับแก้ไขอยู่แล้ว ไม่ใช่คำสั่งแทนที่ข้อมูลเดิม
-`migrate` ของชุดนี้ต้องผ่าน migrations 016–023 เพิ่มจากฐาน 015; ฐานใหม่ใช้ทั้งหมด
+`migrate` ของ0.5.2 ต้องครบ001–026; อัปเกรดจาก0.5.0/0.5.1 ที่มี025แล้วจะเพิ่ม026
 และการรันซ้ำที่ครบแล้วไม่ควรมีรายการ applied ใหม่. ห้ามแก้ SQL migration ที่ใช้แล้ว.
 ตัวอย่างแรกใช้ Sarabun เดิม จึงยังไม่ต้องนำเข้าคลังหรือเปิดสิทธิ์ admin.
 
@@ -511,7 +566,7 @@ job ตรึงฟอนต์/ไฟล์/license ที่รับไว้
 ส่วนนี้อธิบายโค้ดช่วง 1 ที่ยังไม่ออก tag/ติดตั้ง; ไม่ใช่คำสั่งของ release 0.4.0 เดิม.
 ข้อตกลงร่วมอยู่ Project Control
 `docs/domains/flowdoc-font-height-adjustment-design-plan-2026-10-16.md` ข้อ 7.
-ชุดปัจจุบันตรึง Core `0.5.0` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
+ชุดพัฒนาปัจจุบันตรึง Core `0.5.2` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
 Core export `calculateFontHeightAdjustment` เป็น pure API รับ pt และ metric ต้นทาง/ปลายทาง
 แล้วคืน pt ที่ปัด half-up หกตำแหน่ง หรือ error; ไม่เขียน draft และไม่เปลี่ยน renderer.
 เครื่องมือ propose/confirm ของช่วง 3 มีแล้วตามข้อ 8.2; ต้องยืนยันก่อนเปลี่ยน pt.
@@ -570,7 +625,7 @@ Get-FileHash (Join-Path $backupDir 'database.dump') -Algorithm SHA256
 
 4. ตรวจว่าแต่ละคำสั่งสำเร็จ ตรวจ hashes และทดลอง restore dump/ไฟล์ใน DB กับ volumes
    แยกก่อนใช้เป็นแผนกู้คืน. ไม่ทดลอง restore ทับข้อมูลจริง และไม่ใช้ `down -v`.
-5. ใช้ image ชุดใหม่ที่ตรึงไว้ รัน CLI `migrate` ให้ถึง 023 แล้วเปิด API. ไม่ย้อน SQL
+5. ใช้ image ชุดใหม่ที่ตรึงไว้ รัน CLI `migrate` ให้ครบถึง026 แล้วเปิด API. ไม่ย้อน SQL
    migration หรือแก้ checksum ถ้าล้มเหลว; วิเคราะห์และกู้คืนเป็นชุด DB/files/config/
    image ที่เข้าคู่กันจากสำรองที่ตรวจแล้ว แยกการอนุมัติก่อนกระทบข้อมูลจริง.
 6. ตรวจ `/health`, คู่รุ่นจริง, admin/authoring permissions, catalog/readiness และ

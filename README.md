@@ -1,15 +1,92 @@
 # FlowDoc Service
 
-## 0.5.0 release candidate
+## 0.5.2 development candidate
 
-This candidate pins Core0.5.0 through `vendor/manifest.json`; verify its checksum
+This candidate pins Core `0.5.2` through `vendor/manifest.json`; verify its checksum
 before building. It includes native DOCX vertical merges, borderless tables,
 final-Area alignment and native cell-margin adaptation. Full Service acceptance
 is recorded separately in Project Control, not inferred from Core tests.
 PDF remains the default output. DOCX is opt-in; see the DOCX section below.
 This is release preparation, not an installed or published release.
+Sections explicitly describing0.5.0 below document the earlier delivery; the
+current candidate package/archive identity is always `vendor/manifest.json`.
 
-Package `0.5.0` supports model19 Section instance authoring
+Build this candidate with `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.5.2`.
+Apply migrations through 026 before starting it.
+
+### Manual/runtime boundaries before release
+
+| Surface |0.5.2 development contract |
+| --- | --- |
+| Definitions | Service accepts18/19; Core20 is experimental direct use only |
+| Default download base name | definition root defaultFileName, versioned with template |
+| Per-call download base name | documents multipart payload root fileName; not a create-draft argument or business field |
+| Format | existing Output-Format header; omitted/PDF stays PDF, DOCX opts in |
+| Wire | multipart task events plus one binary part; verify bytes/hash and complete response |
+| Client save path | chosen by client independently; Content-Disposition is server attachment metadata |
+| Plugin | prepared0.3.1 pins this exact0.5.2 archive; installed0.3.0/profile0.5.0 remains unchanged |
+
+See the matching usage guide for explicit image selection, migration026,
+consistent DB/files backup and separately verified restore/post-install checks.
+This candidate repacks final documented Core source0401b87 and records the exact
+archive in the manifest/lock. Check the Project Control prerelease evidence before
+promotion. A docs commit changes neither the installed image nor its pin.
+
+Empty Area declarations: new18/19 records preserve the difference between an
+omitted areaFormats field and an explicitly empty object, so Core fingerprints
+round-trip exactly. Actual definitions remain normalized row-owned data; only
+an empty presence marker may stay at root. This does not rewrite already-invalid
+historical snapshots. Register a corrected new version rather than editing
+immutable JSON, fingerprints or font references in storage.
+
+The legacy contract's company/member row-group PDF example can exceed DOCX's
+bounded reading-prefix relation: it reports DOCX_REQUIRED_RELATION_UNSUPPORTED
+in both0.5.0 and0.5.2. It remains a PDF authoring example, not a DOCX capability
+promise. Supported simple and I6 fixtures are verified separately; no renderer
+guard or layout rule is relaxed for package acceptance.
+
+### Output base names (0.5.2 candidate; migration026)
+
+Templates may set `defaultFileName` beside `docKey`. The existing `/documents`
+multipart `payload` JSON may set a root `fileName` beside `data` and `sections`:
+
+```json
+{"fileName":"CLIS Bangkok 2602S","data":{},"sections":[]}
+```
+
+This illustrates naming placement; supply the actual Section data required by
+your template. `Doc-Key` remains an HTTP header. Use existing `Output-Format:
+DOCX` to select DOCX; omitted or explicit PDF still selects PDF. Neither name
+includes an extension: the chosen format adds `.pdf` or `.docx`.
+
+Priority is a nonblank request name, the template default, then `document`.
+Names are trimmed/NFC-normalized, at most200 Unicode code points and240 UTF-8
+bytes; streamed request names also have a240-byte raw limit. Blank defaults are
+unset. Non-string values, control/format characters, paths, Windows-forbidden
+characters/device names, trailing dots and `.pdf`/`.docx` suffixes are rejected.
+
+The default is frozen when the task is created; the final base name is frozen at
+seal, before queueing. Later template edits do not rename existing tasks. Sealed
+task lookup/output and artifact events expose `fileName` as a base name.
+Attachment headers include the extension; Unicode names use `filename*` with an
+ASCII `document` fallback. Clients must support `filename*` to display Thai names.
+Internal UUID storage paths and Core business data/rendering stay unchanged.
+
+Apply forward-only migration026 before running this candidate. Historical sealed
+tasks keep the old `document` base name. Existing authoring save/read/clone and
+immutable template registration retain the default. Authoring publication and
+installation remain separately authorized operations. This Core development pin
+does not enable Model20 Service admission; Service still accepts models18/19.
+See the Project Control output-file-names plan dated2026-10-26 for current proof.
+
+The B table profile `thickThinWideGap` now renders directly through the pinned
+Core in PDF and DOCX. DOCX has an explicit unmerged, unshaded literal ASCII
+profile with one-line body cells and authored header breaks; unsupported cases
+fail instead of using a different border. Word edits may require regeneration;
+intermediate-page closing borders remain an accepted limitation. Footer changes
+are deferred. This source candidate does not update a running installation.
+
+Package `0.5.2` retains model19 Section instance authoring
 beside unchanged model18. `POST /authoring/drafts/:id/sections` creates an empty
 authored Section; `POST /authoring/drafts/:id/sections/import` copies saved source
 Sections into an owned target with new public/normalized IDs. Import accepts
@@ -34,9 +111,9 @@ Project Control Section–Area contract; this paragraph covers this repository.
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Package version: 0.5.0. A release identity requires an annotated tag on the
+Package version:0.5.2. A release identity requires an annotated tag on the
 snapshot branch; a package version alone does not establish release acceptance.
-This package pins Core 0.5.0 for streamed document tasks, group-label spans,
+This package pins Core0.5.2 for streamed document tasks, group-label spans,
 the bounded segmenter session, and opt-in font-height proposal/confirmation.
 The exact file/checksum/source commit are in vendor/manifest.json. Installation
 is separate from the Git release; this repository does not identify a running server.
@@ -160,7 +237,7 @@ decoded JSON keys in raw template, draft and HTTP request input.
 
 ## Font-aware draft and job candidate
 
-This candidate vendors Core 0.5.0 with its verified checksum in `vendor/manifest.json`.
+This candidate vendors Core 0.5.2 with its verified checksum in `vendor/manifest.json`.
 Schema 1 retains the four verified Sarabun hashes. Schema 2 uses exact library
 release/weight/style references. Save/get/validate return `fontReadiness` separately
 from the saved revision: `ready`, `blocked` or `incomplete`, with `checkedScope`
@@ -292,10 +369,11 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core 0.5.0 is installed solely from `vendor/flowdoc-core-0.5.0.tgz`.
+Core is installed solely from `vendor/flowdoc-core-0.5.2.tgz`. Older0.5.0/0.5.1 archives are retained as history.
 Exact SHA256 and Core source commit are recorded in `vendor/manifest.json` and
 the lockfile; earlier candidate archives remain immutable. Service0.5.0 uses
-FlowDocMake0.3.0 with the same exact pin. Installation is separately authorized.
+FlowDocMake0.3.0 with its0.5.0 pin; prepared Service0.5.2 uses FlowDocMake0.3.1
+with the0.5.2 pin above. Installation is separately authorized.
 `/authoring/contract` advertises optional `groupLabelSpans`
 v1 for model19/schema1,2. Stored definitions, clones/imports and queued jobs retain
 the declaration. Font snapshots pin this exact engine checksum; a different engine
@@ -663,10 +741,12 @@ promote this candidate as part of isolated development verification.
 
 This development checkout is governed by Project Control's
 `flowdoc-docx-export-plan-2026-10-20.md`, I5/I6; it is not a release or an
-installation authorization. The installed Core candidate is pinned to SHA256
-`2bec67cf379d5913cd8d6881b7eeb973b7b4159b95231e07cd04db4faf1c43b1`.
-Keep the retained released archive separate and run `node scripts/verifyVendor.mjs`
-before building. Apply migration025 before starting this candidate.
+installation authorization. The original0.5.0 integration used Core SHA256
+`2bec67cf379d5913cd8d6881b7eeb973b7b4159b95231e07cd04db4faf1c43b1`;
+that is historical evidence, not the current0.5.2 pin. Current version/hash/source
+are in `vendor/manifest.json`. Retain old archives and run
+`node scripts/verifyVendor.mjs` before building. Current0.5.2 requires all
+migrations through026; the DOCX format addition itself was migration025.
 
 For `POST /documents`, `Output-Format: DOCX` selects DOCX in both normal and
 `Task-Mode: queue-v1` requests. Explicit `PDF` and an omitted header keep PDF.

@@ -4,6 +4,7 @@ import {randomBytes,createHash} from 'node:crypto';
 import {createReadStream} from 'node:fs';
 import type {TaskResponse} from './processing.js';
 import {taskError} from './quota.js';
+import {outputDisposition} from './output-name.js';
 export interface Artifact extends Omit<ArtifactReceipt,'byteLength'> {bytes:number;completeness:string;outputFormat?:OutputFormat;[key:string]:unknown}
 /** One writer, awaited 64KiB writes; no event queue or whole-PDF buffer. */
 export function taskWire(response:TaskResponse,taskId:string){
@@ -22,8 +23,9 @@ export function taskWire(response:TaskResponse,taskId:string){
    const h=createHash('sha256'),marker=Buffer.from('--'+boundary);let size=0,tail=Buffer.alloc(0);
    for await(const b of createReadStream(path,{highWaterMark:65536,signal})){h.update(b);size+=b.length;const scan=Buffer.concat([tail,b]);if(scan.includes(marker))throw taskError('STORAGE_IO');tail=Buffer.from(scan.subarray(-marker.length+1));}
    if(size!==meta.bytes||h.digest('hex')!==meta.sha256)throw taskError('STORAGE_IO');
-   await event('artifact','sending',{...meta,mediaType:spec.mediaType});pdfStarted=true;
-   await write(Buffer.from('--'+boundary+'\r\nContent-Type: '+spec.mediaType+'\r\nContent-Disposition: attachment; filename="'+spec.filename+'"\r\nContent-Length: '+size+'\r\nX-FlowDoc-SHA256: '+meta.sha256+'\r\n\r\n'));
+   const fileName=meta.fileName??'document',disposition=outputDisposition(fileName,meta.outputFormat);
+   await event('artifact','sending',{...meta,fileName,mediaType:spec.mediaType});pdfStarted=true;
+   await write(Buffer.from('--'+boundary+'\r\nContent-Type: '+spec.mediaType+'\r\nContent-Disposition: '+disposition+'\r\nContent-Length: '+size+'\r\nX-FlowDoc-SHA256: '+meta.sha256+'\r\n\r\n'));
    const sentHash=createHash('sha256');let sent=0;
    for await(const b of createReadStream(path,{highWaterMark:65536,signal})){sent+=b.length;sentHash.update(b);await write(b);}
    if(sent!==size||sentHash.digest('hex')!==meta.sha256)throw taskError('STORAGE_IO');
