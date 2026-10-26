@@ -2,12 +2,48 @@
 
 ## 0.5.1 development candidate
 
-This candidate pins Core0.5.1 through `vendor/manifest.json`; verify its checksum
+This candidate pins Core `0.5.1-dev.section-assembly.2` through `vendor/manifest.json`; verify its checksum
 before building. It includes native DOCX vertical merges, borderless tables,
 final-Area alignment and native cell-margin adaptation. Full Service acceptance
 is recorded separately in Project Control, not inferred from Core tests.
 PDF remains the default output. DOCX is opt-in; see the DOCX section below.
 This is release preparation, not an installed or published release.
+Sections explicitly describing0.5.0 below document the earlier delivery; the
+current candidate package/archive identity is always `vendor/manifest.json`.
+
+### Output base names (candidate; migration026)
+
+Templates may set `defaultFileName` beside `docKey`. The existing `/documents`
+multipart `payload` JSON may set a root `fileName` beside `data` and `sections`:
+
+```json
+{"fileName":"CLIS Bangkok 2602S","data":{},"sections":[]}
+```
+
+This illustrates naming placement; supply the actual Section data required by
+your template. `Doc-Key` remains an HTTP header. Use existing `Output-Format:
+DOCX` to select DOCX; omitted or explicit PDF still selects PDF. Neither name
+includes an extension: the chosen format adds `.pdf` or `.docx`.
+
+Priority is a nonblank request name, the template default, then `document`.
+Names are trimmed/NFC-normalized, at most200 Unicode code points and240 UTF-8
+bytes; streamed request names also have a240-byte raw limit. Blank defaults are
+unset. Non-string values, control/format characters, paths, Windows-forbidden
+characters/device names, trailing dots and `.pdf`/`.docx` suffixes are rejected.
+
+The default is frozen when the task is created; the final base name is frozen at
+seal, before queueing. Later template edits do not rename existing tasks. Sealed
+task lookup/output and artifact events expose `fileName` as a base name.
+Attachment headers include the extension; Unicode names use `filename*` with an
+ASCII `document` fallback. Clients must support `filename*` to display Thai names.
+Internal UUID storage paths and Core business data/rendering stay unchanged.
+
+Apply forward-only migration026 before running this candidate. Historical sealed
+tasks keep the old `document` base name. Existing authoring save/read/clone and
+immutable template registration retain the default. Authoring publication and
+installation remain separately authorized operations. This Core development pin
+does not enable Model20 Service admission; Service still accepts models18/19.
+See the Project Control output-file-names plan dated2026-10-26 for current proof.
 
 The B table profile `thickThinWideGap` now renders directly through the pinned
 Core in PDF and DOCX. DOCX has an explicit unmerged, unshaded literal ASCII

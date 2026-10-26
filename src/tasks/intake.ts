@@ -56,7 +56,7 @@ export async function createTaskIntake(deps:Dependencies){
   if(request.contentEncoding&&request.contentEncoding!=='identity')throw taskError('UNSUPPORTED_MEDIA');taskBoundary(request.contentType);
   if(!identity.docKeys.includes(request.docKey))throw taskError('TEMPLATE_NOT_FOUND');const selected=await loadTemplate(pool,request.docKey);if(!selected.ok)throw taskError('TEMPLATE_NOT_FOUND');
   if((request.queueMode||resources.enabled())&&!resources.ready())throw taskError('UNAVAILABLE');
-  const v=selected.value,r=await repo.create(identity,v.versionId,{docKey:request.docKey,version:v.template.definition.version,fingerprint:v.template.fingerprint},request.queueMode,outputFormat);opened.add(r.id);return safeTask(r);
+  const v=selected.value,r=await repo.create(identity,v.versionId,{docKey:request.docKey,version:v.template.definition.version,fingerprint:v.template.fingerprint},request.queueMode,outputFormat,v.template.definition.defaultFileName??'document');opened.add(r.id);return safeTask(r);
  }
  async function receive(request:Receiving){
   if(closing)throw taskError('UNAVAILABLE');const {r,i}=await owned(request.authorization,request.taskId,true),boundary=taskBoundary(request.contentType);

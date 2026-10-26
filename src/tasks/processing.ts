@@ -178,7 +178,7 @@ export async function createTaskProcessing(deps: Dependencies) {
             const snapshot=await taskSnapshot(pool,intake,request.authorization,id,undefined,10);
             if(snapshot.task.counts.findingCount||pdf.warningCount){const detail={findings:[...snapshot.findings],...snapshot.task.counts,detailsTruncated:snapshot.task.detailsTruncated||snapshot.nextCursor!==null};while(Buffer.byteLength(JSON.stringify(detail))>30000&&detail.findings.length){detail.findings.pop();detail.detailsTruncated=true;}await wire.event('warning','sending',detail);}
             delivery = 'interrupted';
-            await wire.artifact(await files.path(pdf.output),{outputFormat:row.output_format,...(row.output_format==='docx'?docxDisclosure:{}),bytes:Number(output.byte_size),sha256:output.sha256,pageCount:pdf.receipt.pageCount,completeness:snapshot.task.completeness,...snapshot.task.counts},abort.signal);
+            await wire.artifact(await files.path(pdf.output),{outputFormat:row.output_format,fileName:row.file_name??'document',...(row.output_format==='docx'?docxDisclosure:{}),bytes:Number(output.byte_size),sha256:output.sha256,pageCount:pdf.receipt.pageCount,completeness:snapshot.task.completeness,...snapshot.task.counts},abort.signal);
             const n = await transaction(pool, async (c) => {
                 await quotaLock(c);
                 const r = await repo.row(c, id);
