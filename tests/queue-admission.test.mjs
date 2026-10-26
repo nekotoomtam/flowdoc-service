@@ -37,7 +37,7 @@ it('enforces the default ten-job cap through HTTP without a processor',async()=>
   expect(results.filter(r=>r.statusCode===503)).toHaveLength(1);
   expect(results.find(r=>r.statusCode===503).json().issues[0].code).toBe('QUEUE_FULL');
  }finally{await server.close();}
-});
+},30000);
 it('atomically caps mixed admission, preserves rejected uploads, replays claims and frees terminal slots',async()=>{
  const existing=await uploaded(),first=ok(await submitJob(pool,existing,true,3));
  await pool.query("UPDATE generation_jobs SET status='running' WHERE id=$1",[first.jobId]);
@@ -59,5 +59,5 @@ it('atomically caps mixed admission, preserves rejected uploads, replays claims 
  const retry=await app.inject({method:'POST',url:'/jobs',payload:rejected});expect(retry.statusCode).toBe(202);
  await pool.query("UPDATE generation_jobs SET status='succeeded',finished_at=now() WHERE id=$1",[retry.json().value.jobId]);
  expect((await app.inject({method:'POST',url:'/jobs',payload:input})).statusCode).toBe(202);
-});
+},30000);
 

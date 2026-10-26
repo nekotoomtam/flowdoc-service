@@ -11,6 +11,9 @@ This is release preparation, not an installed or published release.
 Sections explicitly describing0.5.0 below document the earlier delivery; the
 current candidate package/archive identity is always `vendor/manifest.json`.
 
+Build this candidate with `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.5.2`.
+Apply migrations through 026 before starting it.
+
 ### Manual/runtime boundaries before release
 
 | Surface |0.5.2 development contract |
@@ -28,6 +31,19 @@ consistent DB/files backup and separately verified restore/post-install checks.
 Core's packed README may precede later source-manual edits: before release,
 repack final documented Core source, update exact Service provenance/lock and
 verify consumers. A docs commit changes neither the running image nor the pin.
+
+Empty Area declarations: new18/19 records preserve the difference between an
+omitted areaFormats field and an explicitly empty object, so Core fingerprints
+round-trip exactly. Actual definitions remain normalized row-owned data; only
+an empty presence marker may stay at root. This does not rewrite already-invalid
+historical snapshots. Register a corrected new version rather than editing
+immutable JSON, fingerprints or font references in storage.
+
+The legacy contract's company/member row-group PDF example can exceed DOCX's
+bounded reading-prefix relation: it reports DOCX_REQUIRED_RELATION_UNSUPPORTED
+in both0.5.0 and0.5.2. It remains a PDF authoring example, not a DOCX capability
+promise. Supported simple and I6 fixtures are verified separately; no renderer
+guard or layout rule is relaxed for package acceptance.
 
 ### Output base names (0.5.2 candidate; migration026)
 
@@ -221,7 +237,7 @@ decoded JSON keys in raw template, draft and HTTP request input.
 
 ## Font-aware draft and job candidate
 
-This candidate vendors Core0.5.2 with its verified checksum in `vendor/manifest.json`.
+This candidate vendors Core 0.5.2 with its verified checksum in `vendor/manifest.json`.
 Schema 1 retains the four verified Sarabun hashes. Schema 2 uses exact library
 release/weight/style references. Save/get/validate return `fontReadiness` separately
 from the saved revision: `ready`, `blocked` or `incomplete`, with `checkedScope`
@@ -353,8 +369,7 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-This development candidate installs Core solely from
-`vendor/flowdoc-core-0.5.2.tgz`. Older0.5.0/0.5.1 archives are retained as history.
+Core is installed solely from `vendor/flowdoc-core-0.5.2.tgz`. Older0.5.0/0.5.1 archives are retained as history.
 Exact SHA256 and Core source commit are recorded in `vendor/manifest.json` and
 the lockfile; earlier candidate archives remain immutable. Service0.5.0 uses
 FlowDocMake0.3.0 with the same exact pin. Installation is separately authorized.

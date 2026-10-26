@@ -14,6 +14,8 @@ export function decompose(input:TemplateDefinition,id:()=>string):CurrentRecord 
  if(![18,19].includes(input.nodeModelVersion))invalid('nodeModelVersion');
  const t:Json=structuredClone(input),{globalSchema,version,areaFormats,...payload}=t;
  const record:CurrentRecord={templateId:t.templateId,revision:0,payload,formats:[],schemas:[],variables:[]};
+ // An explicitly empty optional map still participates in the Core fingerprint.
+ if(areaFormats&&Object.keys(areaFormats).length===0)record.payload.areaFormats={};
  function schema(s:any,formatId:string|null,scope:NonNullable<SchemaRow['scope']>=formatId===null?'global':'format',sectionId:string|null=null){const sid=id();record.schemas.push({id:sid,formatId,scope,sectionId});
   function fields(fields:Json,parentId:string|null){Object.entries(fields).forEach(([key,f],position)=>{const vid=id(),{type,items,...rest}=f;if(!Object.hasOwn(typeIds,type))invalid('type');record.variables.push({id:vid,schemaId:sid,parentId,key,typeId:typeIds[type]!,position,payload:rest});if(type==='array')fieldsChild(items.fields,vid);});}
   const fieldsChild=(f:Json,p:string)=>fields(f,p);fields(s.fields,null);
@@ -27,6 +29,7 @@ export function decompose(input:TemplateDefinition,id:()=>string):CurrentRecord 
 export function checkRecord(r:CurrentRecord):void {
  if(!r||typeof r.templateId!=='string'||!r.payload||r.payload.templateId!==r.templateId||!Array.isArray(r.formats)||!Array.isArray(r.schemas)||!Array.isArray(r.variables))invalid('record');
  if(![18,19].includes(r.payload.nodeModelVersion))invalid('nodeModelVersion');
+ if(Object.hasOwn(r.payload,'areaFormats')&&(!r.payload.areaFormats||typeof r.payload.areaFormats!=='object'||Array.isArray(r.payload.areaFormats)||Object.keys(r.payload.areaFormats).length))invalid('areaFormats');
  const ids=new Set<string>();for(const row of [...(r.sections??[]),...r.formats,...r.schemas,...r.variables]){if(typeof row.id!=='string'||!row.id||ids.has(row.id))invalid('id');ids.add(row.id);}
  const fmt=new Map(r.formats.map(f=>[f.id,f])),schemas=new Map(r.schemas.map(s=>[s.id,s])),vars=new Map(r.variables.map(v=>[v.id,v]));
  const sections=new Map((r.sections??[]).map(s=>[s.id,s]));
@@ -54,7 +57,8 @@ export function checkRecord(r:CurrentRecord):void {
  const authored=new Set<string>(),areas=new Set<string>();
  for(const v of r.variables)if(v.typeId===110006){if(areas.has(v.payload.areaId))invalid('areaId');areas.add(v.payload.areaId);const parent=schemas.get(v.schemaId)!;if(parent.formatId&&fmt.get(parent.formatId)?.ownerAreaVariableId)invalid('nestedArea');}
  for(const f of r.formats){if(f.ownerAreaVariableId!=null){const owner=vars.get(f.ownerAreaVariableId);if(!owner||owner.typeId!==110006||typeof f.sourceDefinitionId!=='string'||!f.sourceDefinitionId||authored.has(f.sourceDefinitionId))invalid('formatOwner');authored.add(f.sourceDefinitionId!);if((f.sectionId??null)!==(schemas.get(owner!.schemaId)!.sectionId??null))invalid('area.sectionId');}else if(f.sourceDefinitionId!=null)invalid('formatOwner');}
- for(const k of ['globalSchema','formats','areaFormats','version'])if(Object.hasOwn(r.payload,k))invalid('payload');
+ // Nonempty Area definitions remain row-owned; only the checked empty marker is root metadata.
+ for(const k of ['globalSchema','formats','version'])if(Object.hasOwn(r.payload,k))invalid('payload');
  for(const f of r.formats)if(['inputSchema','key','ownerAreaId'].some(k=>Object.hasOwn(f.payload,k)))invalid('formats');
 }
 export function assemble(r:CurrentRecord,version:number):TemplateDefinition {
