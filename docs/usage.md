@@ -163,9 +163,15 @@ proxy; ไม่เพิ่ม CORS หรือ static route ให้ product
 สำหรับ model19 ใช้ sections เป็น array ระบุ ID ตาม contract; ห้ามแปลงชื่อเป็น ID เอง.
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด Service0.5.0
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด development Service0.5.2
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
+
+Compose เดิมยัง default image0.5.0 จึงต้องตั้ง `FLOWDOC_REGISTRY_IMAGE`
+เป็น tag ที่ build จาก candidate0.5.2 อย่างชัดเจนตามตัวอย่าง ถ้าใช้ profile
+verification ให้ตั้ง `FLOWDOC_VERIFY_IMAGE` และ build target verification ที่ตรงกัน
+ด้วย ชื่อ tag ที่ตั้งเองไม่ใช่หลักฐานรุ่น ต้องตรวจ source/pin/image ID
+ไม่คัดลอกไฟล์ env ใหม่ทับการติดตั้งเดิม และไม่ใช้ขั้นตอนทดลองนี้อัปเกรดข้อมูลจริง
 
 สร้างไฟล์ตั้งค่าทดลองครั้งเดียว เก็บไฟล์นี้ไว้ ไม่ส่งรหัสผ่านไปกับรายงาน:
 
@@ -174,7 +180,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.5.0'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.5.2'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -192,7 +198,7 @@ docker @dc up -d api
 ของ project `flowdoc-manual` หาก port 4318 ใช้อยู่ ให้เปลี่ยนค่าก่อนเริ่ม API
 เปิด terminal ใหม่ให้กำหนด `$dc` อีกครั้ง ไม่ต้องสร้างรหัสผ่านหรือ import ซ้ำ
 `CURRENT_EXISTS` หมายถึงมีฉบับแก้ไขอยู่แล้ว ไม่ใช่คำสั่งแทนที่ข้อมูลเดิม
-`migrate` ของชุดนี้ต้องผ่าน migrations 016–023 เพิ่มจากฐาน 015; ฐานใหม่ใช้ทั้งหมด
+`migrate` ของ0.5.2 ต้องครบ001–026; อัปเกรดจาก0.5.0/0.5.1 ที่มี025แล้วจะเพิ่ม026
 และการรันซ้ำที่ครบแล้วไม่ควรมีรายการ applied ใหม่. ห้ามแก้ SQL migration ที่ใช้แล้ว.
 ตัวอย่างแรกใช้ Sarabun เดิม จึงยังไม่ต้องนำเข้าคลังหรือเปิดสิทธิ์ admin.
 
@@ -616,7 +622,7 @@ Get-FileHash (Join-Path $backupDir 'database.dump') -Algorithm SHA256
 
 4. ตรวจว่าแต่ละคำสั่งสำเร็จ ตรวจ hashes และทดลอง restore dump/ไฟล์ใน DB กับ volumes
    แยกก่อนใช้เป็นแผนกู้คืน. ไม่ทดลอง restore ทับข้อมูลจริง และไม่ใช้ `down -v`.
-5. ใช้ image ชุดใหม่ที่ตรึงไว้ รัน CLI `migrate` ให้ถึง 023 แล้วเปิด API. ไม่ย้อน SQL
+5. ใช้ image ชุดใหม่ที่ตรึงไว้ รัน CLI `migrate` ให้ครบถึง026 แล้วเปิด API. ไม่ย้อน SQL
    migration หรือแก้ checksum ถ้าล้มเหลว; วิเคราะห์และกู้คืนเป็นชุด DB/files/config/
    image ที่เข้าคู่กันจากสำรองที่ตรวจแล้ว แยกการอนุมัติก่อนกระทบข้อมูลจริง.
 6. ตรวจ `/health`, คู่รุ่นจริง, admin/authoring permissions, catalog/readiness และ

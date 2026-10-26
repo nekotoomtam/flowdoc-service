@@ -11,6 +11,24 @@ This is release preparation, not an installed or published release.
 Sections explicitly describing0.5.0 below document the earlier delivery; the
 current candidate package/archive identity is always `vendor/manifest.json`.
 
+### Manual/runtime boundaries before release
+
+| Surface |0.5.2 development contract |
+| --- | --- |
+| Definitions | Service accepts18/19; Core20 is experimental direct use only |
+| Default download base name | definition root defaultFileName, versioned with template |
+| Per-call download base name | documents multipart payload root fileName; not a create-draft argument or business field |
+| Format | existing Output-Format header; omitted/PDF stays PDF, DOCX opts in |
+| Wire | multipart task events plus one binary part; verify bytes/hash and complete response |
+| Client save path | chosen by client independently; Content-Disposition is server attachment metadata |
+| Plugin | released0.3.0/profile0.5.0 unchanged; no0.5.2 plugin compatibility is implied |
+
+See the matching usage guide for explicit image selection, migration026,
+consistent DB/files backup and separately verified restore/post-install checks.
+Core's packed README may precede later source-manual edits: before release,
+repack final documented Core source, update exact Service provenance/lock and
+verify consumers. A docs commit changes neither the running image nor the pin.
+
 ### Output base names (0.5.2 candidate; migration026)
 
 Templates may set `defaultFileName` beside `docKey`. The existing `/documents`
@@ -707,10 +725,12 @@ promote this candidate as part of isolated development verification.
 
 This development checkout is governed by Project Control's
 `flowdoc-docx-export-plan-2026-10-20.md`, I5/I6; it is not a release or an
-installation authorization. The installed Core candidate is pinned to SHA256
-`2bec67cf379d5913cd8d6881b7eeb973b7b4159b95231e07cd04db4faf1c43b1`.
-Keep the retained released archive separate and run `node scripts/verifyVendor.mjs`
-before building. Apply migration025 before starting this candidate.
+installation authorization. The original0.5.0 integration used Core SHA256
+`2bec67cf379d5913cd8d6881b7eeb973b7b4159b95231e07cd04db4faf1c43b1`;
+that is historical evidence, not the current0.5.2 pin. Current version/hash/source
+are in `vendor/manifest.json`. Retain old archives and run
+`node scripts/verifyVendor.mjs` before building. Current0.5.2 requires all
+migrations through026; the DOCX format addition itself was migration025.
 
 For `POST /documents`, `Output-Format: DOCX` selects DOCX in both normal and
 `Task-Mode: queue-v1` requests. Explicit `PDF` and an omitted header keep PDF.
