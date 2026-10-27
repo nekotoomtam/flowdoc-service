@@ -24,18 +24,20 @@ export async function createTaskIntake(deps:Dependencies){
  async function owned(header:string,id:string,write=false){const i=await authenticate(header);if(!validJobId(id))throw taskError('INVALID_REQUEST');const r=await repo.get(id);if(!r||r.owner_key!==i.ownerKey)throw taskError('TASK_NOT_FOUND');if(write?r.created_by_principal!==i.principalId:r.created_by_principal!==i.principalId&&!i.taskRead)throw taskError('FORBIDDEN');return {r,i};}
  const stopped=async(r:any)=>{if(!r.writer_pid)return true;if(r.writer_host!==hostname())return false;if(r.writer_start_identity&&await processIdentity(r.writer_pid)!==r.writer_start_identity)return true;try{process.kill(r.writer_pid,0);return false;}catch(e){return (e as NodeJS.ErrnoException).code==='ESRCH';}};
  async function cleanup(id:string){
-  let r=await repo.get(id);if(!r||!terminal(r.status)||active.has(id)||queued.has(id)||!await stopped(r)||!await groupStopped(r.child_pid,r.child_host,hostname()))return;
+  let r=await repo.get(id);if(!r)return;if(terminal(r.status))opened.delete(id);if(!terminal(r.status)||active.has(id)||queued.has(id)||!await stopped(r)||!await groupStopped(r.child_pid,r.child_host,hostname()))return;
   await pool.query("UPDATE tasks SET cleanup_status='running',updated_at=now() WHERE id=$1",[id]);
   let retry=false;const due=r.due,all=(await pool.query('SELECT * FROM task_files WHERE task_id=$1',[id])).rows;
   const keep=new Set(all.filter(f=>f.state==='received'&&['payload','original_image'].includes(f.role)&&!due&&r.status!=='succeeded').map(f=>f.storage_key));
   const names=await files.names(id);
   for(const key of names){if(keep.has(key))continue;try{await files.remove(key);await pool.query("UPDATE task_files SET state='deleted',storage_key=NULL,stored_bytes=0,deleted_at=clock_timestamp(),updated_at=now() WHERE task_id=$1 AND storage_key=$2",[id,key]);}catch{retry=true;}}
-  try{await clearWorkspace(await files.workspace(id));}catch{retry=true;}
-  let actual=await workspaceSize(await files.workspace(id));for(const key of await files.names(id))actual+=await files.size(key);
+  const workspace=await files.workspace(id,false);
+  try{await clearWorkspace(workspace);}catch(e){if((e as NodeJS.ErrnoException).code!=='ENOENT')retry=true;}
+  let actual=0;try{actual=await workspaceSize(workspace);}catch(e){if((e as NodeJS.ErrnoException).code!=='ENOENT')throw e;}for(const key of await files.names(id))actual+=await files.size(key);
   const outputs=(await pool.query('SELECT o.id,o.path FROM document_outputs o JOIN generation_jobs j ON j.id=o.job_id WHERE j.task_id=$1 AND o.deleted_at IS NULL',[id])).rows;
   for(const out of outputs){const name=out.path.split(/[\\/]/).at(-1);if(!await files.size(id+'/output/'+name))await pool.query("UPDATE document_outputs SET availability='expired',deleted_at=clock_timestamp() WHERE id=$1",[out.id]);}
   // A missing file also becomes a tombstone; file disappearance never implies send success.
   for(const f of all)if(f.storage_key&&!(await files.size(f.storage_key))&&!keep.has(f.storage_key))await pool.query("UPDATE task_files SET state='deleted',storage_key=NULL,stored_bytes=0,deleted_at=clock_timestamp(),updated_at=now() WHERE id=$1",[f.id]);
+  if(!actual&&!retry)try{if(!await files.removeEmptyDirectories(id))retry=true;}catch{retry=true;}
   await transaction(pool,async c=>{await quotaLock(c);await repo.row(c,id);const q=(await c.query('SELECT storage_held_bytes FROM task_resource_reservations WHERE task_id=$1 FOR UPDATE',[id])).rows[0];
    if(actual>Number(q.storage_held_bytes))throw taskError('STORAGE_IO');
    await c.query('UPDATE task_resource_reservations SET storage_used_bytes=$2,storage_held_bytes=CASE WHEN $3 THEN storage_held_bytes ELSE $2 END,released_at=CASE WHEN $2=0 AND NOT $3 THEN clock_timestamp() ELSE NULL END,updated_at=now() WHERE task_id=$1',[id,actual,retry]);
@@ -62,7 +64,7 @@ export async function createTaskIntake(deps:Dependencies){
  }
  async function receive(request:Receiving){
   if(closing)throw taskError('UNAVAILABLE');const {r,i}=await owned(request.authorization,request.taskId,true),boundary=taskBoundary(request.contentType);
-  const claimed=await repo.claim(r.id,i.principalId),token=claimed.lease_token,limits=claimed.resource_policy as TaskPolicy;
+  const claimed=await repo.claim(r.id,i.principalId),token=claimed.lease_token,limits=claimed.resource_policy as TaskPolicy;opened.delete(r.id);
   // A queued cancellation can arrive during the claim, before pipeline attaches its iterator.
   request.body.on('error',()=>{});
   const abort=new AbortController();let resolveDone!:()=>void;const done=new Promise<void>(res=>{resolveDone=res;});active.set(r.id,{abort,done});

@@ -13,7 +13,8 @@ describe('real DOCX failure lifecycle',()=>{
  const f=fixture();beforeAll(()=>f.setup());beforeEach(()=>f.reset());afterAll(()=>f.close());
  async function noArtifact(id){
   const rows=(await f.pool.query('SELECT o.* FROM document_outputs o JOIN generation_jobs j ON j.id=o.job_id WHERE j.task_id=$1 AND o.deleted_at IS NULL',[id])).rows;expect(rows).toHaveLength(0);
-  expect(await readdir(join(f.root,id,'output'))).toEqual([]);expect((await f.intake.inspect(auth,id)).outputFormat).toBe('docx');
+  const entries=await readdir(join(f.root,id,'output')).catch(e=>{if(e.code==='ENOENT')return [];throw e;});
+  expect(entries).toEqual([]);expect((await f.intake.inspect(auth,id)).outputFormat).toBe('docx');
   const stored=(await f.pool.query('SELECT role,stored_bytes FROM task_files WHERE task_id=$1 AND storage_key IS NOT NULL',[id])).rows,q=(await f.pool.query('SELECT storage_used_bytes FROM task_resource_reservations WHERE task_id=$1',[id])).rows[0];
   expect(stored.every(r=>['payload','original_image'].includes(r.role))).toBe(true);expect(Number(q.storage_used_bytes)).toBe(stored.reduce((sum,r)=>sum+Number(r.stored_bytes),0));
  }
