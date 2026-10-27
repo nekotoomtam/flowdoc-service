@@ -799,6 +799,15 @@ The adaptive target, CPU fraction and reason appear on the existing internal
 queue diagnostics channel. This changes concurrency within the existing VM;
 it does not create VMs, resize CPU/RAM or add a new scaling service.
 
+A separate bounded comparison may select `TASK_QUEUE_PROFILE=4g-2cpu` with
+`mem_limit` and `memswap_limit` both `4g` and `cpus: 2.0`. It retains queue20,
+adaptive1..3 processing, two intakes/senders, the same CPU feedback and timers.
+It requires exactly4GiB of cgroup memory and records
+`task-v1-queue-4g-2cpu-trial-1`. Admission/pressure/resume/emergency thresholds
+are3072/3328/2816/3584MiB; its resource-derived processing configuration guard
+is8. This is an experimental setting requiring its own workload verification,
+not certification for8workers. The6GiB and default1GiB profiles are unchanged.
+
 For new `queue-v1` tasks in this explicit profile, input silence is 180 seconds.
 The silence clock runs only while awaiting upstream data; owned storage writes,
 quota transactions, payload inspection and downstream backpressure do not consume

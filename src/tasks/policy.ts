@@ -1,5 +1,5 @@
 import {TASK_POOL_BYTES,TASK_INITIAL_BYTES,processingCreditCeiling} from './queue-limits.js';
-import {DEFAULT_QUEUE_PROFILE,SIX_GIB_QUEUE_PROFILE,isSixGiBQueuePolicyVersion,type QueueProfile} from './queue-profile.js';
+import {DEFAULT_QUEUE_PROFILE,queueProfileForPolicyVersion,type QueueProfile} from './queue-profile.js';
 export const MiB=1048576;
 export const taskPolicy=Object.freeze({version:'task-v1-trial-1',poolBytes:TASK_POOL_BYTES,freeFloorBytes:256*MiB,
  initialBytes:TASK_INITIAL_BYTES,growthBytes:8*MiB,taskBytes:1_000_000_000,requestBytes:512*MiB,jsonBytes:64*MiB,imageBytes:50*MiB,
@@ -18,8 +18,8 @@ export function policyWith(overrides:Partial<TaskPolicy>={}):TaskPolicy{
  for(const [key,value] of Object.entries(p))if(key!=='version'&&(!Number.isSafeInteger(value)||Number(value)<1))throw Error('Invalid task policy');
  if(p.initialBytes>p.taskBytes||p.initialBytes>p.poolBytes||p.growthBytes>8*MiB||p.jsonBytes>p.requestBytes||p.imageBytes>p.requestBytes)throw Error('Invalid task quota ordering');
  for(const key of ['recordBytes','maxRecords','maxImageDefinitions','maxImagePlacements','normalizedBytes','findingDetails','validateMs','processMs','sendMs','writeMs','imageMs','stopMs','pdfBytes','docxBytes','maxDerivatives','maxSenders'] as const)if(p[key]>taskPolicy[key])throw Error('Unsupported task work bound');
- const allowedProcessing=p.version===SIX_GIB_QUEUE_PROFILE.policyVersion?processingCreditCeiling(SIX_GIB_QUEUE_PROFILE.admissionMiB):2;if(p.maxProcessing>allowedProcessing)throw Error('Unsupported processing bound');
- const memoryProfile=isSixGiBQueuePolicyVersion(p.version)?SIX_GIB_QUEUE_PROFILE:DEFAULT_QUEUE_PROFILE;
+ const memoryProfile=queueProfileForPolicyVersion(p.version);
+ const allowedProcessing=memoryProfile.adaptiveProcessing&&p.version===memoryProfile.policyVersion?processingCreditCeiling(memoryProfile.admissionMiB):2;if(p.maxProcessing>allowedProcessing)throw Error('Unsupported processing bound');
  if(p.memoryPauseBytes>memoryProfile.admissionMiB*MiB||p.memoryStopBytes>memoryProfile.emergencyMiB*MiB)throw Error('Unsupported task work bound');
  return Object.freeze(p);
 }
