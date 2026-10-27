@@ -897,3 +897,33 @@ Isolated I6 test prerequisites ของ README. ชุดทดสอบ18ก�
 mount client0.2.7 เดิมที่ /legacy-plugin สำหรับกรณี compatibility; API ทดลองอื่น
 ต้องใช้ฐานข้อมูลแยก เพราะ schema ไม่แยก advisory lock. Snapshot/tag และ deploy
 ยังเป็นขั้นตอนแยกจาก candidate ที่ตรวจผ่าน.
+
+### ห้องทดสอบแยกสำหรับ task lifecycle
+
+`node scripts/auditLab.mjs prepare` เตรียม Compose และ credentials ใหม่ใต้
+`artifacts/flowdoc-audit-<id>/` ของ checkout นี้ แล้วแสดง directory ที่ต้องใช้ต่อ.
+เป็นเครื่องมือทดสอบเฉพาะ Service; ไม่ใช่การติดตั้งหรือรับรอง release.
+ใช้คำสั่งต่อไปนี้โดยแทน `<lab-directory>` ด้วย directory ที่ prepare แสดง:
+
+```text
+node scripts/auditLab.mjs doctor <lab-directory>
+node scripts/auditLab.mjs build <lab-directory>
+node scripts/auditLab.mjs test <lab-directory>
+node scripts/auditLab.mjs start <lab-directory> 1g
+node scripts/auditLab.mjs status <lab-directory>
+node scripts/auditLab.mjs stop <lab-directory>
+```
+
+เครื่องมือตรึง Docker context เป็น `desktop-linux` และบังคับ project, image,
+database, volumes และ network ที่สร้างใหม่เฉพาะ lab. ไม่ publish host ports,
+ไม่ mount source/data เดิม และไม่อ่าน `.env` ของระบบจริง. Credentials และ
+connection strings ใน lab เป็นข้อมูลส่วนตัว ห้ามนำ artifacts ทั้ง directory
+ไปเผยแพร่. `test` รันเฉพาะ lifecycle regression ที่ระบุใน script และหยุด
+containers ของ lab หลังจบ; ไม่ใช่ผลผ่านของ Service suite รวม.
+`start` เลือก `1g`, `4g` หรือ `6g` ได้ ครั้งละหนึ่ง API บน network ภายใน;
+โปรไฟล์4/6GiB ต้องมี RAM เพียงพอและยังต้องพิสูจน์ workload จริง.
+การสร้าง config หรือเริ่ม API ไม่ได้ยืนยัน recovery, resource accounting หรือ
+lock-order scenarios. หาก source เปลี่ยนต้อง build ใหม่ก่อน test/start.
+Network ใช้ subnet `10.253.254.0/28` ชัดเจน; ก่อนใช้ให้ตรวจ host routes ด้วย.
+เครื่องมือปฏิเสธ Docker network ที่ทับกัน ไม่เลือก subnet อื่นหรือ prune อัตโนมัติ.
+`stop` เก็บ volumes และผลตรวจไว้ ไม่ลบข้อมูลหรือหยุด containers นอก lab.

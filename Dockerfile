@@ -29,6 +29,7 @@ CMD ["--help"]
 FROM runtime AS verification
 COPY README.md ./README.md
 COPY --from=build /app/node_modules ./node_modules
+COPY scripts/auditLab.mjs ./scripts/auditLab.mjs
 COPY tests ./tests
 ENTRYPOINT ["./node_modules/.bin/vitest","run","--no-file-parallelism"]
 CMD []
