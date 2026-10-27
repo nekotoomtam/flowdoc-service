@@ -10,7 +10,6 @@ import { transaction } from '../db/connection.js';
 import { quotaLock, taskError } from './quota.js';
 import { workspaceSize, clearWorkspace, groupStopped } from './workspace.js';
 import {taskReadBudget} from './read-cache-budget.js';
-import {taskPolicy} from './policy.js';
 import type { createTaskIntake } from './intake.js';
 type Context = Awaited<ReturnType<typeof createTaskIntake>>['processingContext'];
 export interface GenerationSummary {
@@ -47,7 +46,7 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
     const { pool, files, repo } = c, p = row.resource_policy, bound = fontWorkspaceBound(snapshot), workspace = await files.workspace(row.id);
     // The shared coordinator allows active groups to progress until its global
     // emergency action; two independent decode pause gates can deadlock together.
-    const globalGuard=c.resources.holds('worker:'+row.id,'worker')&&p.memoryPauseBytes===taskPolicy.memoryPauseBytes&&p.memoryStopBytes===taskPolicy.memoryStopBytes;
+    const globalGuard=c.resources.holds('worker:'+row.id,'worker')&&p.memoryPauseBytes===c.resources.memoryLimits.pauseBytes&&p.memoryStopBytes===c.resources.memoryLimits.stopBytes;
     await clearWorkspace(workspace);
     const used = Number((await pool.query('SELECT storage_used_bytes FROM task_resource_reservations WHERE task_id=$1', [row.id])).rows[0].storage_used_bytes);
     await repo.reserve(row.id, used + bound.bytes + 64 * 1048576, row.lease_token);

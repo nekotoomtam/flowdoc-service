@@ -1,3 +1,4 @@
+import {DEFAULT_QUEUE_PROFILE,SIX_GIB_QUEUE_PROFILE,type QueueProfile} from './queue-profile.js';
 export const MiB=1048576;
 export const taskPolicy=Object.freeze({version:'task-v1-trial-1',poolBytes:1_500_000_000,freeFloorBytes:256*MiB,
  initialBytes:8*MiB,growthBytes:8*MiB,taskBytes:1_000_000_000,requestBytes:512*MiB,jsonBytes:64*MiB,imageBytes:50*MiB,
@@ -7,11 +8,16 @@ export const taskPolicy=Object.freeze({version:'task-v1-trial-1',poolBytes:1_500
  processMs:5400000,sendMs:1800000,writeMs:60000,imageMs:30000,stopMs:5000,pdfBytes:256*MiB,docxBytes:32*MiB,maxDerivatives:2000,maxSenders:2,memoryPauseBytes:768*MiB,memoryStopBytes:896*MiB});
 export type TaskPolicy={readonly [K in keyof typeof taskPolicy]: K extends 'version'?string:number};
 export const QUEUE_POLICY_VERSION='task-v1-queue-2worker-trial-1';
-export function queuePolicy(policy:TaskPolicy):TaskPolicy{return {...policy,version:QUEUE_POLICY_VERSION,maxOutstanding:Math.min(10,policy.maxOutstanding),maxTasks:10,maxOwnerTasks:10,maxReceivers:2};}
+export function queuePolicy(policy:TaskPolicy,profile:QueueProfile=DEFAULT_QUEUE_PROFILE):TaskPolicy{
+ const cap=Math.min(profile.maxOutstanding,policy.maxOutstanding),slots=profile.strict?cap:10;
+ return {...policy,version:profile.policyVersion,maxOutstanding:cap,maxTasks:slots,maxOwnerTasks:slots,maxReceivers:2,...(profile.strict?{memoryPauseBytes:profile.admissionMiB*MiB,memoryStopBytes:profile.emergencyMiB*MiB}:{})};
+}
 export function policyWith(overrides:Partial<TaskPolicy>={}):TaskPolicy{
  const p={...taskPolicy,...overrides};
  for(const [key,value] of Object.entries(p))if(key!=='version'&&(!Number.isSafeInteger(value)||Number(value)<1))throw Error('Invalid task policy');
  if(p.initialBytes>p.taskBytes||p.initialBytes>p.poolBytes||p.growthBytes>8*MiB||p.jsonBytes>p.requestBytes||p.imageBytes>p.requestBytes)throw Error('Invalid task quota ordering');
- for(const key of ['recordBytes','maxRecords','maxImageDefinitions','maxImagePlacements','normalizedBytes','findingDetails','validateMs','processMs','sendMs','writeMs','imageMs','stopMs','pdfBytes','docxBytes','maxDerivatives','maxSenders','memoryPauseBytes','memoryStopBytes'] as const)if(p[key]>taskPolicy[key])throw Error('Unsupported task work bound');
+ for(const key of ['recordBytes','maxRecords','maxImageDefinitions','maxImagePlacements','normalizedBytes','findingDetails','validateMs','processMs','sendMs','writeMs','imageMs','stopMs','pdfBytes','docxBytes','maxDerivatives','maxSenders'] as const)if(p[key]>taskPolicy[key])throw Error('Unsupported task work bound');
+ const memoryProfile=p.version===SIX_GIB_QUEUE_PROFILE.policyVersion?SIX_GIB_QUEUE_PROFILE:DEFAULT_QUEUE_PROFILE;
+ if(p.memoryPauseBytes>memoryProfile.admissionMiB*MiB||p.memoryStopBytes>memoryProfile.emergencyMiB*MiB)throw Error('Unsupported task work bound');
  return Object.freeze(p);
 }

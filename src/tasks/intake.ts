@@ -8,12 +8,13 @@ import {normalizeStoredTask} from './normalize.js';
 import {workspaceSize,clearWorkspace,groupStopped,processIdentity} from './workspace.js';
 import {inspectPayload} from './payload.js';import {headerBudget,taskBoundary} from './multipart.js';
 import {createQueueResources,type QueueResourceOptions} from './queue-resources.js';
-import {QUEUE_POLICY_VERSION} from './policy.js';
+import {queuePolicy} from './policy.js';
+import {DEFAULT_QUEUE_PROFILE,isQueuePolicyVersion} from './queue-profile.js';
 interface Dependencies{pool:Pool;root:string;resolveCredential:(header:string)=>TaskIdentity|null|Promise<TaskIdentity|null>;policy?:Partial<TaskPolicy>;queueResources?:QueueResourceOptions;freeBytes?:()=>Promise<number>;removeFile?:(path:string)=>Promise<void>;writeChunk?:(handle:FileHandle,chunk:Buffer)=>Promise<void>}
 interface Opening{outputFormat?:unknown;authorization:string;docKey:unknown;contentType:string;contentEncoding?:string;queueMode?:boolean}
 interface Receiving{authorization:string;taskId:string;contentType:string;body:Readable;signal?:AbortSignal}
 export async function createTaskIntake(deps:Dependencies){
- const {pool}=deps,p=policyWith(deps.policy),files=await taskFiles(deps.root,deps.removeFile),repo=taskRepository(pool,p,deps.freeBytes??files.freeBytes);
+ const {pool}=deps,p=policyWith(deps.policy),profile=deps.queueResources?.profile??DEFAULT_QUEUE_PROFILE,files=await taskFiles(deps.root,deps.removeFile),repo=taskRepository(pool,p,deps.freeBytes??files.freeBytes,profile);
  const resources=await createQueueResources(deps.queueResources);
  const queued=new Map<string,{abort:AbortController;done:Promise<void>;stage:'waiting'|'receiving'|'validating'}>();
  const externalReason=(signal:AbortSignal|undefined)=>{const code=(signal?.reason as any)?.code;return taskError(typeof code==='string'&&['TASK_EXPIRED','WORKER_INTERRUPTED','RESOURCE_LIMIT','UNAVAILABLE','TASK_TIMEOUT'].includes(code)?code:'CONNECTION_LOST');};
@@ -123,7 +124,7 @@ export async function createTaskIntake(deps:Dependencies){
  async function receiveQueued(request:Receiving&{legacyPipeline?:boolean;onReceived?:()=>Promise<void>}){
   const {r}=await owned(request.authorization,request.taskId,true);
   if(closing)throw taskError('UNAVAILABLE');
-  if(!request.legacyPipeline&&r.resource_policy.version!==QUEUE_POLICY_VERSION||r.status!=='awaiting_input'||queued.has(r.id)||active.has(r.id))throw taskError('TASK_REQUEST_CONFLICT');
+  if(!request.legacyPipeline&&!isQueuePolicyVersion(r.resource_policy.version)||r.status!=='awaiting_input'||queued.has(r.id)||active.has(r.id))throw taskError('TASK_REQUEST_CONFLICT');
   const abort=new AbortController();let done!:()=>void;const state={abort,done:new Promise<void>(r=>{done=r;}),stage:'waiting' as 'waiting'|'receiving'|'validating'};queued.set(r.id,state);
   const external=()=>abort.abort(externalReason(request.signal));request.signal?.addEventListener('abort',external,{once:true});if(request.signal?.aborted)external();
   const deadline=setTimeout(()=>abort.abort(taskError('TASK_EXPIRED')),Math.max(1,+r.expires_at-Date.now()));
@@ -143,7 +144,7 @@ export async function createTaskIntake(deps:Dependencies){
   queueSnapshot:resources.snapshot,
   queueState(id:string){const state=queued.get(id);return state?{stage:state.stage,waitReason:state.stage==='waiting'?(resources.snapshot().intakes>=2?'receive_slot':'memory'):null}:null;},
   sharedQueueEnabled:resources.enabled,
-  queueCapability(){return resources.ready()?{mode:'queue-v1',earlyResponse:true,continuedUpload:true,maxOutstanding:Math.min(10,p.maxOutstanding),maxOwnerTasks:10,maxIntakes:2,maxProcessing:2,maxSenders:2}:null;},
+  queueCapability(){const q=queuePolicy(p,profile);return resources.ready()?{mode:'queue-v1',earlyResponse:true,continuedUpload:true,maxOutstanding:q.maxOutstanding,maxOwnerTasks:q.maxOwnerTasks,maxIntakes:2,maxProcessing:2,maxSenders:2,...(profile.strict?{resourceProfile:{name:profile.name,memoryBytes:profile.memoryBytes,cpuCount:profile.cpuCount,admissionBytes:profile.admissionMiB*1048576,pressureBytes:profile.pressureMiB*1048576,resumeBytes:profile.resumeMiB*1048576,emergencyBytes:profile.emergencyMiB*1048576}}:{})}:null;},
   async recover(){await sweep(true);},async sweep(){await sweep();},
   async stop(){closing=true;clearInterval(timer);await resources.stop();for(const q of queued.values())q.abort.abort(taskError('WORKER_INTERRUPTED'));for(const a of active.values())a.abort.abort(taskError('WORKER_INTERRUPTED'));await Promise.all([...queued.values(),...active.values()].map(a=>a.done));await maintenance;for(const id of opened){const r=await repo.get(id);if(r?.status==='awaiting_input')await fail(id,'WORKER_INTERRUPTED');}}
  };

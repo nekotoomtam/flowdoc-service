@@ -9,7 +9,7 @@ import type { createTaskIntake } from './intake.js';
 import { quotaLock, taskError } from './quota.js';
 import { processIdentity } from './workspace.js';
 import { terminal, safeTask, taskCompleteness } from './repository.js';
-import {QUEUE_POLICY_VERSION} from './policy.js';
+import {isQueuePolicyVersion} from './queue-profile.js';
 import { readReferences, verifyReferences } from '../fonts/retention.js';
 import { resolveFontReadiness } from '../fonts/readiness.js';
 import { makeFontSnapshot, persistJobFonts, validateFontSnapshot, rendererIdentity } from '../fonts/snapshot.js';
@@ -95,7 +95,7 @@ export async function createTaskProcessing(deps: Dependencies) {
         const execution: Execution = { abort, done, leaseToken:row.lease_token, snapshot:admission.snapshot };
         executing.set(id, execution);
         active.set(id, { abort, done });
-        const queueMode=p.version===QUEUE_POLICY_VERSION;
+        const queueMode=isQueuePolicyVersion(p.version);
         let generation = 'not_started', delivery = 'not_started', pdf: TaskRenderReceipt | undefined, renewing = false;
         const disconnect = () => abort.abort(taskError('CONNECTION_LOST'));
         request.signal?.addEventListener('abort', disconnect, { once: true });

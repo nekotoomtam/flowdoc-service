@@ -1,5 +1,12 @@
 # คู่มือใช้งาน FlowDoc Service 0.5.2
 
+## Authority Boundary
+
+Owner: flowdoc-service. Scope: repository-owned runtime setup, API usage and
+experimental resource-profile configuration. This guide does not promote a
+release, installation, shared FlowDoc readiness or cross-repository status;
+Project Control governs those claims.
+
 ## ชุดพัฒนา 0.5.2
 
 Service0.5.2 ชุดนี้ตรึง Core `0.5.2` ผ่าน vendor/manifest.json ให้ตรวจ checksum ก่อน
@@ -750,6 +757,41 @@ Keep the credential and task-storage settings above in the same override. The
 queue requires readable Linux cgroup v2 counters and exactly 1 GiB `memory.max`;
 without that checked profile, do not assume queue capability is available.
 The trial pool remains 1.5 GB with a 256-MiB free-disk floor; 10 GB is deferred.
+
+### Opt-in experimental 6-GiB / 2-CPU profile
+
+The default above remains the 1-GiB profile. A derived experimental candidate
+can explicitly select `TASK_QUEUE_PROFILE=6g-2cpu` and
+`TASK_QUEUE_MAX_OUTSTANDING=10` (start here) or `20` (bounded comparison).
+Set both `mem_limit` and `memswap_limit` to `6g`, and `cpus` to `2.0` in an
+isolated operator override. The explicit profile requires exactly 6 GiB of
+Linux cgroup v2 `memory.max` and a finite two-CPU `cpu.max` quota; it fails
+startup if those checks or the initial memory reading fail. An unknown profile
+or a queue size above the selected profile's ceiling is rejected.
+This experimental profile accepts the two comparison sizes 10 and 20 only.
+It requires task credentials. Its selected ceiling also governs legacy and
+authoring job admission into the shared queue; leave `JOB_MAX_OUTSTANDING`
+unset or set it to the same value. Conflicting explicit ceilings fail startup.
+
+Use `Task-Mode: queue-v1` for this comparison. The shared governor still grants
+at most two intake pipelines, two render workers and two senders. Outstanding
+capacity includes both running and waiting tasks, and is transactionally
+shared with legacy generation jobs. The new policy is recorded as
+`task-v1-queue-6g-2cpu-trial-1`; authenticated queue capability adds a
+`resourceProfile` object with the actual configured memory thresholds.
+
+The container governor admits new work below 4608 MiB, pauses new grants at
+4992 MiB, resumes after ten readings at or below 4224 MiB, and requests a
+worker stop after three readings at or above 5376 MiB. Existing metric
+freshness and process-group reaping requirements remain in force. Queue-v1
+tasks record the matching global memory guard bounds; legacy non-queue tasks
+keep their previous per-task bounds. Payload, image, output-size and disk-pool
+limits are unchanged. The profile alone does not promise a higher throughput.
+
+These are candidate configuration and verification instructions, not a claim
+that a new version was released or installed over the primary runtime. Compare
+queue 10 and 20 with measured small, medium, large and image-bearing workloads
+in separate databases/containers/volumes before selecting a production ceiling.
 No migration after 024 is added by this queue update. Before enabling real traffic,
 check the authenticated queue capability, nine accepted requests versus at most
 two active workers, cancellation and cleanup in an isolated instance. This is an

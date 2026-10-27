@@ -2,6 +2,7 @@ import type {OutputFormat} from './output-format.js';
 import type {Pool,PoolClient} from 'pg';import {randomUUID} from 'node:crypto';import {hostname} from 'node:os';
 import {groupStopped,processIdentity} from './workspace.js';
 import {queuePolicy} from './policy.js';
+import {DEFAULT_QUEUE_PROFILE,type QueueProfile} from './queue-profile.js';
 import {selectOutputName} from './output-name.js';
 import {transaction} from '../db/connection.js';import {quotaLock,storageTotals,taskError} from './quota.js';import type {TaskPolicy} from './policy.js';
 export const terminal=(s:string)=>['failed','expired','succeeded'].includes(s);
@@ -10,7 +11,7 @@ export const taskCompleteness=(r:any,summary=r.generation_summary)=>r.normalizat
 export const safeTask=(r:any)=>({taskId:r.id,outputFormat:r.output_format,...(r.file_name?{fileName:r.file_name}:{}),status:r.status,createdAt:r.created_at.toISOString(),expiresAt:r.expires_at.toISOString(),
  creator:{principalId:r.created_by_principal,actorRef:r.client_actor_ref},billingSubjectKey:r.billing_subject_key,
  template:r.template_pin,inputDigest:r.input_digest,...(r.normalized_at?{normalization:{completedAt:r.normalized_at.toISOString(),digest:r.normalized_digest,summary:r.normalization_summary}}:{}),...(r.generation_summary?{generationSummary:r.generation_summary,completeness:taskCompleteness(r)}:{}),cleanup:{status:r.cleanup_status},error:r.terminal_reason});
-export function taskRepository(pool:Pool,policy:TaskPolicy,freeBytes:()=>Promise<number>){
+export function taskRepository(pool:Pool,policy:TaskPolicy,freeBytes:()=>Promise<number>,profile:QueueProfile=DEFAULT_QUEUE_PROFILE){
  let identityColumn:boolean|undefined;
  async function hasIdentityColumn(c:PoolClient){return identityColumn??=(await c.query("SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='tasks' AND column_name='writer_start_identity') AS present")).rows[0].present as boolean;}
  async function row(c:PoolClient,id:string){const r=(await c.query("SELECT *,expires_at<=clock_timestamp() AS due,lease_expires_at<=clock_timestamp() AS lease_due,(status='validating' AND (to_jsonb(tasks)->>'normalized_at') IS NULL AND (to_jsonb(tasks)->>'validation_started_at') IS NOT NULL AND clock_timestamp()>=(to_jsonb(tasks)->>'validation_started_at')::timestamptz+(coalesce((resource_policy->>'validateMs')::bigint,900000)*interval '1 millisecond')) AS validation_due FROM tasks WHERE id=$1 FOR UPDATE",[id])).rows[0];if(!r)throw taskError('TASK_NOT_FOUND');return r;}
@@ -27,7 +28,7 @@ export function taskRepository(pool:Pool,policy:TaskPolicy,freeBytes:()=>Promise
  }
  return {row,event,live,reserveLocked,
   async create(identity:TaskIdentity,versionId:string,pin:unknown,queueMode=false,outputFormat:OutputFormat='pdf',defaultFileName='document'){return transaction(pool,async c=>{
-   const p=queueMode?queuePolicy(policy):policy;
+   const p=queueMode?queuePolicy(policy,profile):policy;
    await quotaLock(c);
    const counts=(await c.query(`SELECT count(*) AS tasks,count(*) FILTER(WHERE t.owner_key=$1) AS owned,count(*) FILTER(WHERE t.status IN ('awaiting_input','receiving')) AS receivers FROM tasks t JOIN task_resource_reservations r ON r.task_id=t.id WHERE r.queue_slot_held`,[identity.ownerKey])).rows[0];
    const jobs=Number((await c.query("SELECT count(*) FROM generation_jobs WHERE status IN ('queued','running') AND task_id IS NULL")).rows[0].count);

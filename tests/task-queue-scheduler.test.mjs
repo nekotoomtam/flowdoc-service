@@ -37,8 +37,12 @@ it('stops the newest worker under emergency pressure, resumes intake and sender 
  const waitingIntake=resources.acquire('overlap-intake',{...req,kind:'intake'}).then(g=>intakeGrant=g),waitingSender=resources.acquire('overlap-sender',{...req,kind:'sender'}).then(g=>senderGrant=g);await sleep(30);expect(intakeGrant).toBeUndefined();expect(senderGrant).toBeUndefined();
  memory=900*1048576;const result=await calls[1].done;expect(result.code).toBe('RESOURCE_LIMIT');memory=100*1048576;await Promise.all([waitingIntake,waitingSender]);expect(intakeGrant).toBeDefined();expect(senderGrant).toBeDefined();intakeGrant.release();senderGrant.release();await manager.stop();await calls[0].done;expect(intake.queueSnapshot()).toMatchObject({workers:0,intakes:0,senders:0,creditsMiB:128});
 });
-it('waits for shared storage before claiming any worker, then starts the FIFO head after capacity returns',async()=>{
- renderer=heldRenderer;await setup();const a=await input(1),b=await input(2),calls=[await queue(a),await queue(b)];free=1;await start();await sleep(200);expect(entered).toEqual([]);expect((await row(a)).status).toBe('queued');expect((await row(b)).status).toBe('queued');expect(intake.queueSnapshot().workers).toBe(0);
+it('waits for shared storage without starting render work, then starts the FIFO head after capacity returns',async()=>{
+ renderer=heldRenderer;await setup();const a=await input(1),b=await input(2),calls=[await queue(a),await queue(b)];free=1;await start();await sleep(200);expect(entered).toEqual([]);expect((await row(a)).status).toBe('queued');expect((await row(b)).status).toBe('queued');
+ // A provisional resource grant can exist while the async storage transaction
+ // rejects admission. Assert its release and the unchanged render/DB state,
+ // rather than sampling that transient reservation at one arbitrary instant.
+ await until(()=>intake.queueSnapshot().workers===0);expect(entered).toEqual([]);expect((await row(a)).status).toBe('queued');expect((await row(b)).status).toBe('queued');
  free=20_000_000_000;await until(()=>entered.length===2);expect(entered).toEqual([a,b]);await manager.stop();await Promise.all(calls.map(c=>c.done));
 });
 it('waits for global memory without claiming or skipping a ready task',async()=>{
