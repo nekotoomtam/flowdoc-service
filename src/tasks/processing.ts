@@ -238,10 +238,10 @@ export async function createTaskProcessing(deps: Dependencies) {
         let grant:{release():void}|undefined;
         try{
             const job=(await pool.query("SELECT id,task_id FROM generation_jobs WHERE status='queued' ORDER BY created_at,id LIMIT 1")).rows[0];
-            if(!job?.task_id){if(job)for(const[id,e]of executing)if(!workers.has(id)&&!e.receipt)e.waitReason='legacy_turn';return false;}
-            const execution=executing.get(job.task_id);if(!execution||execution.abort.signal.aborted)return false;
+            if(!job?.task_id){resources.setProcessingDemand(false);if(job)for(const[id,e]of executing)if(!workers.has(id)&&!e.receipt)e.waitReason='legacy_turn';return false;}
+            const execution=executing.get(job.task_id);if(!execution||execution.abort.signal.aborted){resources.setProcessingDemand(false);return false;}resources.setProcessingDemand(true);
             const abort=execution.abort,shared=resources.enabled();
-            if(workers.size>=(shared?2:1)){execution.waitReason='processing_slot';return false;}
+            if(workers.size>=(shared?resources.processingLimit():1)){execution.waitReason='processing_slot';return false;}
             try{
                 if(shared){grant=resources.tryAcquire('worker:'+job.task_id,{kind:'worker',order:Date.now(),expiresAt:Number.MAX_SAFE_INTEGER,signal:abort.signal,onStop:code=>abort.abort(taskError(code))})??undefined;if(!grant){execution.waitReason=resources.waitReason('worker');return false;}}
                 const row=await transaction(pool,async c=>{

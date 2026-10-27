@@ -762,23 +762,42 @@ The trial pool remains 1.5 GB with a 256-MiB free-disk floor; 10 GB is deferred.
 
 The default above remains the 1-GiB profile. A derived experimental candidate
 can explicitly select `TASK_QUEUE_PROFILE=6g-2cpu` and
-`TASK_QUEUE_MAX_OUTSTANDING=10` (start here) or `20` (bounded comparison).
+`TASK_QUEUE_MAX_OUTSTANDING=20` and `TASK_QUEUE_MAX_PROCESSING=3` (the initial adaptive comparison).
 Set both `mem_limit` and `memswap_limit` to `6g`, and `cpus` to `2.0` in an
 isolated operator override. The explicit profile requires exactly 6 GiB of
 Linux cgroup v2 `memory.max` and a finite two-CPU `cpu.max` quota; it fails
 startup if those checks or the initial memory reading fail. An unknown profile
 or a queue size above the selected profile's ceiling is rejected.
-This experimental profile accepts the two comparison sizes 10 and 20 only.
+Queue capacity is adjustable: a positive integer is accepted up to the ceiling derived from the existing disk pool divided by its initial reservation (currently 178). This is a configuration guard, not a capacity certification. Actual disk/workspace reservation checks still apply. The 1-GiB default retains its previous ceiling.
 It requires task credentials. Its selected ceiling also governs legacy and
 authoring job admission into the shared queue; leave `JOB_MAX_OUTSTANDING`
 unset or set it to the same value. Conflicting explicit ceilings fail startup.
 
 Use `Task-Mode: queue-v1` for this comparison. The shared governor still grants
-at most two intake pipelines, two render workers and two senders. Outstanding
+at most two intake pipelines and two senders, with an adaptive render ceiling. Outstanding
 capacity includes both running and waiting tasks, and is transactionally
 shared with legacy generation jobs. The new policy is recorded as
-`task-v1-queue-6g-2cpu-trial-2`; authenticated queue capability adds a
+`task-v1-queue-6g-2cpu-trial-3`; authenticated queue capability advertises `maxProcessing` as a ceiling, includes `adaptiveProcessing`, and adds a
 `resourceProfile` object with the actual configured memory thresholds.
+
+The adaptive render target starts at one. With queued demand, five low-CPU
+samples (below 75% of the configured two-CPU quota) and low parent-loop lag
+permit one additional worker, with at least two seconds between adjustments.
+The initial ceiling is three. Sustained CPU use at or above 90% reduces a target
+above the quota baseline to two; expected saturation with two workers does not
+by itself force it down to one. Sustained parent-loop lag of 150 ms or memory
+pressure reduces future dispatch to one. A lower target never cancels already
+running work; existing emergency-memory and unavailable/stale-metric stops still
+apply. CPU telemetry is required and shares the existing bounded freshness check.
+
+`TASK_QUEUE_MAX_PROCESSING` is an adjustable ceiling, not a promise to keep that
+many workers running. Its upper configuration guard is derived from the existing
+memory credits after intake/sender/base reservations (currently 13 on this
+profile); higher settings still require new workload verification. Read-cache,
+field-index and record-reuse pools keep their existing fixed bounds and fallback.
+The adaptive target, CPU fraction and reason appear on the existing internal
+queue diagnostics channel. This changes concurrency within the existing VM;
+it does not create VMs, resize CPU/RAM or add a new scaling service.
 
 For new `queue-v1` tasks in this explicit profile, input silence is 180 seconds.
 The silence clock runs only while awaiting upstream data; owned storage writes,
@@ -792,7 +811,7 @@ Rendering has a five-minute budget starting when the worker claims the queued
 job. An operator may explicitly select `TASK_QUEUE_PROCESS_TIMEOUT_MS=600000`
 for a ten-minute heavy-document trial, or `300000` for the default five minutes.
 Other values, or this setting outside the explicit 6-GiB profile, fail startup.
-Existing persisted `trial-1` tasks retain their saved budgets and remain readable;
+Existing persisted `trial-1`/`trial-2` tasks retain their saved budgets and remain readable;
 the default 1-GiB profile and legacy non-queue tasks keep their prior behavior.
 The revised budgets alone do not establish that queue 20 is safe: repeat the real
 SRS/UAT input comparison and retain any receiving failures before selecting it.
@@ -810,8 +829,7 @@ that a new version was released or installed over the primary runtime. Compare
 queue 10 and 20 with measured small, medium, large and image-bearing workloads
 in separate databases/containers/volumes before selecting a production ceiling.
 No migration after 024 is added by this queue update. Before enabling real traffic,
-check the authenticated queue capability, nine accepted requests versus at most
-two active workers, cancellation and cleanup in an isolated instance. This is an
+check the authenticated queue capability, nine accepted requests versus the configured adaptive worker ceiling, cancellation and cleanup in an isolated instance. This is an
 operator checklist for a future authorized installation, not a claim it ran here.
 
 Send `Authorization: Bearer <configured-task-token>`, `Doc-Key: <authorized-key>`,

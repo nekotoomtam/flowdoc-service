@@ -1,11 +1,13 @@
+import {createAdaptiveProcessing} from './adaptive-processing.js';
+import {QUEUE_CREDITS,QUEUE_BASE_MIB} from './queue-limits.js';
 import {readFile} from 'node:fs/promises';
 import {taskError} from './quota.js';
 import {performance} from 'node:perf_hooks';
 import {channel} from 'node:diagnostics_channel';
 import {DEFAULT_QUEUE_PROFILE,parseQueueCpuLimit,type QueueProfile} from './queue-profile.js';
 const MiB=1048576;
-export type MemorySample={current:number;max:number;peak?:number;stat?:Record<string,number>;events?:Record<string,number>};
-export interface QueueResourceOptions {readMemory?:()=>Promise<MemorySample>;sampleMs?:number;profile?:QueueProfile;readCpuLimit?:()=>Promise<number|null>}
+export type MemorySample={current:number;max:number;cpuMicros?:number;peak?:number;stat?:Record<string,number>;events?:Record<string,number>};
+export interface QueueResourceOptions {readMemory?:()=>Promise<MemorySample>;sampleMs?:number;profile?:QueueProfile;readCpuLimit?:()=>Promise<number|null>;readCpuUsage?:()=>Promise<number>}
 type Kind='intake'|'worker'|'sender';
 type Request={kind:Kind;order:number;expiresAt:number;signal?:AbortSignal;onStop?:(code:string)=>void};
 type Grant={release:()=>void};
@@ -18,16 +20,21 @@ export async function readQueueMemory():Promise<MemorySample>{
  const stat=counters(statText),events=counters(eventsText);if(!['anon','file','kernel'].every(k=>Number.isSafeInteger(stat[k]))||!['oom','oom_kill'].every(k=>Number.isSafeInteger(events[k]))||!Number.isSafeInteger(Number(peak.trim())))throw taskError('UNAVAILABLE');
  return {current:Number(current.trim()),max:Number(max.trim()),peak:Number(peak.trim()),stat,events};
 }
+export async function readQueueCpuUsage():Promise<number>{const text=await readFile('/sys/fs/cgroup/cpu.stat','utf8'),match=text.match(/(?:^|\n)usage_usec\s+(\d+)(?:\n|$)/),value=Number(match?.[1]);if(!match||!Number.isSafeInteger(value)||value<0)throw taskError('UNAVAILABLE');return value;}
 /** One coordinator owns these ephemeral grants; task admission remains transactional in PostgreSQL. */
 export async function createQueueResources(options:QueueResourceOptions={}){
  const profile=options.profile??DEFAULT_QUEUE_PROFILE;
  if(profile.strict){let cpus:number|null=null;try{cpus=await(options.readCpuLimit??(async()=>parseQueueCpuLimit(await readFile('/sys/fs/cgroup/cpu.max','utf8'))))();}catch{}if(cpus!==profile.cpuCount)throw taskError('UNAVAILABLE');}
- const read=options.readMemory??readQueueMemory,interval=options.sampleMs??100;
+ const adaptive=profile.adaptiveProcessing?createAdaptiveProcessing({max:profile.maxProcessing,cpuCount:profile.cpuCount}):null;let processingDemand=false;
+ const memoryReader=options.readMemory??readQueueMemory;
+ const read=async():Promise<MemorySample>=>{if(!adaptive)return memoryReader();const[memory,cpuMicros]=await Promise.all([memoryReader(),(options.readCpuUsage??readQueueCpuUsage)()]);if(!Number.isSafeInteger(cpuMicros)||cpuMicros<0)throw taskError('UNAVAILABLE');return{...memory,cpuMicros};},interval=options.sampleMs??100;
  if(!Number.isInteger(interval)||interval<1||interval>100)throw taskError('INVALID_REQUEST');
- const cost:Record<Kind,number>={intake:64,worker:320,sender:8},limit:Record<Kind,number>={intake:2,worker:2,sender:2};
+ const cost:Record<Kind,number>=QUEUE_CREDITS,limit:Record<Kind,number>={intake:2,worker:profile.maxProcessing,sender:2};
+ const processingLimit=()=>adaptive?.snapshot().target??profile.maxProcessing;
+ const slots=(kind:Kind)=>kind==='worker'?processingLimit():limit[kind];
  const active=new Map<string,{request:Request;sequence:number;stopping:boolean}>(),waiting:Waiter[]=[];
  let sample:MemorySample|undefined,sampledAt=0,faultSince:number|undefined,closed=false,busy=false,pressure=false,low=0,emergency=0,sequence=0,enabled=false;
- const credits=()=>128+[...active.values()].reduce((n,a)=>n+cost[a.request.kind],0);
+ const credits=()=>QUEUE_BASE_MIB+[...active.values()].reduce((n,a)=>n+cost[a.request.kind],0);
  let startupEnabled=false;
  const histogram=()=>{const buckets=Array<number>(9).fill(0);let count=0,max=0,total=0;return{add(v:number){count++;max=Math.max(max,v);total+=v;const i=[1,5,10,25,50,100,250,500].findIndex(n=>v<=n);buckets[i<0?8:i]!++;},snapshot:()=>({count,max,total,buckets:[...buckets]})};};
  const readMs=histogram(),scheduleLagMs=histogram(),sampleAgeMs=histogram();let readErrors=0,readTimeouts=0,staleStops=0,lastFailure:string|null=null,nextTick=performance.now(),sampleMono=0,staleNotified=false,inFlight:Promise<MemorySample>|undefined;
@@ -55,7 +62,7 @@ export async function createQueueResources(options:QueueResourceOptions={}){
   const blocked=new Set<Kind>();
   for(const w of [...waiting]){
    const k=w.request.kind;if(blocked.has(k))continue;
-   if(counts(k)>=limit[k]||Math.max(sample!.current/MiB,credits())+cost[k]>profile.admissionMiB){blocked.add(k);continue;}
+   if(counts(k)>=slots(k)||Math.max(sample!.current/MiB,credits())+cost[k]>profile.admissionMiB){blocked.add(k);continue;}
    waiting.splice(waiting.indexOf(w),1);w.request.signal?.removeEventListener('abort',w.abort);
    active.set(w.id,{request:w.request,sequence:++sequence,stopping:false});let released=false;
    w.resolve({release(){if(released)return;released=true;active.delete(w.id);drain();}});
@@ -73,17 +80,21 @@ export async function createQueueResources(options:QueueResourceOptions={}){
    // A delayed callback must not turn an old reading into a fresh one.
    checkFreshness();if(performance.now()-started>500){failure='read_late';throw taskError('UNAVAILABLE');}
    if(!Number.isSafeInteger(v.current)||v.current<0||v.max!==profile.memoryBytes){failure='invalid_sample';throw taskError('UNAVAILABLE');}
-   sample=v;sampledAt=Date.now();sampleMono=performance.now();faultSince=undefined;staleNotified=false;enabled=true;
+   const observedAt=performance.now();
    if(v.current>=profile.pressureMiB*MiB){pressure=true;low=0;}
    else if(pressure){low=v.current<=profile.resumeMiB*MiB?low+1:0;if(low>=10){pressure=false;low=0;}}
+   adaptive?.observe({at:observedAt,cpuMicros:v.cpuMicros!,active:counts('worker'),queued:processingDemand,pressure,lagMs:lag});
+   sample=v;sampledAt=Date.now();sampleMono=observedAt;faultSince=undefined;staleNotified=false;enabled=true;
    emergency=v.current>=profile.emergencyMiB*MiB?emergency+1:0;if(emergency>=3)stopActive('RESOURCE_LIMIT');
   }catch{
    readErrors++;lastFailure=failure;
    faultSince??=sample?sampleMono:started;if(performance.now()-faultSince>=500){for(const w of [...waiting])reject(w,taskError('UNAVAILABLE'));stopActive('UNAVAILABLE',true);}
-  }finally{busy=false;channel('flowdoc.task.queue.memory').publish({at:Date.now(),scheduleLagMs:lag,readMs:performance.now()-started,sampleAgeMs:sample?performance.now()-sampleMono:null,lastFailure,intakes:counts('intake'),workers:counts('worker'),senders:counts('sender')});drain();}
+  }finally{busy=false;channel('flowdoc.task.queue.memory').publish({at:Date.now(),scheduleLagMs:lag,readMs:performance.now()-started,sampleAgeMs:sample?performance.now()-sampleMono:null,lastFailure,processing:adaptive?{strategy:'adaptive',...adaptive.snapshot()}:{strategy:'fixed',target:profile.maxProcessing,maximum:profile.maxProcessing},intakes:counts('intake'),workers:counts('worker'),senders:counts('sender')});drain();}
  }
  await tick();startupEnabled=enabled;if(profile.strict&&!startupEnabled)throw taskError('UNAVAILABLE');const timer=setInterval(()=>{void tick();},interval);timer.unref();
  return {
+  processingLimit,setProcessingDemand:(queued:boolean)=>{processingDemand=queued;},
+  processingState:()=>adaptive?{strategy:'adaptive',...adaptive.snapshot()}:{strategy:'fixed',target:profile.maxProcessing,maximum:profile.maxProcessing,cpuFraction:null,reason:'fixed'},
   memoryLimits:Object.freeze({pauseBytes:profile.admissionMiB*MiB,stopBytes:profile.emergencyMiB*MiB}),
   enabled:()=>startupEnabled,
   ready:healthy,
@@ -93,11 +104,11 @@ export async function createQueueResources(options:QueueResourceOptions={}){
    if(request.signal?.aborted)throw request.signal.reason??taskError('WORKER_INTERRUPTED');
    if(request.expiresAt<=Date.now())throw taskError('TASK_EXPIRED');
    if(active.has(id)||waiting.some(w=>w.id===id))throw taskError('TASK_REQUEST_CONFLICT');
-   if(pressure||[...active.values()].some(a=>a.stopping)||waiting.some(w=>w.request.kind===request.kind)||counts(request.kind)>=limit[request.kind]||Math.max(sample!.current/MiB,credits())+cost[request.kind]>profile.admissionMiB)return null;
+   if(pressure||[...active.values()].some(a=>a.stopping)||waiting.some(w=>w.request.kind===request.kind)||counts(request.kind)>=slots(request.kind)||Math.max(sample!.current/MiB,credits())+cost[request.kind]>profile.admissionMiB)return null;
    active.set(id,{request,sequence:++sequence,stopping:false});let released=false;
    return {release(){if(released)return;released=true;active.delete(id);drain();}};
   },
-  waitReason(kind:Kind){return counts(kind)>=limit[kind]?(kind==='worker'?'processing_slot':kind==='sender'?'send_slot':'receive_slot'):'memory';},
+  waitReason(kind:Kind){return counts(kind)>=slots(kind)?(kind==='worker'?'processing_slot':kind==='sender'?'send_slot':'receive_slot'):'memory';},
   acquire(id:string,request:Request):Promise<Grant>{
    if(!healthy())return Promise.reject(taskError('UNAVAILABLE'));
    if(request.signal?.aborted)return Promise.reject(request.signal.reason??taskError('CONNECTION_LOST'));
@@ -106,7 +117,7 @@ export async function createQueueResources(options:QueueResourceOptions={}){
    if(waiting.length>=profile.maxOutstanding)return Promise.reject(taskError('QUEUE_FULL'));
    return new Promise((resolve,rejectPromise)=>{const w:Waiter={id,request,resolve,reject:rejectPromise,abort:()=>reject(w,request.signal?.reason??taskError('CONNECTION_LOST'))};waiting.push(w);request.signal?.addEventListener('abort',w.abort,{once:true});if(request.signal?.aborted)w.abort();else drain();});
   },
-  snapshot:()=>({intakes:counts('intake'),workers:counts('worker'),senders:counts('sender'),waiters:waiting.length,creditsMiB:credits(),memoryBytes:sample?.current??null,memoryPeakBytes:sample?.peak??null,memoryStat:sample?.stat??null,memoryEvents:sample?.events??null,pressure,healthy:healthy(),timing:timing()}),
+  snapshot:()=>({processing:adaptive?{strategy:'adaptive',...adaptive.snapshot()}:{strategy:'fixed',target:profile.maxProcessing,maximum:profile.maxProcessing},intakes:counts('intake'),workers:counts('worker'),senders:counts('sender'),waiters:waiting.length,creditsMiB:credits(),memoryBytes:sample?.current??null,memoryPeakBytes:sample?.peak??null,memoryStat:sample?.stat??null,memoryEvents:sample?.events??null,pressure,healthy:healthy(),timing:timing()}),
   async stop(){closed=true;clearInterval(timer);for(const w of [...waiting])reject(w,taskError('WORKER_INTERRUPTED'));stopActive('WORKER_INTERRUPTED',true);while(busy)await new Promise(r=>setTimeout(r,1));}
  };
 }

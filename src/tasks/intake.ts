@@ -10,7 +10,7 @@ import {workspaceSize,clearWorkspace,groupStopped,processIdentity} from './works
 import {inspectPayload} from './payload.js';import {headerBudget,taskBoundary} from './multipart.js';
 import {createQueueResources,type QueueResourceOptions} from './queue-resources.js';
 import {queuePolicy} from './policy.js';
-import {DEFAULT_QUEUE_PROFILE,isQueuePolicyVersion} from './queue-profile.js';
+import {DEFAULT_QUEUE_PROFILE,isQueuePolicyVersion,usesInputWaitBudget} from './queue-profile.js';
 interface Dependencies{pool:Pool;root:string;resolveCredential:(header:string)=>TaskIdentity|null|Promise<TaskIdentity|null>;policy?:Partial<TaskPolicy>;queueResources?:QueueResourceOptions;freeBytes?:()=>Promise<number>;removeFile?:(path:string)=>Promise<void>;writeChunk?:(handle:FileHandle,chunk:Buffer)=>Promise<void>}
 interface Opening{outputFormat?:unknown;authorization:string;docKey:unknown;contentType:string;contentEncoding?:string;queueMode?:boolean}
 interface Receiving{authorization:string;taskId:string;contentType:string;body:Readable;signal?:AbortSignal}
@@ -69,7 +69,7 @@ export async function createTaskIntake(deps:Dependencies){
   const rawClosed=new Set<number>(),streams=new Map<Readable,number>();let preserveClosed=false;
   const stop=()=>{const e=abort.signal.reason??taskError('CONNECTION_LOST');request.body.destroy(e);for(const [s,n] of streams)if(!preserveClosed||!rawClosed.has(n))s.destroy(e);};abort.signal.addEventListener('abort',stop,{once:true});
   const external=()=>{preserveClosed=true;abort.abort(externalReason(request.signal));};request.signal?.addEventListener('abort',external,{once:true});
-  const inputIdle=limits.version==='task-v1-queue-6g-2cpu-trial-2'?createReceiveIdle(limits.idleMs,()=>abort.abort(taskError('TASK_TIMEOUT'))):null;
+  const inputIdle=usesInputWaitBudget(limits.version)?createReceiveIdle(limits.idleMs,()=>abort.abort(taskError('TASK_TIMEOUT'))):null;
   const local=<T>(operation:()=>Promise<T>):Promise<T>=>inputIdle?inputIdle.work(operation):operation();
   let idle:NodeJS.Timeout;const reset=()=>{if(inputIdle)return;clearTimeout(idle);idle=setTimeout(()=>abort.abort(taskError('TASK_TIMEOUT')),limits.idleMs);};reset();
   const deadline=setTimeout(()=>abort.abort(taskError(+claimed.expires_at<=Date.now()?'TASK_EXPIRED':'TASK_TIMEOUT')),Math.max(1,Math.min(limits.receiveMs,+claimed.expires_at-Date.now())));
@@ -151,7 +151,7 @@ export async function createTaskIntake(deps:Dependencies){
   queueSnapshot:resources.snapshot,
   queueState(id:string){const state=queued.get(id);return state?{stage:state.stage,waitReason:state.stage==='waiting'?(resources.snapshot().intakes>=2?'receive_slot':'memory'):null}:null;},
   sharedQueueEnabled:resources.enabled,
-  queueCapability(){const q=queuePolicy(p,profile);return resources.ready()?{mode:'queue-v1',earlyResponse:true,continuedUpload:true,maxOutstanding:q.maxOutstanding,maxOwnerTasks:q.maxOwnerTasks,maxIntakes:2,maxProcessing:2,maxSenders:2,...(profile.strict?{resourceProfile:{name:profile.name,memoryBytes:profile.memoryBytes,cpuCount:profile.cpuCount,admissionBytes:profile.admissionMiB*1048576,pressureBytes:profile.pressureMiB*1048576,resumeBytes:profile.resumeMiB*1048576,emergencyBytes:profile.emergencyMiB*1048576}}:{})}:null;},
+  queueCapability(){const q=queuePolicy(p,profile);return resources.ready()?{mode:'queue-v1',earlyResponse:true,continuedUpload:true,maxOutstanding:q.maxOutstanding,maxOwnerTasks:q.maxOwnerTasks,maxIntakes:2,maxProcessing:profile.maxProcessing,maxSenders:2,...(profile.adaptiveProcessing?{adaptiveProcessing:{enabled:true,minimum:1,maximum:profile.maxProcessing}}:{}),...(profile.strict?{resourceProfile:{name:profile.name,memoryBytes:profile.memoryBytes,cpuCount:profile.cpuCount,admissionBytes:profile.admissionMiB*1048576,pressureBytes:profile.pressureMiB*1048576,resumeBytes:profile.resumeMiB*1048576,emergencyBytes:profile.emergencyMiB*1048576}}:{})}:null;},
   async recover(){await sweep(true);},async sweep(){await sweep();},
   async stop(){closing=true;clearInterval(timer);await resources.stop();for(const q of queued.values())q.abort.abort(taskError('WORKER_INTERRUPTED'));for(const a of active.values())a.abort.abort(taskError('WORKER_INTERRUPTED'));await Promise.all([...queued.values(),...active.values()].map(a=>a.done));await maintenance;for(const id of opened){const r=await repo.get(id);if(r?.status==='awaiting_input')await fail(id,'WORKER_INTERRUPTED');}}
  };
