@@ -3,16 +3,16 @@ import{isolatedDatabase}from'./isolatedDatabase.mjs';import{migrate}from'../dist
 import{queueAdmissionLimit,readTaskQueueConfig}from'../dist/tasks/queue-profile.js';import{submitJob}from'../dist/jobs/admission.js';
 const sid='10000000-0000-4000-8000-000000000061',auth='Bearer '+'6'.repeat(40),contentType='multipart/form-data; boundary=profile-six',MiB=1048576;
 const until=async f=>{const end=Date.now()+8000;while(!await f()){if(Date.now()>end)throw Error('condition timeout');await new Promise(r=>setTimeout(r,10));}};
-async function fixture(maxOutstanding){
+async function fixture(maxOutstanding,options={}){
  const db=isolatedDatabase();await db.setup();expect((await migrate(db.pool)).ok).toBe(true);
  const t=JSON.parse(readFileSync('examples/area-document-template.json','utf8'));t.docKey=t.templateId='profile-six';t.nodeModelVersion=19;t.examples=[];t.globalSchema={type:'object',fields:{}};
  t.areaFormats={item:{key:'item',ownerAreaId:'parts',inputSchema:{type:'object',fields:{text:{type:'string',required:true}}},repeats:[],fragment:{rootIds:['text'],nodes:{text:{id:'text',type:'text-block',role:{role:'paragraph'},props:{textStyleId:'body'},children:[{id:'leaf',type:'field-ref',scope:'local',key:'text'}]}}}}};
  t.sections=[{id:sid,label:'Six',nameBase:'Six',inputSchema:{type:'object',fields:{parts:{type:'area',areaId:'parts'}}},source:{kind:'authored',repeats:[],fragment:{rootIds:['parts'],nodes:{parts:{id:'parts',type:'area',props:{areaId:'parts'}}}}}}];expect((await registerTemplate(db.pool,JSON.stringify(t))).ok).toBe(true);
- const intake=await createTaskIntake({pool:db.pool,root:await mkdtemp(join(tmpdir(),'queue-six-')),resolveCredential:h=>h===auth?{ownerKey:'six',principalId:'six',taskRead:true,docKeys:['profile-six']}:null,policy:{maxOutstanding},freeBytes:async()=>20_000_000_000,queueResources:{profile:SIX_GIB_QUEUE_PROFILE,readCpuLimit:async()=>2,readMemory:async()=>({current:1024*MiB,max:6144*MiB}),sampleMs:10}});
+ const intake=await createTaskIntake({pool:db.pool,root:await mkdtemp(join(tmpdir(),'queue-six-')),resolveCredential:h=>h===auth?{ownerKey:'six',principalId:'six',taskRead:true,docKeys:['profile-six']}:null,policy:{maxOutstanding,...options.policy},...(options.writeChunk?{writeChunk:options.writeChunk}:{}),freeBytes:async()=>20_000_000_000,queueResources:{profile:{...SIX_GIB_QUEUE_PROFILE,...options.profile},readCpuLimit:async()=>2,readMemory:async()=>({current:1024*MiB,max:6144*MiB}),sampleMs:10}});
  return{db,intake,open:()=>intake.open({authorization:auth,docKey:'profile-six',contentType,queueMode:true}),async close(){await intake.stop();await db.close();}};
 }
 for(const cap of[10,20])it('transactionally admits exactly'+cap+' requests for the explicit6GiB profile',async()=>{
- const f=await fixture(cap);try{const rows=await Promise.all(Array.from({length:cap},()=>f.open()));expect(new Set(rows.map(t=>t.taskId)).size).toBe(cap);await expect(f.open()).rejects.toMatchObject({code:'QUEUE_FULL'});expect(f.intake.queueCapability()).toMatchObject({maxOutstanding:cap,maxOwnerTasks:cap,maxProcessing:2,resourceProfile:{name:'6g-2cpu',memoryBytes:6144*MiB,cpuCount:2}});const records=(await f.db.pool.query('SELECT resource_policy FROM tasks')).rows;expect(records).toHaveLength(cap);expect(records.every(r=>r.resource_policy.version==='task-v1-queue-6g-2cpu-trial-1'&&r.resource_policy.memoryStopBytes===5376*MiB)).toBe(true);}finally{await f.close();}
+ const f=await fixture(cap);try{const rows=await Promise.all(Array.from({length:cap},()=>f.open()));expect(new Set(rows.map(t=>t.taskId)).size).toBe(cap);await expect(f.open()).rejects.toMatchObject({code:'QUEUE_FULL'});expect(f.intake.queueCapability()).toMatchObject({maxOutstanding:cap,maxOwnerTasks:cap,maxProcessing:2,resourceProfile:{name:'6g-2cpu',memoryBytes:6144*MiB,cpuCount:2}});const records=(await f.db.pool.query('SELECT resource_policy FROM tasks')).rows;expect(records).toHaveLength(cap);expect(records.every(r=>r.resource_policy.version==='task-v1-queue-6g-2cpu-trial-2'&&r.resource_policy.memoryStopBytes===5376*MiB)).toBe(true);}finally{await f.close();}
 },30000);
 for(const cap of[10,20])it('shares ceiling'+cap+' across legacy job and queue-v1 admission',async()=>{
  const f=await fixture(cap);try{
@@ -39,4 +39,30 @@ it('normalizes and dispatches the new policy through the shared two-worker sched
   await until(()=>live===2);await new Promise(r=>setTimeout(r,100));expect(peak).toBe(2);expect(f.intake.queueSnapshot()).toMatchObject({workers:2});
  }finally{await manager?.stop();await processor?.stop();await Promise.all(calls);await f.close();}
  expect(live).toBe(0);
+},30000);
+
+const uploadBody=()=>Buffer.from('--profile-six\r\nContent-Disposition: form-data; name="payload"\r\nContent-Type: application/json\r\n\r\n'+JSON.stringify({data:{},sections:[{id:sid,data:{parts:[{format:'item',data:{text:'TIMING'}}]}}]})+'\r\n--profile-six--\r\n');
+const receive=(f,id,body,signal)=>f.intake.receiveQueued({authorization:auth,taskId:id,contentType,body,signal});
+it('excludes slow owned file writes from upstream silence while preserving the stored input',async()=>{
+ const f=await fixture(10,{policy:{idleMs:40},profile:{idleMs:40},writeChunk:async(h,b)=>{await new Promise(r=>setTimeout(r,130));await h.writeFile(b);}});
+ try{const row=await f.open();await receive(f,row.taskId,Readable.from([uploadBody()]));const actual=(await f.db.pool.query('SELECT status,normalized_at,terminal_reason FROM tasks WHERE id=$1',[row.taskId])).rows[0];expect(actual.normalized_at).not.toBe(null);expect(actual.terminal_reason).toBeNull();expect(f.intake.queueSnapshot()).toMatchObject({intakes:0,waiters:0});}finally{await f.close();}
+},30000);
+it('still times out a genuinely silent upstream and releases its grant',async()=>{
+ const f=await fixture(10,{policy:{idleMs:50},profile:{idleMs:50}});try{const row=await f.open();await expect(receive(f,row.taskId,new Readable({read(){}}))).rejects.toMatchObject({code:'TASK_TIMEOUT'});expect((await f.intake.inspect(auth,row.taskId)).status).toBe('failed');expect(f.intake.queueSnapshot()).toMatchObject({intakes:0,waiters:0});}finally{await f.close();}
+},30000);
+it('retains the absolute receive deadline during slow local work',async()=>{
+ const f=await fixture(10,{policy:{idleMs:50,receiveMs:120},profile:{idleMs:50},writeChunk:async(h,b)=>{await new Promise(r=>setTimeout(r,220));await h.writeFile(b);}});try{const row=await f.open();await expect(receive(f,row.taskId,Readable.from([uploadBody()]))).rejects.toMatchObject({code:'TASK_TIMEOUT'});expect(f.intake.queueSnapshot()).toMatchObject({intakes:0,waiters:0});}finally{await f.close();}
+},30000);
+it('cancels during excluded local IO without extending task ownership',async()=>{
+ let entered=false;const f=await fixture(10,{policy:{idleMs:40},profile:{idleMs:40},writeChunk:async(h,b)=>{entered=true;await new Promise(r=>setTimeout(r,130));await h.writeFile(b);}});try{const row=await f.open(),stop=new AbortController(),done=receive(f,row.taskId,Readable.from([uploadBody()]),stop.signal).catch(e=>e);await until(()=>entered);stop.abort();expect((await done).code).toBe('CONNECTION_LOST');expect((await f.intake.inspect(auth,row.taskId)).status).toBe('failed');expect(f.intake.queueSnapshot()).toMatchObject({intakes:0,waiters:0});}finally{await f.close();}
+},30000);
+it('starts processing time only after worker admission even when queue wait exceeds that budget',async()=>{
+ const f=await fixture(10,{policy:{processMs:90},profile:{processMs:90}});let manager,processor;const calls=[];
+ try{
+  manager=await createTaskProcessing({pool:f.db.pool,intake:f.intake,workerReady:()=>true,render:async(_c,_r,_t,_s,signal)=>{await new Promise((_,reject)=>{const stop=()=>reject(signal.reason);signal.addEventListener('abort',stop,{once:true});if(signal.aborted)stop();});}});
+  const ids=[];for(let i=0;i<3;i++){const row=await f.open();ids.push(row.taskId);await receive(f,row.taskId,Readable.from([uploadBody()]));calls.push(manager.execute({authorization:auth,taskId:row.taskId,response:{start(){},async write(){},async end(){},async abort(){}}}).catch(e=>e));await until(async()=>(await f.db.pool.query('SELECT status FROM tasks WHERE id=$1',[row.taskId])).rows[0].status==='queued');}
+  await new Promise(r=>setTimeout(r,220));expect((await f.db.pool.query("SELECT count(*) n FROM tasks WHERE status='queued'")).rows[0].n).toBe('3');
+  processor=await startProcessor({pool:f.db.pool,tasks:manager,files:{writePdf:async()=>{throw Error('unexpected legacy');}},policy:{retain:false,ttlHours:1,tempHours:1},pollMs:10});await until(async()=>(await f.db.pool.query("SELECT count(*) n FROM tasks WHERE terminal_reason='TASK_TIMEOUT'")).rows[0].n==='3');
+  for(const row of(await f.db.pool.query('SELECT created_at,processing_started_at,terminal_at FROM tasks')).rows){expect(+row.processing_started_at-+row.created_at).toBeGreaterThan(220);expect(+row.terminal_at-+row.processing_started_at).toBeGreaterThanOrEqual(85);}
+ }finally{await manager?.stop();await processor?.stop();await Promise.all(calls);await f.close();}
 },30000);

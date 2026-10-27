@@ -18,7 +18,7 @@ it('uses one shared legacy/task ceiling in6GiB mode and rejects conflicting expl
 });
 it('pins the6GiB policy version and20 outstanding tasks without raising document limits',()=>{
  const original=policyWith({maxOutstanding:20});const p=queuePolicy(original,config.readTaskQueueConfig({TASK_QUEUE_PROFILE:'6g-2cpu'}).profile);
- expect(p).toMatchObject({version:'task-v1-queue-6g-2cpu-trial-1',maxTasks:20,maxOwnerTasks:20,maxOutstanding:20,memoryPauseBytes:4608*MiB,memoryStopBytes:5376*MiB});
+ expect(p).toMatchObject({version:'task-v1-queue-6g-2cpu-trial-2',maxTasks:20,maxOwnerTasks:20,maxOutstanding:20,memoryPauseBytes:4608*MiB,memoryStopBytes:5376*MiB});
  expect(p.jsonBytes).toBe(original.jsonBytes);expect(p.pdfBytes).toBe(original.pdfBytes);expect(p.docxBytes).toBe(original.docxBytes);expect(p.poolBytes).toBe(original.poolBytes);
  expect(policyWith(p)).toMatchObject({version:p.version,memoryPauseBytes:p.memoryPauseBytes,memoryStopBytes:p.memoryStopBytes});
  expect(()=>policyWith({...p,version:QUEUE_POLICY_VERSION})).toThrow();

@@ -777,8 +777,25 @@ Use `Task-Mode: queue-v1` for this comparison. The shared governor still grants
 at most two intake pipelines, two render workers and two senders. Outstanding
 capacity includes both running and waiting tasks, and is transactionally
 shared with legacy generation jobs. The new policy is recorded as
-`task-v1-queue-6g-2cpu-trial-1`; authenticated queue capability adds a
+`task-v1-queue-6g-2cpu-trial-2`; authenticated queue capability adds a
 `resourceProfile` object with the actual configured memory thresholds.
+
+For new `queue-v1` tasks in this explicit profile, input silence is 180 seconds.
+The silence clock runs only while awaiting upstream data; owned storage writes,
+quota transactions, payload inspection and downstream backpressure do not consume
+that inactivity budget. The complete receive phase still has its separate
+30-minute ceiling. Waiting for an intake or render slot does not spend the render
+budget. Absolute three-hour task expiry, disconnect cancellation, resource-pressure
+stops, per-document bounds and send deadlines are unchanged.
+
+Rendering has a five-minute budget starting when the worker claims the queued
+job. An operator may explicitly select `TASK_QUEUE_PROCESS_TIMEOUT_MS=600000`
+for a ten-minute heavy-document trial, or `300000` for the default five minutes.
+Other values, or this setting outside the explicit 6-GiB profile, fail startup.
+Existing persisted `trial-1` tasks retain their saved budgets and remain readable;
+the default 1-GiB profile and legacy non-queue tasks keep their prior behavior.
+The revised budgets alone do not establish that queue 20 is safe: repeat the real
+SRS/UAT input comparison and retain any receiving failures before selecting it.
 
 The container governor admits new work below 4608 MiB, pauses new grants at
 4992 MiB, resumes after ten readings at or below 4224 MiB, and requests a

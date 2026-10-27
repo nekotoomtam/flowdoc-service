@@ -1,3 +1,4 @@
+import {createReceiveIdle} from './receive-idle.js';
 import {parseOutputFormat} from './output-format.js';
 import type {Pool} from 'pg';import type {FileHandle} from 'node:fs/promises';import {Readable,Transform} from 'node:stream';import {pipeline} from 'node:stream/promises';
 import {createHash,randomUUID} from 'node:crypto';import {hostname} from 'node:os';
@@ -68,7 +69,9 @@ export async function createTaskIntake(deps:Dependencies){
   const rawClosed=new Set<number>(),streams=new Map<Readable,number>();let preserveClosed=false;
   const stop=()=>{const e=abort.signal.reason??taskError('CONNECTION_LOST');request.body.destroy(e);for(const [s,n] of streams)if(!preserveClosed||!rawClosed.has(n))s.destroy(e);};abort.signal.addEventListener('abort',stop,{once:true});
   const external=()=>{preserveClosed=true;abort.abort(externalReason(request.signal));};request.signal?.addEventListener('abort',external,{once:true});
-  let idle:NodeJS.Timeout;const reset=()=>{clearTimeout(idle);idle=setTimeout(()=>abort.abort(taskError('TASK_TIMEOUT')),limits.idleMs);};reset();
+  const inputIdle=limits.version==='task-v1-queue-6g-2cpu-trial-2'?createReceiveIdle(limits.idleMs,()=>abort.abort(taskError('TASK_TIMEOUT'))):null;
+  const local=<T>(operation:()=>Promise<T>):Promise<T>=>inputIdle?inputIdle.work(operation):operation();
+  let idle:NodeJS.Timeout;const reset=()=>{if(inputIdle)return;clearTimeout(idle);idle=setTimeout(()=>abort.abort(taskError('TASK_TIMEOUT')),limits.idleMs);};reset();
   const deadline=setTimeout(()=>abort.abort(taskError(+claimed.expires_at<=Date.now()?'TASK_EXPIRED':'TASK_TIMEOUT')),Math.max(1,Math.min(limits.receiveMs,+claimed.expires_at-Date.now())));
   const renew=setInterval(()=>{void repo.renew(r.id,token).then(ok=>{if(!ok)abort.abort(taskError('WORKER_INTERRUPTED'));}).catch(()=>abort.abort(taskError('WORKER_INTERRUPTED')));},Math.min(10000,Math.floor(limits.leaseMs/3)));
   let wire=0,index=0,indexBytes=0,payloadSeen=false,meta={actorRef:null as string|null,reference:null as string|null};let sequence=Promise.resolve();const pending:Promise<void>[]=[],digest=createHash('sha256');
@@ -82,36 +85,40 @@ export async function createTaskIntake(deps:Dependencies){
    else if(!name.startsWith('/')||/~(?![01])/.test(name))throw taskError('INVALID_REQUEST');
    indexBytes+=Buffer.byteLength(name)+256;if(indexBytes>limits.maxIndexBytes)throw taskError('LIMIT_EXCEEDED');
    const id=randomUUID(),key=r.id+'/input/'+id+'.bin.part',max=isPayload?limits.jsonBytes:limits.imageBytes;
-   await pool.query("INSERT INTO task_files(id,task_id,role,logical_path,part_order,media_type,storage_key,state) VALUES($1,$2,$3,$4,$5,$6,$7,'receiving')",[id,r.id,isPayload?'payload':'original_image',isPayload?'':name,order,type,key]);
-   const handle=await files.open(key),hash=createHash('sha256');let count=0,omitted=!isPayload&&!['image/jpeg','image/png'].includes(type),stored=0;
+   const handle=await local(async()=>{await pool.query("INSERT INTO task_files(id,task_id,role,logical_path,part_order,media_type,storage_key,state) VALUES($1,$2,$3,$4,$5,$6,$7,'receiving')",[id,r.id,isPayload?'payload':'original_image',isPayload?'':name,order,type,key]);
+   return files.open(key);}),hash=createHash('sha256');let count=0,omitted=!isPayload&&!['image/jpeg','image/png'].includes(type),stored=0;
    try{for await(const raw of source){const b=Buffer.from(raw as Uint8Array);for(let offset=0;offset<b.length;offset+=65536){check();const chunk=b.subarray(offset,offset+65536);count+=chunk.length;
      if(count>max){if(isPayload)throw taskError('LIMIT_EXCEEDED');omitted=true;}
      if(omitted)continue;
+     await local(async()=>{
      const used=Number((await pool.query('SELECT storage_used_bytes FROM task_resource_reservations WHERE task_id=$1',[r.id])).rows[0].storage_used_bytes);
      await repo.reserve(r.id,used+chunk.length,token);await (deps.writeChunk?deps.writeChunk(handle,chunk):handle.writeFile(chunk));stored+=chunk.length;hash.update(chunk);
      await transaction(pool,async c=>{await quotaLock(c);await repo.row(c,r.id);await c.query('UPDATE task_resource_reservations SET storage_used_bytes=storage_used_bytes+$2,updated_at=now() WHERE task_id=$1',[r.id,chunk.length]);await c.query('UPDATE task_files SET stored_bytes=$2,received_bytes=$3,updated_at=now() WHERE id=$1',[id,stored,count]);});
+     });
     }}
-   }finally{await handle.close();}
+   }finally{await local(()=>handle.close());}
+   await local(async()=>{
    if((source as any).truncated)throw taskError('LIMIT_EXCEEDED');check();
    if(omitted){await files.remove(key);await transaction(pool,async c=>{await quotaLock(c);await c.query('UPDATE task_resource_reservations SET storage_used_bytes=storage_used_bytes-$2 WHERE task_id=$1',[r.id,stored]);await c.query("UPDATE task_files SET state='omitted',error_code=$2,storage_key=NULL,stored_bytes=0,received_bytes=$3,deleted_at=clock_timestamp(),updated_at=now() WHERE id=$1",[id,count>max?'IMAGE_LIMIT':'IMAGE_UNUSABLE',count]);});digest.update(JSON.stringify([order,name,'omitted',count]));return;}
    await repo.reserve(r.id,Number((await pool.query('SELECT storage_used_bytes FROM task_resource_reservations WHERE task_id=$1',[r.id])).rows[0].storage_used_bytes),token);
    const final=await files.publish(key),sha=hash.digest('hex');await pool.query("UPDATE task_files SET state='received',storage_key=$2,checksum=$3,received_bytes=$4,published_at=clock_timestamp(),updated_at=now() WHERE id=$1",[id,final,sha,count]);
    digest.update(JSON.stringify([order,name,sha,count]));
    if(isPayload)meta=await inspectPayload(await files.path(final),limits,preserveClosed&&rawClosed.has(order)?AbortSignal.timeout(5000):abort.signal);
+   });
   }
   parser.on('file',(name,source,_filename,encoding,type)=>{const order=index++;streams.set(source,order);source.on('error',()=>{});source.on('limit',()=>abort.abort(taskError('LIMIT_EXCEEDED')));
    const operation=sequence.then(()=>save(name,source,type,encoding,order));sequence=operation;pending.push(operation);void operation.catch(e=>abort.abort(e)).finally(()=>streams.delete(source));
   });
   if(request.signal?.aborted)external();
   try{
-   const input=Readable.from((async function*(){for await(const raw of request.body){const b=Buffer.isBuffer(raw)?raw:Buffer.from((raw as Uint8Array).buffer,(raw as Uint8Array).byteOffset,(raw as Uint8Array).byteLength);for(let i=0;i<b.length;i+=65536)yield b.subarray(i,i+65536);}})(),{objectMode:false,highWaterMark:65536});
+   const input=Readable.from((async function*(){const iterator=request.body[Symbol.asyncIterator]();try{while(true){const next=await(inputIdle?inputIdle.wait(()=>iterator.next()):iterator.next());if(next.done)break;const raw=next.value;const b=Buffer.isBuffer(raw)?raw:Buffer.from((raw as Uint8Array).buffer,(raw as Uint8Array).byteOffset,(raw as Uint8Array).byteLength);for(let i=0;i<b.length;i+=65536)yield b.subarray(i,i+65536);}}finally{inputIdle?.stop();await iterator.return?.();}})(),{objectMode:false,highWaterMark:65536});
    await pipeline(input,new Transform({transform(chunk:Buffer,_e,cb){wire+=chunk.length;reset();if(wire>limits.requestBytes)cb(taskError('LIMIT_EXCEEDED'));else cb(null,chunk);}}),headerBudget(boundary,n=>rawClosed.add(n)),parser,{signal:abort.signal});
    await sequence;if(!payloadSeen)throw taskError('INVALID_REQUEST');return safeTask(await repo.seal(r.id,token,digest.digest('hex'),meta,wire));
   }catch(e){if(!abort.signal.aborted)preserveClosed=true;abort.abort((e as any)?.code==='ABORT_ERR'?taskError('CONNECTION_LOST'):e);await Promise.allSettled(pending);
    await pool.query('UPDATE tasks SET request_bytes=$2 WHERE id=$1 AND terminal_at IS NULL',[r.id,wire]);
    const original=abort.signal.reason,code=['ENOSPC','EIO','EACCES','EROFS'].includes(original?.code)?'STORAGE_IO':typeof original?.code==='string'&&/^(TASK_|LIMIT_|INVALID_|UNSUPPORTED_|STORAGE_|WORKER_|CONNECTION_|RESOURCE_|UNAVAILABLE$)/.test(original.code)?original.code:'INVALID_REQUEST';
    await repo.finish(r.id,code);throw taskError((await repo.get(r.id)).terminal_reason);
-  }finally{clearTimeout(idle!);clearTimeout(deadline);clearInterval(renew);request.signal?.removeEventListener('abort',external);abort.signal.removeEventListener('abort',stop);active.delete(r.id);try{await cleanup(r.id);}finally{resolveDone();}}
+  }finally{inputIdle?.stop();clearTimeout(idle!);clearTimeout(deadline);clearInterval(renew);request.signal?.removeEventListener('abort',external);abort.signal.removeEventListener('abort',stop);active.delete(r.id);try{await cleanup(r.id);}finally{resolveDone();}}
  }
  async function normalize(request:{authorization:string;taskId:string;signal?:AbortSignal}){
   if(closing)throw taskError('UNAVAILABLE');const {r,i}=await owned(request.authorization,request.taskId,true),claimed=await repo.claimValidation(r.id,i.principalId);if(claimed.normalized_at)return safeTask(claimed);const token=claimed.lease_token,abort=new AbortController();let resolveDone!:()=>void;const done=new Promise<void>(res=>{resolveDone=res;});active.set(r.id,{abort,done});
