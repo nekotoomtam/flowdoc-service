@@ -928,6 +928,39 @@ verification; this candidate supplies no forced takeover or live-data repair.
 These are candidate-local behavior and prerequisites, not release or installation
 acceptance.
 
+### Candidate bounded native font preflight (F2)
+
+The F2 candidate keeps actual-input font diagnostics before job acceptance.
+Public `/jobs` and authoring preview/validate/font-readiness share one bounded
+admission gate per server. Waiting requests do not acquire PostgreSQL connections
+or start native helpers; the wait list is bounded by maxOutstanding and waiting
+expires after120seconds. Disconnect removes a waiter or cancels its active native
+check. Overload/resource unavailability returns503 (QUEUE_FULL or UNAVAILABLE);
+retry the identical request after capacity returns.
+
+Admission checks the shared outstanding count before native preflight; final
+insertion still uses the existing transactional capacity reservation. Upload/job
+and authoring receipt replays retain their original identities and do not create
+new jobs when the durable queue is full. The early count is a rejection hint,
+not a new reservation or a replacement for the final capacity check.
+
+Only one actual-input native preflight starts at a time per server. A nonblocking
+PostgreSQL transaction advisory permit60430407 also serializes these checks
+across processes using that database. A preflight acquires a320-MiB worker credit
+from the same governor as task and legacy rendering when that governor is
+enabled. It releases the credit only after the native process group is confirmed
+stopped. Without a supported shared governor, standalone callers still have the
+bounded admission/DB permit but no shared memory-profile certification. Direct
+callers joining a running task runtime must pass its shared FontPreflightGate;
+actual-input gate.run requires a checked-out transaction client.
+
+An unconfirmed stop retains the credit, refuses new admission, makes health503,
+and rejects clean shutdown. Existing jobs may drain within remaining governor
+credits; this is admission quarantine, not a whole-runtime kill. F4's font/quota
+lock order is unchanged and still requires its own authorized repair/proof.
+No release, installation, distributed-filesystem or4/6-GiB capacity claim follows
+from these candidate-local controls.
+
 ### ห้องทดสอบแยกสำหรับ task lifecycle
 
 `node scripts/auditLab.mjs prepare` เตรียม Compose และ credentials ใหม่ใต้

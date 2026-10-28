@@ -7,7 +7,7 @@ import {dirname,isAbsolute,join,relative,resolve,sep} from 'node:path';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 const postgres='postgres@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c';
-const selectedTests=['task-ownership','task-runtime-recovery','task-files','task-intake-retirement','audit-lab','task-intake','task-normalization','task-processing','task-docx-processing','task-output-format-lifecycle','task-output-names','task-queue-profile-integration'].map(n=>'tests/'+n+'.test.mjs');
+const selectedTests=['font-preflight-gate','font-preflight-admission','task-ownership','task-runtime-recovery','task-files','task-intake-retirement','audit-lab','task-intake','task-normalization','task-processing','task-docx-processing','task-output-format-lifecycle','task-output-names','task-queue-profile-integration'].map(n=>'tests/'+n+'.test.mjs');
 const projectPattern=/^flowdoc-audit-[a-f0-9]{12}$/;
 const subnet='10.253.254.0/28';
 const digest=b=>createHash('sha256').update(b).digest('hex');

@@ -1,3 +1,5 @@
+import {OperationError} from '../errors.js';
+import {defaultFontPreflightGate,type FontPreflightGate} from './preflight-gate.js';
 import {LEGACY_SARABUN} from './legacy.js';
 import {fontProbeDocument} from './probe.js';
 import {continuationLabelIds,continuationSuffix} from './group-labels.js';
@@ -34,7 +36,7 @@ export function locateMissingGlyphs(document:any,coverage:Map<string,Set<number>
   for(const x of Object.values(v))if(x&&typeof x==='object')Array.isArray(x)?x.forEach(visit):visit(x);
  };visit(document);return [...issues.values()];
 }
-export async function resolveFontReadiness(c:Pick<PoolClient,'query'>,definition:any,definitionFingerprint:string,refs:ReferenceSet|null=null,actual?:{document:any;input:unknown},root?:string,options:{deferFiles?:boolean}={}):Promise<{readiness:FontReadiness;snapshot?:FontSnapshot}>{
+export async function resolveFontReadiness(c:Pick<PoolClient,'query'>,definition:any,definitionFingerprint:string,refs:ReferenceSet|null=null,actual?:{document:any;input:unknown},root?:string,options:{deferFiles?:boolean;preflight?:FontPreflightGate|undefined;signal?:AbortSignal|undefined}={}):Promise<{readiness:FontReadiness;snapshot?:FontSnapshot}>{
  const issues:FontIssue[]=[],bindings:SnapshotBinding[]=[],legacy:FontSnapshot['legacy']=[],coverage=new Map<string,Set<number>>();
  const inputFingerprint=fingerprint(actual?.input??null);
  if(refs&&refs.definitionFingerprint!==definitionFingerprint)issues.push(fontIssue('FONT_CHECK_UNAVAILABLE'));
@@ -67,13 +69,13 @@ export async function resolveFontReadiness(c:Pick<PoolClient,'query'>,definition
     legacy.push(...expected.map(f=>({id:f.id,sha256:f.sha256})));}
    snapshot=makeFontSnapshot(definitionFingerprint,inputFingerprint,bindings,legacy);
    if(!actual&&!options.deferFiles)await snapshotResources(snapshot,temp!,root);
-   if(actual){const result=await renderDocumentJob({document:fontProbeDocument(actual.document),images:{}},undefined,snapshot,root??fontRoot());
+   if(actual){const result=await(options.preflight??defaultFontPreflightGate).run(c,options.signal,signal=>renderDocumentJob({document:fontProbeDocument(actual.document),images:{}},signal,snapshot,root??fontRoot()));
     if(!result.ok)for(const i of result.issues){
      const located=i.code==='FONT_GLYPH_MISSING'?locateMissingGlyphs(actual.document,coverage):[];
      issues.push(...(located.length?located:[fontIssue(i.code.startsWith('FONT_')?i.code:'FONT_CHECK_UNAVAILABLE')]));
     }
    }
-  }catch(e){issues.push(fontIssue(typeof (e as any)?.code==='string'&&(e as any).code.startsWith('FONT_')?(e as any).code:'FONT_CHECK_UNAVAILABLE'));}
+  }catch(e){if(e instanceof OperationError&&e.code==='UNAVAILABLE')throw e;issues.push(fontIssue(typeof (e as any)?.code==='string'&&(e as any).code.startsWith('FONT_')?(e as any).code:'FONT_CHECK_UNAVAILABLE'));}
   finally{if(temp)await rm(temp,{recursive:true,force:true});}
  }
  if(actual)for(const issue of issues){

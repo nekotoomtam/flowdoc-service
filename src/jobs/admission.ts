@@ -1,3 +1,4 @@
+import {defaultFontPreflightGate,type FontPreflightGate} from '../fonts/preflight-gate.js';
 import {readReferences,verifyReferences} from '../fonts/retention.js';
 import {resolveFontReadiness} from '../fonts/readiness.js';
 import {persistJobFonts} from '../fonts/snapshot.js';
@@ -11,9 +12,9 @@ import type {JobReceipt} from './types.js';
 import {enqueueWithUploadInTransaction,findUploadJobReplayInTransaction} from '../uploads/claims.js';
 import {getJob} from './repository.js';
 import {transaction} from '../db/connection.js';
-import {reserveJobCapacity} from './capacity.js';
+import {reserveJobCapacity,checkJobCapacity} from './capacity.js';
 import {DEFAULT_MAX_OUTSTANDING,validateMaxOutstanding} from './config.js';
-export async function submitJob(pool:Pool,input:unknown,imagesEnabled=false,maxOutstanding=DEFAULT_MAX_OUTSTANDING):Promise<Result<JobReceipt>>{
+async function submitAdmittedJob(pool:Pool,input:unknown,imagesEnabled=false,maxOutstanding=DEFAULT_MAX_OUTSTANDING,options:{preflight?:FontPreflightGate;signal?:AbortSignal}={}):Promise<Result<JobReceipt>>{
  validateMaxOutstanding(maxOutstanding);
  if(!input||typeof input!=='object'||Array.isArray(input))return failure(new OperationError('INVALID_DATA','request','Expected an object'));
  const request=input as Record<string,unknown>;
@@ -34,11 +35,13 @@ export async function submitJob(pool:Pool,input:unknown,imagesEnabled=false,maxO
     if(/^[0-9a-f-]{36}$/i.test(uploadId)&&(await c.query('SELECT 1 FROM upload_sessions WHERE id=$1 AND authoring_principal IS NOT NULL',[uploadId])).rowCount)throw new OperationError('UPLOAD_NOT_FOUND','uploadId','Upload not found');
     const replay=await findUploadJobReplayInTransaction(c,{uploadId,versionId:selected.value.versionId,originalInput:input,preparedInput:p,resourceIds:ids});if(replay)return replay.jobId;
    }
+   if(options.signal?.aborted)throw new OperationError('UNAVAILABLE','font','Native font check unavailable; retry later');
+   await checkJobCapacity(c,maxOutstanding);
    const refs=await readReferences(c,selected.value.template.definition.templateId,0,selected.value.versionId);
    verifyReferences(selected.value.template.definition,selected.value.template.fingerprint,refs);
    const releaseIds=[...new Set(Object.values(selected.value.template.definition.styles).flatMap((s:any)=>s.font?.kind==='library'?[s.font.releaseId]:[]))].sort();
    if(releaseIds.length)await c.query('SELECT id FROM font_releases WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',[releaseIds]);
-   const fonts=await resolveFontReadiness(c,selected.value.template.definition,selected.value.template.fingerprint,refs,{document:document.value,input});
+   const fonts=await resolveFontReadiness(c,selected.value.template.definition,selected.value.template.fingerprint,refs,{document:document.value,input},undefined,options);
    if(!fonts.snapshot)throw new IssueError(fonts.readiness.issues);
    let id:string;
    if(ids.length||uploadId!==undefined){
@@ -54,4 +57,8 @@ export async function submitJob(pool:Pool,input:unknown,imagesEnabled=false,maxO
   });
   return getJob(pool,jobId);
  }catch(error){return failure(error);}
+}
+
+export async function submitJob(pool:Pool,input:unknown,imagesEnabled=false,maxOutstanding=DEFAULT_MAX_OUTSTANDING,options:{preflight?:FontPreflightGate;signal?:AbortSignal}={}):Promise<Result<JobReceipt>>{
+ validateMaxOutstanding(maxOutstanding);try{return await(options.preflight??defaultFontPreflightGate).admit(options.signal,maxOutstanding,()=>submitAdmittedJob(pool,input,imagesEnabled,maxOutstanding,options));}catch(e){return failure(e);}
 }

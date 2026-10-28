@@ -1,3 +1,5 @@
+import type {FontPreflightGate} from '../fonts/preflight-gate.js';
+import {withRequestSignal} from './request-signal.js';
 import {registerFontsAuthoring} from './fonts-authoring.js';
 import {readFileSync} from 'node:fs';
 import {timingSafeEqual} from 'node:crypto';
@@ -13,7 +15,7 @@ const exampleDefinition=JSON.parse(readFileSync(new URL('../../examples/area-doc
 const exampleRequest=JSON.parse(readFileSync(new URL('../../examples/area-document-request.json',import.meta.url),'utf8'));
 export interface AuthoringAccess {token:string;principal:string}
 export function checkAuthoringAccess(access:AuthoringAccess){if(typeof access.token!=='string'||access.token.length<32||typeof access.principal!=='string'||!access.principal.trim()||access.principal.length>200)throw Error('Invalid authoring access configuration');}
-export async function registerAuthoring(app:FastifyInstance,deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean;maxOutstanding:number;imagesEnabled:boolean;access:AuthoringAccess;documents?:unknown;uploads?:Uploads}){
+export async function registerAuthoring(app:FastifyInstance,deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean;maxOutstanding:number;imagesEnabled:boolean;access:AuthoringAccess;documents?:unknown;uploads?:Uploads;preflight?:FontPreflightGate}){
  const api=createAuthoring(deps.pool,deps.access.principal,deps),expected=Buffer.from('Bearer '+deps.access.token);
  app.addHook('onRequest',async(req,reply)=>{
   const supplied=Buffer.from(req.headers.authorization??'');
@@ -32,15 +34,15 @@ export async function registerAuthoring(app:FastifyInstance,deps:{pool:Pool;outp
  app.get('/authoring/contract',async()=>({ok:true,value:{documents:deps.documents??null,nodeModelVersions:[18,19],groupLabelSpans:{version:1,nodeModelVersions:[19],schemaVersions:[1,2],continuationSuffix:' (ต่อ)',fixed:'formatSizing-v2',diagnosticsVersion:1},formatSizing:{version:2,nodeModelVersions:[19],fontSchemaVersions:[1,2],modes:['auto','fixed'],fixedContexts:['section-flow-root'],diagnosticsVersion:1},sectionInstances:{model:19,input:'array-by-id',assembly:'saved-definition',stage:3,coverArea:true,scopedToc:true},schemaVersions:[1,2],fonts:{catalog:'/authoring/fonts',readiness:'/authoring/drafts/:id/font-readiness',selection:'exact-release-weight-style',syntheticFaces:false,automaticFallback:false,adminSeparate:true,heightAdjustment:{methodId:'thai-bo-baseline-top-v1',optIn:true,proposalTtlSeconds:900,precisionDecimals:6,layoutCheck:'not_checked'}},flow:['create-identity','save-definition','validate','preview'],draftDefinitionVersion:1,publicationEnabled:false,bodyLimitBytes:app.initialConfig.bodyLimit,maxOutstanding:deps.maxOutstanding,areaValue:'ordered array of {format,data}',examples:{definition:exampleDefinition,sampleRequest:exampleRequest,instruction:'Replace definition.templateId/docKey and sampleRequest.docKey with the identity returned by create. Definition.version stays 1; revision is separate.'},validation:'Core validateTemplate is authoritative; examples are not an exhaustive JSON schema. validate(sampleRequest) composes but does not prove pagination; preview performs layout.',retry:'Successful authoring receipts retained until administrative database cleanup; reuse key only for identical request. Preview retry returns original job even after PDF expiry; use a new key for a fresh preview.',uploadLimits:deps.uploads?.config??null,variableSchemas:['globalSchema','sections[].inputSchema','sections[].header.inputSchema','sections[].footer.inputSchema','areaFormats[].inputSchema'],emptyDraft:{revision:0,definition:null,preview:false},preview:{published:false,pinnedRevision:true,downloads:'repeatable until output TTL',images:deps.imagesEnabled},errors:['INVALID_TEMPLATE','MISSING_REQUIRED','UNKNOWN_FORMAT','STALE_CURRENT','DRAFT_EMPTY','IDEMPOTENCY_CONFLICT'],identityRules:'Server creates templateId. Save definition under that ID with the same docKey and version=1. Internal IDs are server owned.'},warnings:[]}));
  app.post<{Params:{id:string}}>('/authoring/drafts/:id/font-height-adjustments',async(req,reply)=>send(reply,await api.proposeFontHeight(req.params.id,req.body)));
  app.post<{Params:{id:string;proposalId:string}}>('/authoring/drafts/:id/font-height-adjustments/:proposalId/confirm',async(req,reply)=>send(reply,await api.confirmFontHeight(req.params.id,req.params.proposalId,req.body)));
- app.post<{Params:{id:string}}>('/authoring/drafts/:id/font-readiness',async(req,reply)=>send(reply,await api.fontReadiness(req.params.id,req.body)));
- app.post('/authoring/validate',async(req,reply)=>send(reply,await api.validate(req.body)));
+ app.post<{Params:{id:string}}>('/authoring/drafts/:id/font-readiness',async(req,reply)=>send(reply,await withRequestSignal(req,reply,signal=>api.fontReadiness(req.params.id,req.body,signal))));
+ app.post('/authoring/validate',async(req,reply)=>send(reply,await withRequestSignal(req,reply,signal=>api.validate(req.body,signal))));
  app.post('/authoring/drafts',async(req,reply)=>send(reply,await api.create(req.body),201));
  app.get<{Params:{id:string}}>('/authoring/drafts/:id',async(req,reply)=>send(reply,await api.get(req.params.id)));
  app.post<{Params:{id:string}}>('/authoring/drafts/:id/sections/import',async(req,reply)=>send(reply,await api.importSections(req.params.id,req.body)));
  app.post<{Params:{id:string}}>('/authoring/drafts/:id/sections',async(req,reply)=>send(reply,await api.createSection(req.params.id,req.body),201));
  app.post<{Params:{id:string}}>('/authoring/drafts/:id/clone',async(req,reply)=>send(reply,await api.cloneDraft(req.params.id,req.body),201));
  app.put<{Params:{id:string}}>('/authoring/drafts/:id',async(req,reply)=>send(reply,await api.save(req.params.id,req.body)));
- app.post<{Params:{id:string}}>('/authoring/drafts/:id/previews',async(req,reply)=>send(reply,await api.preview(req.params.id,req.body),202));
+ app.post<{Params:{id:string}}>('/authoring/drafts/:id/previews',async(req,reply)=>send(reply,await withRequestSignal(req,reply,signal=>api.preview(req.params.id,req.body,signal)),202));
  const ownedJob=async(id:string)=>{const pin=await api.previewOwner(id);if(!pin)throw new OperationError('JOB_NOT_FOUND','jobId','Preview not found');return pin;};
  app.get<{Params:{id:string}}>('/authoring/previews/:id',async(req,reply)=>{
   try{const pin=await ownedJob(req.params.id),r=await getJob(deps.pool,req.params.id,true);if(!r.ok)return send(reply,r);
