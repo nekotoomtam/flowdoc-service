@@ -3,6 +3,7 @@ import {loadBundledResources} from '@flowdoc/core';
 import {resolve,join} from 'node:path';
 import {mkdir,readFile} from 'node:fs/promises';
 import {taskCredentials} from './tasks/config.js';
+import {createTaskOwnership,type TaskOwnership} from './tasks/ownership.js';
 import {createTaskIntake} from './tasks/intake.js';
 import {readTaskQueueConfig,queueAdmissionLimit} from './tasks/queue-profile.js';
 import {createTaskProcessing} from './tasks/processing.js';
@@ -42,13 +43,14 @@ async function main(){
  const pool=createPool(process.env.DATABASE_URL);let processor:Awaited<ReturnType<typeof startProcessor>>|undefined,app:ReturnType<typeof createServer>|undefined,timer:NodeJS.Timeout|undefined;
  const uploads=createUploads({pool,files:resourceFiles,config:uploadConfig});
  let taskIntake:Awaited<ReturnType<typeof createTaskIntake>>|undefined,taskProcessing:Awaited<ReturnType<typeof createTaskProcessing>>|undefined;
+ let ownership:TaskOwnership|undefined;
  let closing=false,cleanup:Promise<void>|undefined;
- const stop=async()=>{if(closing)return;closing=true;if(timer)clearInterval(timer);await Promise.allSettled([uploads.stop(),taskProcessing?.stop(),taskIntake?.stop(),app?.close(),processor?.stop(),cleanup]);await pool.end();};
+ const stop=async()=>{if(closing)return;closing=true;if(timer)clearInterval(timer);await Promise.all([uploads.stop(),taskProcessing?.stop(),taskIntake?.stop(),app?.close(),cleanup]);await processor?.stop();await ownership?.close();await pool.end();};
  try{
   const files=await createPdfFiles(process.env.EXPORT_OUTPUT_DIR??'output'),outputs=createOutputs(pool,files,policy.tempHours);
-  if(resolver){taskIntake=await createTaskIntake({pool,root:process.env.TASK_STORAGE_DIR??join(tempRoot,'flowdoc-tasks'),resolveCredential:resolver,policy:{maxOutstanding:queueConfig.maxOutstanding},queueResources:{profile:queueConfig.profile}});taskProcessing=await createTaskProcessing({pool,intake:taskIntake,workerReady:()=>!closing&&(processor?.isReady()??false)});}
-  processor=await startProcessor({pool,...(taskProcessing?{tasks:taskProcessing}:{}),files,policy,resources:{files:resourceFiles,config:uploadConfig},initialize:async()=>{await cleanupRenderTemps(renderRoot);await outputs.cleanup();await uploads.recover();},render:(p,t,s,images)=>renderPinnedJob(p,t,s,deadline,maxBytes,renderRoot,images)});
-  app=createServer({pool,outputs,uploads,isReady:()=>!closing&&processor!.isReady(),bodyLimit,imagesEnabled:true,maxOutstanding,...(taskIntake&&taskProcessing?{tasks:{intake:taskIntake,processing:taskProcessing}}:{}),...(authoring?{authoring}:{}),...(fontAdmin?{fontAdmin}:{})});
+  if(resolver){const root=process.env.TASK_STORAGE_DIR??join(tempRoot,'flowdoc-tasks');ownership=await createTaskOwnership(root);ownership.signal.addEventListener('abort',()=>{if(!closing)void stop();},{once:true});taskIntake=await createTaskIntake({pool,root,ownership,deferRecovery:true,resolveCredential:resolver,policy:{maxOutstanding:queueConfig.maxOutstanding},queueResources:{profile:queueConfig.profile}});taskProcessing=await createTaskProcessing({pool,intake:taskIntake,workerReady:()=>!closing&&(processor?.isReady()??false)});}
+  processor=await startProcessor({pool,...(taskProcessing?{tasks:taskProcessing}:{}),files,policy,resources:{files:resourceFiles,config:uploadConfig},initialize:async leader=>{await taskIntake?.recover(leader);if(ownership&&!ownership.isReady())throw Error('Task owner unavailable');await cleanupRenderTemps(renderRoot);await outputs.cleanup();await uploads.recover();},render:(p,t,s,images)=>renderPinnedJob(p,t,s,deadline,maxBytes,renderRoot,images)});
+  app=createServer({pool,outputs,uploads,isReady:()=>!closing&&processor!.isReady()&&(!taskIntake||taskIntake.isReady()),bodyLimit,imagesEnabled:true,maxOutstanding,...(taskIntake&&taskProcessing?{tasks:{intake:taskIntake,processing:taskProcessing}}:{}),...(authoring?{authoring}:{}),...(fontAdmin?{fontAdmin}:{})});
   await app.listen({host,port});
   timer=setInterval(()=>{if(cleanup)return;cleanup=Promise.all([outputs.cleanup(),uploads.cleanup()]).then(()=>{}).catch(()=>{}).finally(()=>{cleanup=undefined;});},60000);
   process.once('SIGTERM',()=>{void stop();});process.once('SIGINT',()=>{void stop();});

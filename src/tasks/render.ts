@@ -55,10 +55,10 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
     const normalized = (await pool.query('SELECT storage_key FROM task_files WHERE id=$1 AND task_id=$2 AND state=\'received\'', [row.normalized_file_id, row.id])).rows[0];
     if (!normalized)
         throw taskError('INPUT_INTEGRITY');
-    const env = { ...process.env, NODE_CHANNEL_FD: '3', NODE_CHANNEL_SERIALIZATION_MODE: 'advanced', TMPDIR: workspace, PYTHONDONTWRITEBYTECODE: '1' };
+    const env = { ...process.env, ...(c.ownership?{FLOWDOC_TASK_FENCE:c.ownership.directory,FLOWDOC_TASK_RUNTIME:c.ownership.runtimeId,PYTHON_EXECUTABLE:fileURLToPath(new URL('../../runtime/python/task_python.py',import.meta.url))}:{}), NODE_CHANNEL_FD: '3', NODE_CHANNEL_SERIALIZATION_MODE: 'advanced', TMPDIR: workspace, PYTHONDONTWRITEBYTECODE: '1' };
     const readGrant = await taskReadBudget.acquire(row.id,signal);
     let child:ReturnType<typeof spawn>;
-    try {child = spawn(process.env.PYTHON_EXECUTABLE ?? 'python', [fileURLToPath(new URL('../../runtime/python/task_launcher.py', import.meta.url)), String(bound.fileBytes), process.execPath, fileURLToPath(new URL('./render-child.js', import.meta.url))], { env, detached: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'], serialization: 'advanced' });}
+    try {child = spawn(process.env.PYTHON_EXECUTABLE ?? 'python', [fileURLToPath(new URL('../../runtime/python/task_launcher.py', import.meta.url)), String(bound.fileBytes), process.execPath, fileURLToPath(new URL('./render-child.js', import.meta.url))], { env, detached: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc',...(c.ownership?[c.ownership.fenceFd]:[])], serialization: 'advanced' });}
     catch(e){readGrant.release();throw e;}
     let closed = false, failed: unknown, completion: TaskRenderReceipt | undefined, handling = false, chain = Promise.resolve(), workspaceBytes = 0, workspaceClosed = false, preparationFindings = 0, preparationOmitted = 0;
     const handles = new Map<string, {
@@ -243,6 +243,7 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
     try {
         if (!child.pid)
             throw taskError('TASK_RUNTIME_UNAVAILABLE');
+        await c.ownership?.trackChild(child.pid);
         await pool.query('UPDATE tasks SET child_pid=$2,child_host=$3 WHERE id=$1', [row.id, child.pid, hostname()]);
         send({ type: 'init', input: { normalizationVersion:row.normalization_version,outputFormat:row.output_format,taskId:row.id,readCacheBytes:readGrant.cacheBytes,fieldIndexBytes:readGrant.indexBytes,recordReuseBytes:readGrant.recordBytes,path: await files.path(normalized.storage_key), digest: row.normalized_digest, template, templateFingerprint: row.template_pin.fingerprint, core: { version: row.normalization_summary.coreVersion, sha256: row.normalization_summary.coreSha256 }, fontSnapshot: snapshot, fontRoot: process.env.FONT_STORAGE_DIR ?? 'staging/fonts', workspace, sources, policy: p } });
         const cancelled = new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }));
@@ -284,6 +285,7 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
                 await new Promise(r => setTimeout(r, 20));
             }
         }
+        if(child.pid)await c.ownership?.untrackChild(child.pid);
         readGrant.release();
         await clearWorkspace(workspace);
         if (workspaceBytes)

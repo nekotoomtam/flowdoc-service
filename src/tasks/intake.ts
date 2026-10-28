@@ -1,6 +1,7 @@
 import {createReceiveIdle} from './receive-idle.js';
 import {parseOutputFormat} from './output-format.js';
-import type {Pool} from 'pg';import type {FileHandle} from 'node:fs/promises';import {Readable,Transform} from 'node:stream';import {pipeline} from 'node:stream/promises';
+import type {TaskOwnership} from './ownership.js';
+import type {Pool,PoolClient} from 'pg';import type {FileHandle} from 'node:fs/promises';import {Readable,Transform} from 'node:stream';import {pipeline} from 'node:stream/promises';
 import {createHash,randomUUID} from 'node:crypto';import {hostname} from 'node:os';
 import {Busboy} from '@fastify/busboy';import {transaction} from '../db/connection.js';import {loadTemplate} from '../templates/registry.js';
 import {validJobId} from '../jobs/repository.js';import {taskFiles} from './files.js';import {policyWith,type TaskPolicy} from './policy.js';
@@ -11,17 +12,22 @@ import {inspectPayload} from './payload.js';import {headerBudget,taskBoundary} f
 import {createQueueResources,type QueueResourceOptions} from './queue-resources.js';
 import {queuePolicy} from './policy.js';
 import {DEFAULT_QUEUE_PROFILE,isQueuePolicyVersion,usesInputWaitBudget} from './queue-profile.js';
-interface Dependencies{pool:Pool;root:string;resolveCredential:(header:string)=>TaskIdentity|null|Promise<TaskIdentity|null>;policy?:Partial<TaskPolicy>;queueResources?:QueueResourceOptions;freeBytes?:()=>Promise<number>;removeFile?:(path:string)=>Promise<void>;writeChunk?:(handle:FileHandle,chunk:Buffer)=>Promise<void>}
+interface Dependencies{ownership?:TaskOwnership;deferRecovery?:boolean;pool:Pool;root:string;resolveCredential:(header:string)=>TaskIdentity|null|Promise<TaskIdentity|null>;policy?:Partial<TaskPolicy>;queueResources?:QueueResourceOptions;freeBytes?:()=>Promise<number>;removeFile?:(path:string)=>Promise<void>;writeChunk?:(handle:FileHandle,chunk:Buffer)=>Promise<void>}
 interface Opening{outputFormat?:unknown;authorization:string;docKey:unknown;contentType:string;contentEncoding?:string;queueMode?:boolean}
 interface Receiving{authorization:string;taskId:string;contentType:string;body:Readable;signal?:AbortSignal}
 export async function createTaskIntake(deps:Dependencies){
- const {pool}=deps,p=policyWith(deps.policy),profile=deps.queueResources?.profile??DEFAULT_QUEUE_PROFILE,files=await taskFiles(deps.root,deps.removeFile),repo=taskRepository(pool,p,deps.freeBytes??files.freeBytes,profile);
+ let leader:PoolClient|undefined;
+ async function canRecover(r:any){if(!deps.ownership?.isReady()||!leader||r.storage_identity!==deps.ownership.storageId||!r.runtime_owner_id||r.runtime_owner_id===deps.ownership.runtimeId)return false;
+  try{return (await leader.query("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='advisory' AND classid=0 AND objid=60430404 AND objsubid=1 AND granted) AS held")).rows[0].held===true;}catch{return false;}
+ }
+ const {pool}=deps,p=policyWith(deps.policy),profile=deps.queueResources?.profile??DEFAULT_QUEUE_PROFILE,files=await taskFiles(deps.root,deps.removeFile),repo=taskRepository(pool,p,deps.freeBytes??files.freeBytes,profile,deps.ownership?{runtimeId:deps.ownership.runtimeId,storageId:deps.ownership.storageId,canRecover}:undefined);
+ if(deps.ownership&&!(await pool.query("SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='tasks' AND column_name='runtime_owner_id') AS present")).rows[0].present)throw taskError('TASK_OWNER_UNAVAILABLE');
  const resources=await createQueueResources(deps.queueResources);
  const queued=new Map<string,{abort:AbortController;done:Promise<void>;stage:'waiting'|'receiving'|'validating'}>();
  const externalReason=(signal:AbortSignal|undefined)=>{const code=(signal?.reason as any)?.code;return taskError(typeof code==='string'&&['TASK_EXPIRED','WORKER_INTERRUPTED','RESOURCE_LIMIT','UNAVAILABLE','TASK_TIMEOUT'].includes(code)?code:'CONNECTION_LOST');};
  const active=new Map<string,{abort:AbortController;done:Promise<void>}>(),opened=new Set<string>();let closing=false,quarantined=false;
  async function authenticate(header:string){const i=await deps.resolveCredential(header);if(!i||!header.startsWith('Bearer ')||!i.ownerKey||!i.principalId||Buffer.byteLength(i.ownerKey)>200||Buffer.byteLength(i.principalId)>200||!Array.isArray(i.docKeys))throw taskError('UNAUTHORIZED');return i;}
- async function owned(header:string,id:string,write=false){const i=await authenticate(header);if(!validJobId(id))throw taskError('INVALID_REQUEST');const r=await repo.get(id);if(!r||r.owner_key!==i.ownerKey)throw taskError('TASK_NOT_FOUND');if(write?r.created_by_principal!==i.principalId:r.created_by_principal!==i.principalId&&!i.taskRead)throw taskError('FORBIDDEN');return {r,i};}
+ async function owned(header:string,id:string,write=false){const i=await authenticate(header);if(!validJobId(id))throw taskError('INVALID_REQUEST');const r=await repo.get(id);if(!r||r.owner_key!==i.ownerKey)throw taskError('TASK_NOT_FOUND');if(write&&deps.ownership&&(!deps.ownership.isReady()||r.runtime_owner_id!==deps.ownership.runtimeId))throw taskError('WORKER_INTERRUPTED');if(write?r.created_by_principal!==i.principalId:r.created_by_principal!==i.principalId&&!i.taskRead)throw taskError('FORBIDDEN');return {r,i};}
  const stopped=async(r:any)=>{if(!r.writer_pid)return true;if(r.writer_host!==hostname())return false;if(r.writer_start_identity&&await processIdentity(r.writer_pid)!==r.writer_start_identity)return true;try{process.kill(r.writer_pid,0);return false;}catch(e){return (e as NodeJS.ErrnoException).code==='ESRCH';}};
  async function cleanup(id:string){
   let r=await repo.get(id);if(!r)return;if(terminal(r.status))opened.delete(id);if(!terminal(r.status)||active.has(id)||queued.has(id)||!await stopped(r)||!await groupStopped(r.child_pid,r.child_host,hostname()))return;
@@ -49,13 +55,18 @@ export async function createTaskIntake(deps:Dependencies){
  async function sweep(recovery=false){
   let blocked=false;
   const rows=(await pool.query("SELECT *,expires_at<=clock_timestamp() AS due,lease_expires_at<=clock_timestamp() AS lease_due FROM tasks WHERE status NOT IN ('succeeded','failed','expired') OR cleanup_status<>'done' ORDER BY created_at,id")).rows;
-  for(const r of rows){if(r.child_pid&&!active.has(r.id)&&!queued.has(r.id)&&!await groupStopped(r.child_pid,r.child_host,hostname()))blocked=true;if(!terminal(r.status)){
+  for(let r of rows){
+   if(deps.ownership&&!active.has(r.id)&&!queued.has(r.id)&&r.runtime_owner_id!==deps.ownership.runtimeId){
+    if(await canRecover(r))r=await repo.recoverInterrupted(r.id,r);
+    else if(r.runtime_owner_id||!await stopped(r)||!await groupStopped(r.child_pid,r.child_host,hostname())){blocked=true;continue;}
+   }
+   if(r.child_pid&&!active.has(r.id)&&!queued.has(r.id)&&!await groupStopped(r.child_pid,r.child_host,hostname()))blocked=true;if(!terminal(r.status)){
    if(r.due)await fail(r.id,'TASK_EXPIRED');
    else if((recovery||r.lease_due&&['queued','processing','sending'].includes(r.status))&&!active.has(r.id)&&await stopped(r)&&await groupStopped(r.child_pid,r.child_host,hostname()))await fail(r.id,'WORKER_INTERRUPTED');
   }await cleanup(r.id);}quarantined=blocked;
  }
  async function open(request:Opening){
-  if(closing||quarantined)throw taskError('UNAVAILABLE');const identity=await authenticate(request.authorization);const outputFormat=parseOutputFormat(request.outputFormat);
+  if(!isReady())throw taskError('UNAVAILABLE');const identity=await authenticate(request.authorization);const outputFormat=parseOutputFormat(request.outputFormat);
   if(typeof request.docKey!=='string'||!request.docKey.trim()||request.docKey.includes(',')||request.docKey.length>200)throw taskError('INVALID_REQUEST');
   if(request.contentEncoding&&request.contentEncoding!=='identity')throw taskError('UNSUPPORTED_MEDIA');taskBoundary(request.contentType);
   if(!identity.docKeys.includes(request.docKey))throw taskError('TEMPLATE_NOT_FOUND');const selected=await loadTemplate(pool,request.docKey);if(!selected.ok)throw taskError('TEMPLATE_NOT_FOUND');
@@ -147,14 +158,15 @@ export async function createTaskIntake(deps:Dependencies){
   finally{clearTimeout(deadline);clearInterval(renew);request.signal?.removeEventListener('abort',external);queued.delete(r.id);grant?.release();try{await cleanup(r.id);}finally{done();}}
  }
  async function findings(header:string,id:string,cursor=0,limit=50){await owned(header,id);if(!Number.isSafeInteger(cursor)||cursor<0||!Number.isSafeInteger(limit)||limit<1||limit>100)throw taskError('INVALID_REQUEST');const rows=(await pool.query('SELECT * FROM task_findings WHERE task_id=$1 AND sequence>$2 ORDER BY sequence LIMIT $3',[id,cursor,limit+1])).rows;const items=rows.slice(0,limit).map(f=>({id:f.id,sequence:Number(f.sequence),code:f.code,sectionId:f.section_id,pointer:f.pointer,locatorSha256:f.locator_sha256,affectedPlacementCount:Number(f.affected_placement_count),...(Object.keys(f.detail??{}).length?{detail:f.detail}:{})}));return {items,nextCursor:rows.length>limit?items.at(-1)!.sequence:null};}
- await sweep(true);let maintenance:Promise<void>|undefined;
- const timer=setInterval(()=>{if(closing||maintenance)return;maintenance=sweep().catch(()=>{}).finally(()=>{maintenance=undefined;});},p.sweepMs);timer.unref();
- return {authenticate,quarantined:()=>quarantined,processingContext:{pool,files,repo,owned,active,cleanup,policy:p,resources},open,receive,normalize,receiveQueued,findings,reserve:repo.reserve,async inspect(header:string,id:string){return safeTask((await owned(header,id)).r);},fail,
+ const isReady=()=>!closing&&!quarantined&&(!deps.ownership||deps.ownership.isReady())&&(!resources.enabled()||resources.ready());
+ if(!deps.deferRecovery)await sweep(true);let maintenance:Promise<void>|undefined;
+ const timer=setInterval(()=>{if(closing||maintenance||deps.deferRecovery&&!leader)return;maintenance=sweep().catch(()=>{}).finally(()=>{maintenance=undefined;});},p.sweepMs);timer.unref();
+ return {isReady,authenticate,quarantined:()=>quarantined,processingContext:{pool,files,repo,owned,active,cleanup,policy:p,resources,ownership:deps.ownership},open,receive,normalize,receiveQueued,findings,reserve:repo.reserve,async inspect(header:string,id:string){return safeTask((await owned(header,id)).r);},fail,
   queueSnapshot:resources.snapshot,
   queueState(id:string){const state=queued.get(id);return state?{stage:state.stage,waitReason:state.stage==='waiting'?(resources.snapshot().intakes>=2?'receive_slot':'memory'):null}:null;},
   sharedQueueEnabled:resources.enabled,
   queueCapability(){const q=queuePolicy(p,profile);return resources.ready()?{mode:'queue-v1',earlyResponse:true,continuedUpload:true,maxOutstanding:q.maxOutstanding,maxOwnerTasks:q.maxOwnerTasks,maxIntakes:2,maxProcessing:profile.maxProcessing,maxSenders:2,...(profile.adaptiveProcessing?{adaptiveProcessing:{enabled:true,minimum:1,maximum:profile.maxProcessing}}:{}),...(profile.strict?{resourceProfile:{name:profile.name,memoryBytes:profile.memoryBytes,cpuCount:profile.cpuCount,admissionBytes:profile.admissionMiB*1048576,pressureBytes:profile.pressureMiB*1048576,resumeBytes:profile.resumeMiB*1048576,emergencyBytes:profile.emergencyMiB*1048576}}:{})}:null;},
-  async recover(){await sweep(true);},async sweep(){await sweep();},
+  async recover(session?:PoolClient){leader=session;await sweep(true);},async sweep(){await sweep();},
   async stop(){closing=true;clearInterval(timer);await resources.stop();for(const q of queued.values())q.abort.abort(taskError('WORKER_INTERRUPTED'));for(const a of active.values())a.abort.abort(taskError('WORKER_INTERRUPTED'));await Promise.all([...queued.values(),...active.values()].map(a=>a.done));await maintenance;for(const id of opened){const r=await repo.get(id);if(r?.status==='awaiting_input')await fail(id,'WORKER_INTERRUPTED');}}
  };
 }

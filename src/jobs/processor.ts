@@ -15,11 +15,11 @@ import type {PdfFiles,FilePolicy} from '../storage/pdf-files.js';
 import {renderDocumentJob} from './render.js';
 import {prepareOwnedJobImages,processing} from '../images/job.js';
 import type {ImageJobDependencies,JobImageInput} from '../images/job.js';
-interface Dependencies {pool:Pool;tasks?:{runNext:(signal:AbortSignal,leader:PoolClient)=>Promise<boolean>;acquireLegacy?:(id:string,signal:AbortSignal,onStop:(code:string)=>void)=>Promise<{release():void}|null>;drain?:()=>Promise<void>};initialize?:()=>Promise<void>;resources?:ImageJobDependencies;files:{writePdf:(id:string,bytes:Uint8Array)=>Promise<{path:string;byteSize:number;release?:()=>void}>};policy:FilePolicy;pollMs?:number;render?:(prepared:PreparedInput,template:TemplateDefinition,signal:AbortSignal,images?:JobImageInput)=>Promise<Result<Pick<PdfArtifact,"bytes"|"mediaType">>>}
+interface Dependencies {pool:Pool;tasks?:{runNext:(signal:AbortSignal,leader:PoolClient)=>Promise<boolean>;acquireLegacy?:(id:string,signal:AbortSignal,onStop:(code:string)=>void)=>Promise<{release():void}|null>;drain?:()=>Promise<void>};initialize?:(leader:PoolClient)=>Promise<void>;resources?:ImageJobDependencies;files:{writePdf:(id:string,bytes:Uint8Array)=>Promise<{path:string;byteSize:number;release?:()=>void}>};policy:FilePolicy;pollMs?:number;render?:(prepared:PreparedInput,template:TemplateDefinition,signal:AbortSignal,images?:JobImageInput)=>Promise<Result<Pick<PdfArtifact,"bytes"|"mediaType">>>}
 export async function startProcessor(deps:Dependencies){
  const {pool}=deps,lock=await pool.connect();let stopping=false,healthy=true;const abort=new AbortController();
  const lost=()=>{healthy=false;stopping=true;abort.abort();};lock.on('error',lost);
- try{const r=await lock.query('SELECT pg_try_advisory_lock(60430404) AS locked');if(!r.rows[0].locked)throw Error('Processor already active');await deps.initialize?.();await failInterruptedJobs(pool);}
+ try{const r=await lock.query('SELECT pg_try_advisory_lock(60430404) AS locked');if(!r.rows[0].locked)throw Error('Processor already active');await deps.initialize?.(lock);await failInterruptedJobs(pool);}
  catch(e){lock.removeListener('error',lost);lock.release();throw e;}
  const loop=(async()=>{while(!stopping){
   try{

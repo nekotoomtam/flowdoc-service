@@ -898,6 +898,36 @@ mount client0.2.7 เดิมที่ /legacy-plugin สำหรับกร�
 ต้องใช้ฐานข้อมูลแยก เพราะ schema ไม่แยก advisory lock. Snapshot/tag และ deploy
 ยังเป็นขั้นตอนแยกจาก candidate ที่ตรวจผ่าน.
 
+### Candidate task recovery after container replacement
+
+The F1 development candidate requires migration027 before task credentials can
+be enabled. It pins each new task to an immutable runtime UUID and persistent
+storage UUID. Keep the entire task root, including its hidden identity/lock
+files, on the same local Linux filesystem across container recreation. The
+runtime requires working POSIX flock semantics; remote/distributed filesystem
+ownership is not certified. Never delete or replace the lock/identity files to
+force startup. Only one API may own a task root at a time.
+
+Startup recovers guarded tasks only after acquiring PostgreSQL processor
+leadership and exclusive proof that the previous runtime's task writers have
+stopped. The Node parent, detached renderer and native Python helpers retain
+writer locks; an independent guardian drains registered process groups after
+parent loss. A delayed Python spawn must match the current storage runtime
+before it executes. Interrupted tasks become failed (WORKER_INTERRUPTED), with
+one terminal event and one usage revision; interrupted jobs are not rerendered.
+Queue slots and unused storage reservations are returned. Sealed original
+payloads/images remain charged until their original expiry, then cleanup
+returns their remaining storage reservation.
+
+Historical tasks without runtime/storage identity are not silently adopted.
+Unproven foreign workers and mismatched storage identities keep their
+reservations and quarantine intake. Health returns503 while intake cannot
+accept work, including ownership loss or resource-governor unavailability.
+Resolve historical ambiguous ownership with separately authorized operator
+verification; this candidate supplies no forced takeover or live-data repair.
+These are candidate-local behavior and prerequisites, not release or installation
+acceptance.
+
 ### ห้องทดสอบแยกสำหรับ task lifecycle
 
 `node scripts/auditLab.mjs prepare` เตรียม Compose และ credentials ใหม่ใต้
