@@ -956,10 +956,27 @@ actual-input gate.run requires a checked-out transaction client.
 
 An unconfirmed stop retains the credit, refuses new admission, makes health503,
 and rejects clean shutdown. Existing jobs may drain within remaining governor
-credits; this is admission quarantine, not a whole-runtime kill. F4's font/quota
-lock order is unchanged and still requires its own authorized repair/proof.
+credits; this is admission quarantine, not a whole-runtime kill. The F4 candidate described below separately aligns task font/quota lock order.
 No release, installation, distributed-filesystem or4/6-GiB capacity claim follows
 from these candidate-local controls.
+
+### Candidate font/quota lock ordering (F4)
+
+Task admission now follows the same sorted font-release → capacity/quota order
+as public job and authoring preview admission. It reads the immutable task/version
+pin to select font locks, then acquires quota and the task row and rechecks the
+pin, current state, expiry, lease, normalization and renderer identity before
+inserting any job. Font readiness is resolved after holding the font rows.
+The existing five-second lock wait limit is set before waiting for fonts.
+
+A task waiting for a font holds neither quota nor the task row, so expiry cleanup
+can proceed. If expiry/state changes during that wait, the locked recheck rejects
+admission; it does not create a job from the earlier state. Interrupted/expired
+cleanup, retained originals, immutable snapshots and terminal usage rules remain
+in force. No migration, automatic deadlock retry or queue-capacity expansion is
+introduced. The controlled PostgreSQL tests exercise both first-lock orders for
+public jobs and authoring previews; this fixes the demonstrated F4 cycle and is
+not a claim that every possible database deadlock is impossible.
 
 ### ห้องทดสอบแยกสำหรับ task lifecycle
 

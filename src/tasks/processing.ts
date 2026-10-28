@@ -51,21 +51,27 @@ export async function createTaskProcessing(deps: Dependencies) {
         if (!deps.workerReady() || closing)
             throw taskError('UNAVAILABLE');
         return transaction(pool, async (c) => {
+            await c.query("SET LOCAL lock_timeout='5s'");
+            // Immutable task/template pins let us acquire sorted font locks first.
+            // Never hold task/quota locks while waiting for a font release: legacy
+            // and authoring admission acquire fonts before their capacity lock.
+            const v = (await c.query('SELECT definition_json,fingerprint FROM template_versions WHERE id=$1', [r.template_version_id])).rows[0];
+            if (!v || v.fingerprint !== r.template_pin.fingerprint)
+                throw taskError('INVALID_DATA');
+            const refs = await readReferences(c, v.definition_json.templateId, 0, r.template_version_id);
+            verifyReferences(v.definition_json, v.fingerprint, refs);
+            const ids = [...new Set(Object.values(v.definition_json.styles).flatMap((s: any) => s.font?.kind === 'library' ? [s.font.releaseId] : []))].sort();
+            if (ids.length)
+                await c.query('SELECT id FROM font_releases WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE', [ids]);
             await quotaLock(c);
             const row = await repo.row(c, id);
+            if (row.template_version_id !== r.template_version_id || row.template_pin.fingerprint !== r.template_pin.fingerprint)
+                throw taskError('INPUT_INTEGRITY');
             repo.live(row);
             if (row.status !== 'validating' || !row.normalized_at || row.lease_token)
                 throw taskError('TASK_REQUEST_CONFLICT');
             if (row.normalization_summary.coreVersion !== rendererIdentity.version || row.normalization_summary.coreSha256 !== rendererIdentity.sha256)
                 throw taskError('RENDERER_PIN_MISMATCH');
-            const v = (await c.query('SELECT definition_json,fingerprint FROM template_versions WHERE id=$1', [row.template_version_id])).rows[0];
-            if (!v || v.fingerprint !== row.template_pin.fingerprint)
-                throw taskError('INVALID_DATA');
-            const refs = await readReferences(c, v.definition_json.templateId, 0, row.template_version_id);
-            verifyReferences(v.definition_json, v.fingerprint, refs);
-            const ids = [...new Set(Object.values(v.definition_json.styles).flatMap((s: any) => s.font?.kind === 'library' ? [s.font.releaseId] : []))].sort();
-            if (ids.length)
-                await c.query('SELECT id FROM font_releases WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE', [ids]);
             const fonts = await resolveFontReadiness(c, v.definition_json, v.fingerprint, refs, undefined, undefined, { deferFiles: true });
             if (!fonts.snapshot)
                 throw taskError(fonts.readiness.issues[0]?.code ?? 'FONT_CHECK_UNAVAILABLE');
