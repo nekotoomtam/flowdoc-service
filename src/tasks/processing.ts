@@ -1,3 +1,4 @@
+import {deliveryEvidence} from './delivery.js';
 import {artifactSpec,validateReceipt,DOCX_MAX_BYTES,docxDisclosure} from './artifact.js';
 import type { Pool, PoolClient } from 'pg';
 import {taskWire,type TaskWire} from './wire.js';
@@ -185,6 +186,9 @@ export async function createTaskProcessing(deps: Dependencies) {
             if(snapshot.task.counts.findingCount||pdf.warningCount){const detail={findings:[...snapshot.findings],...snapshot.task.counts,detailsTruncated:snapshot.task.detailsTruncated||snapshot.nextCursor!==null};while(Buffer.byteLength(JSON.stringify(detail))>30000&&detail.findings.length){detail.findings.pop();detail.detailsTruncated=true;}await wire.event('warning','sending',detail);}
             delivery = 'interrupted';
             await wire.artifact(await files.path(pdf.output),{outputFormat:row.output_format,fileName:row.file_name??'document',...(row.output_format==='docx'?docxDisclosure:{}),bytes:Number(output.byte_size),sha256:output.sha256,pageCount:pdf.receipt.pageCount,completeness:snapshot.task.completeness,...snapshot.task.counts},abort.signal);
+            // The response has finished before any final database write. Keep
+            // that observation even if finalization rolls back or its reply is lost.
+            delivery = 'succeeded';
             const n = await transaction(pool, async (c) => {
                 await quotaLock(c);
                 const r = await repo.row(c, id);
@@ -205,27 +209,44 @@ export async function createTaskProcessing(deps: Dependencies) {
         catch (e) {
             const cause=abort.signal.aborted?abort.signal.reason:e;
             abort.abort(cause);
-            await pool.query('UPDATE tasks SET stop_requested_at=coalesce(stop_requested_at,clock_timestamp()) WHERE id=$1 AND terminal_at IS NULL', [id]);
+            await pool.query('UPDATE tasks SET stop_requested_at=coalesce(stop_requested_at,clock_timestamp()) WHERE id=$1 AND terminal_at IS NULL', [id]).catch(()=>{});
             await execution.renderDone;
             pdf = execution.receipt ?? pdf;
-            if (pdf)
-                generation = 'succeeded';
-            await repo.finish(id, reason(cause), undefined, facts(await repo.get(id), generation, delivery, pdf));
-            if (started) {
+            if (pdf)generation = 'succeeded';
+            let current:any;
+            try{current=await repo.get(id);}catch{throw taskError(delivery==='succeeded'?'FINALIZATION_UNCONFIRMED':reason(cause));}
+            // A lost COMMIT reply is not proof of rollback. Preserve the already
+            // committed terminal outcome and immutable usage on reconciliation.
+            if(current.status==='succeeded')return safeTask(current);
+            const code=delivery==='succeeded'?'FINALIZATION_FAILED':reason(cause);
+            let finished:any;
+            try{finished=await repo.finish(id,code,undefined,facts(current,generation,delivery,pdf));}
+            catch{
+                // The fallback terminal transaction can also lose its COMMIT
+                // reply. Only a fresh durable terminal record settles it.
+                let reconciled:any;try{reconciled=await repo.get(id);}catch{}
+                if(!reconciled||!terminal(reconciled.status))throw taskError(delivery==='succeeded'?'FINALIZATION_UNCONFIRMED':reason(cause));
+                if(reconciled.status==='succeeded')return safeTask(reconciled);
+                finished=reconciled;
+            }
+            if (started&&!wire.ended) {
                 terminalFeedback=true;
-                if(!abort.signal.aborted||!request.signal?.aborted)await wire.error(publicCode(reason(cause),row.output_format),generation==='succeeded'?'sending':'composing',(await repo.get(id)).status).catch(()=>request.response.abort());
+                if(!request.signal?.aborted)await wire.error(publicCode(code,row.output_format),generation==='succeeded'?'sending':'composing',finished.status).catch(()=>request.response.abort());
                 else await request.response.abort();
             }
-            throw taskError((await repo.get(id)).terminal_reason ?? reason(cause));
+            throw taskError(finished.terminal_reason ?? code);
         }
         finally {
             clearInterval(poll);
             request.signal?.removeEventListener('abort', disconnect);
-            await pool.query("UPDATE tasks SET writer_pid=NULL,writer_host=NULL,writer_start_identity=NULL,lease_expires_at=clock_timestamp() WHERE id=$1 AND terminal_at IS NULL AND stop_requested_at IS NOT NULL", [id]);
-            executing.delete(id);
-            active.delete(id);
             try {
-                await cleanup(id);
+                if(started&&!wire.ended)await request.response.abort().catch(()=>{});
+                await pool.query("UPDATE tasks SET writer_pid=NULL,writer_host=NULL,writer_start_identity=NULL,lease_expires_at=clock_timestamp() WHERE id=$1 AND terminal_at IS NULL AND stop_requested_at IS NOT NULL", [id]).catch(()=>{});
+                executing.delete(id);
+                active.delete(id);
+                // Failed DB/cleanup access retains durable reservations and files
+                // for recovery; it must not strand local shutdown ownership.
+                await cleanup(id).catch(()=>{});
             }
             finally {
                 execution.senderGrant?.release();
@@ -326,4 +347,4 @@ export async function createTaskProcessing(deps: Dependencies) {
 
 
 }
-function facts(r: any, generation: string, delivery: string, pdf?: TaskRenderReceipt) { return { ownerKey: r.owner_key, principalId: r.created_by_principal, clientActorRef: r.client_actor_ref, billingSubjectKey: r.billing_subject_key, requestKind: r.request_kind, createdAt: r.created_at, expiresAt: r.expires_at, template: r.template_pin, policyVersion: r.resource_policy.version, status: r.status, reason: r.terminal_reason, core: { version: r.normalization_summary?.coreVersion ?? null, sha256: r.normalization_summary?.coreSha256 ?? null }, normalization: r.normalization_summary, processingStartedAt: r.processing_started_at, sendStartedAt: r.send_started_at, terminalAt: r.terminal_at, requestBytes: r.request_bytes === null ? null : Number(r.request_bytes), requestBytesMeasurement: r.request_bytes === null ? 'unknown_after_interruption' : 'observed', generation, delivery, outputFormat:r.output_format,output:pdf?{outputFormat:pdf.outputFormat,mediaType:pdf.mediaType,bytes:pdf.receipt.byteLength,sha256:pdf.receipt.sha256,pageCount:pdf.receipt.pageCount,...(pdf.outputFormat==='docx'?docxDisclosure:{})}:null,pdfBytes:r.output_format==='pdf'?pdf?.receipt.byteLength??null:null,pageCount:pdf?.receipt.pageCount??null,pdfSha256:r.output_format==='pdf'?pdf?.receipt.sha256??null:null, generationWarningCount: pdf?.warningCount ?? null, generationSummary: pdf?.summary ?? r.generation_summary ?? null, completeness: taskCompleteness(r, pdf?.summary ?? r.generation_summary) }; }
+function facts(r: any, generation: string, delivery: string, pdf?: TaskRenderReceipt) { return { ownerKey: r.owner_key, principalId: r.created_by_principal, clientActorRef: r.client_actor_ref, billingSubjectKey: r.billing_subject_key, requestKind: r.request_kind, createdAt: r.created_at, expiresAt: r.expires_at, template: r.template_pin, policyVersion: r.resource_policy.version, status: r.status, reason: r.terminal_reason, core: { version: r.normalization_summary?.coreVersion ?? null, sha256: r.normalization_summary?.coreSha256 ?? null }, normalization: r.normalization_summary, processingStartedAt: r.processing_started_at, sendStartedAt: r.send_started_at, terminalAt: r.terminal_at, requestBytes: r.request_bytes === null ? null : Number(r.request_bytes), requestBytesMeasurement: r.request_bytes === null ? 'unknown_after_interruption' : 'observed', generation, delivery, deliveryEvidence:deliveryEvidence(delivery), outputFormat:r.output_format,output:pdf?{outputFormat:pdf.outputFormat,mediaType:pdf.mediaType,bytes:pdf.receipt.byteLength,sha256:pdf.receipt.sha256,pageCount:pdf.receipt.pageCount,...(pdf.outputFormat==='docx'?docxDisclosure:{})}:null,pdfBytes:r.output_format==='pdf'?pdf?.receipt.byteLength??null:null,pageCount:pdf?.receipt.pageCount??null,pdfSha256:r.output_format==='pdf'?pdf?.receipt.sha256??null:null, generationWarningCount: pdf?.warningCount ?? null, generationSummary: pdf?.summary ?? r.generation_summary ?? null, completeness: taskCompleteness(r, pdf?.summary ?? r.generation_summary) }; }

@@ -145,7 +145,7 @@ it('upgrades a populated 018 database without changing assets, releases or legac
    expect(created.statusCode,created.body).toBe(201);const id=created.json().value.templateId;
    const definition=JSON.parse(await readFile('examples/area-document-template.json','utf8'));definition.templateId=id;definition.docKey='height-legacy';definition.version=1;
    const saved=await app.inject({method:'PUT',url:'/authoring/drafts/'+id,headers,payload:{definition,expectedRevision:0,idempotencyKey:'legacy-save'}});expect(saved.statusCode,saved.body).toBe(200);draft=saved.json().value;
-   expect((await migrate(old.pool)).value.applied).toEqual(['019_font_height_profiles.sql','020_font_height_proposals.sql','021_section_instances.sql','022_task_intake.sql','023_task_normalization.sql','024_task_processing.sql','025_task_output_format.sql','026_task_file_names.sql']);
+   expect((await migrate(old.pool)).value.applied).toEqual(['019_font_height_profiles.sql','020_font_height_proposals.sql','021_section_instances.sql','022_task_intake.sql','023_task_normalization.sql','024_task_processing.sql','025_task_output_format.sql','026_task_file_names.sql','027_task_runtime_ownership.sql']);
    expect((await old.pool.query('SELECT count(*) FROM font_height_adjustment_proposals')).rows[0].count).toBe('0');
    expect((await migrate(old.pool)).value.applied).toEqual([]);
    const read=(await app.inject({method:'GET',url:'/authoring/drafts/'+id,headers})).json().value;

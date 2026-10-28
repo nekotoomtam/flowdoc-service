@@ -978,6 +978,48 @@ introduced. The controlled PostgreSQL tests exercise both first-lock orders for
 public jobs and authoring previews; this fixes the demonstrated F4 cycle and is
 not a claim that every possible database deadlock is impossible.
 
+### Candidate delivery evidence and finalization (F3)
+
+Task status values stay unchanged. Task success requires both transport finish
+and durable terminal finalization. Generation, delivery and finalization are
+separate observations: a task may be failed with FINALIZATION_FAILED even though
+its complete artifact response finished. The client must not automatically
+resubmit or resend based only on aggregate task status.
+
+Authenticated lookup now reports delivery as pending, succeeded, failed or
+unknown, plus deliveryEvidence:
+
+| deliveryEvidence | Meaning |
+| --- | --- |
+| pending | No durable terminal outcome yet |
+| transport_finished | Server observed the complete artifact response finish |
+| transport_interrupted | Server observed interruption before finish |
+| not_started | No artifact send was started |
+| unknown_after_interruption | Recovery/history has no durable finish observation |
+
+These observations do not prove that the client saved the file. Usage facts keep
+the observed delivery/evidence separately from aggregate status. A failed final
+success write preserves transport_finished when the fallback terminal record can
+be saved. A lost COMMIT reply is reconciled against durable state before reporting
+a failure, including the fallback transaction; immutable terminal facts are not
+rewritten. If terminal persistence cannot be confirmed, execution reports
+FINALIZATION_UNCONFIRMED, retains durable files/reservations for recovery, and
+settles local ownership so shutdown cannot wait forever on a forgotten execution.
+
+After process/container loss, a sending task without durable completion evidence
+is unknown rather than guessed interrupted. Existing failed sending history with
+no explicit evidence is also reported conservatively as unknown without rewriting
+its usage. Existing succeeded rows remain succeeded. This adds lookup evidence
+and error codes, not task statuses or a migration. Exact task lookup still cannot
+rerender or redownload a consumed task artifact.
+
+Legacy tasks without ownership identity remain fail-closed. A future operator
+recovery needs separately authorized, consistent DB/storage backups, proof that
+all old writers are stopped, and a restore/rehearsal in a disposable lab before
+any repair of live rows. Do not backfill invented runtime IDs, clear foreign PIDs,
+or force-release reservations merely to remove quarantine. This candidate does
+not perform that live-data recovery, installation or release step.
+
 ### ห้องทดสอบแยกสำหรับ task lifecycle
 
 `node scripts/auditLab.mjs prepare` เตรียม Compose และ credentials ใหม่ใต้

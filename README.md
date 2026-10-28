@@ -12,7 +12,8 @@ Sections explicitly describing0.5.0 below document the earlier delivery; the
 current candidate package/archive identity is always `vendor/manifest.json`.
 
 Build this candidate with `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.5.2`.
-Apply migrations through 026 before starting it.
+Apply migrations through 027 before starting this development candidate.
+Migration027 is candidate-only until separately released; do not upgrade an installed registry as part of testing.
 
 ### Manual/runtime boundaries before release
 
