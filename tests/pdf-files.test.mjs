@@ -23,5 +23,8 @@ it('validates explicit retention configuration',async()=>{
 });
 it('protects the renamed PDF until publication releases it',async()=>{
  const root=await mkdtemp(join(tmpdir(),'flowdoc-publish-')),files=await api.createPdfFiles(root),id=randomUUID();
- const output=await files.writePdf(id,Buffer.from('%PDF-test'));await files.cleanupOrphans(new Set(),0);expect(await readFile(join(root,output.path))).toBeTruthy();output.release();await files.cleanupOrphans(new Set(),0);await expect(readFile(join(root,output.path))).rejects.toThrow();
+ const output=await files.writePdf(id,Buffer.from('%PDF-test'));
+ // Make the file eligible without depending on sub-millisecond filesystem time.
+ await utimes(join(root,output.path),new Date(0),new Date(0));
+ await files.cleanupOrphans(new Set(),0);expect(await readFile(join(root,output.path))).toBeTruthy();output.release();await files.cleanupOrphans(new Set(),0);await expect(readFile(join(root,output.path))).rejects.toThrow();
 });
