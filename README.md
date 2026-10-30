@@ -7,7 +7,7 @@ before building. It includes native DOCX vertical merges, borderless tables,
 final-Area alignment and native cell-margin adaptation. Full Service acceptance
 is recorded separately in Project Control, not inferred from Core tests.
 PDF remains the default output. DOCX is opt-in; see the DOCX section below.
-This is release preparation, not an installed or published release.
+This is a local development/lab candidate, not an installed or published release.
 Sections explicitly describing0.5.0 below document the earlier delivery; the
 current candidate package/archive identity is always `vendor/manifest.json`.
 
@@ -25,12 +25,13 @@ Migration027 is candidate-only until separately released; do not upgrade an inst
 | Format | existing Output-Format header; omitted/PDF stays PDF, DOCX opts in |
 | Wire | multipart task events plus one binary part; verify bytes/hash and complete response |
 | Client save path | chosen by client independently; Content-Disposition is server attachment metadata |
-| Plugin | prepared0.3.1 pins this exact0.5.2 archive; installed0.3.0/profile0.5.0 remains unchanged |
+| Plugin | this lab pin does not update prepared or installed plugins; verify their archive identities separately |
 
 See the matching usage guide for explicit image selection, migration026,
 consistent DB/files backup and separately verified restore/post-install checks.
-This candidate repacks final documented Core source0401b87 and records the exact
-archive in the manifest/lock. Check the Project Control prerelease evidence before
+This lab candidate pins Core source65f17ee with native text-run coalescing within
+authored spans and unchanged XML limits; the exact archive is in manifest/lock.
+Check the Project Control candidate evidence before
 promotion. A docs commit changes neither the installed image nor its pin.
 
 Empty Area declarations: new18/19 records preserve the difference between an

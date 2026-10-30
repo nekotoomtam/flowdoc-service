@@ -1,4 +1,4 @@
-import {artifactSpec,docxDisclosure,DOCX_MAX_BYTES} from './artifact.js';
+import {projectArtifactReceipt,DOCX_MAX_BYTES} from './artifact.js';
 import {verifyEnvelopeFormat} from './output-format.js';
 import { composeTaskDocument, validateTemplate, createPdfEngine, createDocxEngine, PDF_STREAM_CONTRACT } from '@flowdoc/core';
 import type { TaskValue, StreamPdfImage, PdfStreamRef } from '@flowdoc/core';
@@ -255,7 +255,7 @@ async function run(input: any) {
         if (warnings.length > 10000)
             throw error('LIMIT_EXCEEDED');
         const summary = { version: 1, scope: 'expanded-image-nodes', imagePlacementCount: nodes.length, normalizedOmittedPlacementCount: normalizedOmitted, preparationOmittedPlacementCount: preparationOmitted, omittedPlacementCount: normalizedOmitted + preparationOmitted, findingCount, formatOmissionCount: warnings.filter(w=>w.code==='FORMAT_CONTENT_OMITTED').length, completeness: omitted.size || warnings.some(w => w.code === 'FORMAT_CONTENT_OMITTED') ? 'partial' : 'complete' };
-        await rpc('complete', { outputFormat:format,output, receipt: {...result.value,mediaType:artifactSpec(format).mediaType,...(format==='docx'?docxDisclosure:{})}, warningCount: warnings.length, warnings: warnings.slice(0, 100), summary });
+        await rpc('complete', { outputFormat:format,output, receipt: projectArtifactReceipt(format,result.value), warningCount: warnings.length, warnings: warnings.slice(0, 100), summary });
     }
     finally {
         pdfOutput?.abort();

@@ -8,6 +8,11 @@ export function artifactSpec(format:OutputFormat){
  throw taskError('STORAGE_IO');
 }
 export interface ArtifactReceipt {byteLength:number;sha256:string;pageCount:number|null;mediaType?:string;fieldRefresh?:'required';wordVerified?:false;buffered?:true}
+/** Match the parent's task receipt before crossing its bounded IPC channel.
+ * Core diagnostics remain on the original Core receipt, not on task transport. */
+export function projectArtifactReceipt(format:OutputFormat,r:Pick<ArtifactReceipt,'byteLength'|'sha256'|'pageCount'>):ArtifactReceipt{
+ return {byteLength:r.byteLength,sha256:r.sha256,pageCount:r.pageCount,mediaType:artifactSpec(format).mediaType,...(format==='docx'?docxDisclosure:{})};
+}
 /** Validate observations against the task's frozen selection, never infer it from bytes. */
 export function validateReceipt(format:OutputFormat,r:ArtifactReceipt,maxBytes:number){
  const spec=artifactSpec(format);
