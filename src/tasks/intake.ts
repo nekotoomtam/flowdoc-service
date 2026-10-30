@@ -161,7 +161,7 @@ export async function createTaskIntake(deps:Dependencies){
  const isReady=()=>!closing&&!quarantined&&(!deps.ownership||deps.ownership.isReady())&&(!resources.enabled()||resources.ready());
  if(!deps.deferRecovery)await sweep(true);let maintenance:Promise<void>|undefined;
  const timer=setInterval(()=>{if(closing||maintenance||deps.deferRecovery&&!leader)return;maintenance=sweep().catch(()=>{}).finally(()=>{maintenance=undefined;});},p.sweepMs);timer.unref();
- return {isReady,authenticate,quarantined:()=>quarantined,processingContext:{pool,files,repo,owned,active,cleanup,policy:p,resources,ownership:deps.ownership},open,receive,normalize,receiveQueued,findings,reserve:repo.reserve,async inspect(header:string,id:string){return safeTask((await owned(header,id)).r);},fail,
+ return {isReady,storageReady:repo.storageReady,authenticate,quarantined:()=>quarantined,processingContext:{pool,files,repo,owned,active,cleanup,policy:p,resources,ownership:deps.ownership},open,receive,normalize,receiveQueued,findings,reserve:repo.reserve,async inspect(header:string,id:string){return safeTask((await owned(header,id)).r);},fail,
   queueSnapshot:resources.snapshot,
   queueState(id:string){const state=queued.get(id);return state?{stage:state.stage,waitReason:state.stage==='waiting'?(resources.snapshot().intakes>=2?'receive_slot':'memory'):null}:null;},
   sharedQueueEnabled:resources.enabled,

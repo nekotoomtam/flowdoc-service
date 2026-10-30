@@ -44,7 +44,7 @@ export function createServer(deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean
  app.addHook('onClose',()=>preflight.stop());
  const pending=new Set<Promise<void>>();app.addHook('onClose',async()=>{await Promise.allSettled([...pending]);});
  app.setErrorHandler((error,request,reply)=>{const e=error as {statusCode?:number};const code=e.statusCode===413?413:e.statusCode&&e.statusCode>=400&&e.statusCode<500?400:503;reply.code(code).send(failure(new OperationError(code===413?'BODY_TOO_LARGE':code===400?'INVALID_REQUEST':'UNAVAILABLE','request',code===413?'Request exceeds size limit':code===400?'Invalid request':'Service unavailable')));});
- app.get('/health',async(_req,reply)=>{try{if(!ready())throw Error();await deps.pool.query('SELECT 1');return {ok:true,value:{ready:true},warnings:[]};}catch{reply.code(503);return failure(new OperationError('UNAVAILABLE','service','Service unavailable'));}});
+ app.get('/health',async(_req,reply)=>{try{if(!ready()||deps.tasks&&!await deps.tasks.intake.storageReady())throw Error();await deps.pool.query('SELECT 1');return {ok:true,value:{ready:true},warnings:[]};}catch{reply.code(503);return failure(new OperationError('UNAVAILABLE','service','Service unavailable'));}});
  app.get<{Params:{docKey:string};Querystring:{version?:string}}>('/templates/:docKey/contract',async(req,reply)=>{
   const raw=req.query.version;let version:number|undefined;
   if(raw!==undefined){if(typeof raw!=='string'||!/^\d+$/.test(raw)||!Number.isSafeInteger(Number(raw))||Number(raw)<1||Number(raw)>2147483647){reply.code(400);return failure(new OperationError('INVALID_VERSION','version','Invalid version'));}version=Number(raw);}
