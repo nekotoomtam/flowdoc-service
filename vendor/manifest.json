@@ -2,9 +2,9 @@
   "name": "@flowdoc/core",
   "version": "0.5.2",
   "file": "flowdoc-core-0.5.2.tgz",
-  "sha256": "04442fd16ec884e5cf87664dcf3562e4d4f25ae4d32b996d033a88642fe1668d",
-  "sourceCommit": "65f17ee78da804836cca42f7582a961cf2a1b9a8",
-  "sourceArtifact": "C:\\Users\\nekot\\Documents\\GitHub\\flowdoc-service-worktrees\\audit-f5-f6-20261027\\artifacts\\oracle-audit-20261030\\flowdoc-docxfixbuild-fd37ab660292\\flowdoc-core-0.5.2.tgz",
+  "sha256": "ed876f4d011ad943ead937307af9123581c231124cab198de34f60b832f6a532",
+  "sourceCommit": "3e74f98b8a14cefea4dd147644318ea3108999b1",
+  "sourceArtifact": "C:\\Users\\nekot\\Documents\\GitHub\\flowdoc-project-control\\artifacts\\integration-20261031\\flowdoc-integrate-041827759a1a\\flowdoc-core-0.5.2.tgz",
   "runtime": "linux-x64 glibc, Node24, Python3.11, fontTools4.58.2",
-  "delivery": "Local DOCX native-run budget development candidate; Oracle lab only; not installed, published or released"
+  "delivery": "Local reviewed development integration package; isolated Oracle lab proof required; no release/install"
 }

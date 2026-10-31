@@ -16,8 +16,12 @@ build. รองรับ DOCX เซลล์รวม, border none, Area ส�
 หัวข้อที่ระบุ0.5.0 ด้านล่างอธิบายชุดส่งมอบก่อนหน้า ตัวตนแพ็กเกจ candidate
 ปัจจุบันให้อ้าง `vendor/manifest.json` เป็นหลัก
 
-ชุดเตรียมนี้ใช้ FlowDocMake0.3.1 ที่ตรึง Core0.5.2 ตาม manifest/lock;
-ชุดติดตั้ง FlowDocMake0.3.0/Service-Core0.5.0 ยังคงเดิม ต้องติดตั้งแยกเมื่ออนุญาต
+ชุด development นี้ต้องใช้ FlowDocMake integration candidate ที่ผ่านการตรวจ
+และตรึง Core archive SHA เดียวกับ vendor/manifest.json และ lock เท่านั้น
+Prepared/default FlowDocMake0.3.1 ตรึง archive รุ่นก่อน แม้เลข Core จะเป็น0.5.2
+เหมือนกัน จึงไม่ใช่คู่ที่ใช้แทนกันได้ ระบุ candidate version/source commit/hash
+จาก generated inventory ทุกครั้ง ไม่แก้ profile เก่าหรือ installed cache ให้ผ่าน
+ข้อมูลชุดติดตั้งในหัวข้อประวัติไม่ใช่หลักฐานสถานะเครื่องจริงในปัจจุบัน
 
 ตารางเลือก `borderStyle:"thickThinWideGap"` และ `borderWidth:{value:0.35,unit:"pt"}`
 เพื่อใช้เส้น B จาก Core โดยตรงทั้ง PDF/DOCX ได้แล้ว DOCX จำกัดเซลล์ข้อความ ASCII
@@ -55,7 +59,10 @@ build. รองรับ DOCX เซลล์รวม, border none, Area ส�
 
 ก่อนติดตั้ง0.5.2 ต้องสำรอง DB และ staging/output เป็นชุดเดียวพร้อม hashes
 ตามขั้นตอน backup/recovery ด้านล่าง ทดสอบ restore ในฐานแยก แล้วใช้ CLI
-`migrate` ของ image0.5.2 ให้ครบถึง026 ไม่หยุดที่023/024 ซึ่งเป็นขั้นตอนรุ่นเก่า
+สำหรับ development candidate ปัจจุบัน ใช้ `migrate` ของ image ที่ตรงกับ
+vendor/source identity ให้ครบถึง027; release v0.5.2 เดิมมีขอบเขตถึง026
+ต้องแยกสองชุดนี้ด้วย source/image/checksum ไม่ใช้เลข0.5.2เพียงอย่างเดียว
+ห้ามแก้หรือ renumber migration ที่เคยใช้แล้ว ทดสอบอัปเกรดในฐานแยกก่อนเสมอ
 ตรวจ readiness, live Service/Core version/hash และลองออก PDF/DOCX พร้อมชื่อ
 ภาษาไทย/ค่าเริ่มต้น/งานเข้าคิวหลังติดตั้ง ต้องอ่านไฟล์จริงและ receipt จนครบ
 หากต้องย้อนกลับให้หยุด candidate แล้วคืน backup ทั้งชุดในฐาน/volumes แยก

@@ -11,7 +11,8 @@ This is a local development/lab candidate, not an installed or published release
 Sections explicitly describing0.5.0 below document the earlier delivery; the
 current candidate package/archive identity is always `vendor/manifest.json`.
 
-Build this candidate with `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.5.2`.
+Set `FLOWDOC_REGISTRY_IMAGE` to the explicitly recorded integration image tag
+or digest. The generic `:0.5.2` tag alone does not identify this candidate.
 Apply migrations through 027 before starting this development candidate.
 Migration027 is candidate-only until separately released; do not upgrade an installed registry as part of testing.
 
@@ -27,10 +28,14 @@ Migration027 is candidate-only until separately released; do not upgrade an inst
 | Client save path | chosen by client independently; Content-Disposition is server attachment metadata |
 | Plugin | this lab pin does not update prepared or installed plugins; verify their archive identities separately |
 
-See the matching usage guide for explicit image selection, migration026,
+See the matching usage guide for explicit image selection, development migration027
+(the retained v0.5.2 release used026),
 consistent DB/files backup and separately verified restore/post-install checks.
-This lab candidate pins Core source65f17ee with native text-run coalescing within
+This integration candidate pins Core source3e74f98 with native text-run coalescing within
 authored spans and unchanged XML limits; the exact archive is in manifest/lock.
+Use the explicit reviewed FlowDocMake integration candidate for that archive;
+prepared/default0.3.1 and older candidate.2 have different frozen pins. Package
+version0.5.2 alone is not sufficient to identify a matching runtime/plugin pair.
 Check the Project Control candidate evidence before
 promotion. A docs commit changes neither the installed image nor its pin.
 
