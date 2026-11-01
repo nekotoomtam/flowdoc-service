@@ -85,9 +85,9 @@ export function createAuthoring(pool:Pool,principal:string,options:{maxOutstandi
    return receipt(c,principal,'save',id,input,async()=>{
     const before=await view(c,id);revision(input.expectedRevision,before.revision);
     const v=validateTemplate(input.definition);if(!v.ok)throw new AuthoringIssues(v);
-    if(![18,19].includes(v.value.definition.nodeModelVersion))invalid('nodeModelVersion');
+    if(![18,19,20].includes(v.value.definition.nodeModelVersion))invalid('nodeModelVersion');
     if(before.definition&&before.definition.nodeModelVersion!==v.value.definition.nodeModelVersion)throw new OperationError('VERSION_MISMATCH','nodeModelVersion','Model changes require explicit conversion into a new draft');
-    if(v.value.definition.nodeModelVersion===19){
+    if([19,20].includes(v.value.definition.nodeModelVersion)){
      for(const section of v.value.definition.sections){const prior=before.definition?.sections.find((p:any)=>p.id===section.id);if(canonical(("origin" in section?section.origin:null)??null)!==canonical((prior&&"origin" in prior?prior.origin:null)??null))invalid('origin','Origin metadata is server owned');}
     }
     if(v.value.definition.templateId!==id||v.value.definition.docKey!==identity.doc_key||v.value.definition.version!==1)invalid('definition','Identity must match the created draft; draft definition version is 1');
@@ -98,6 +98,7 @@ export function createAuthoring(pool:Pool,principal:string,options:{maxOutstandi
    const input=fields(raw,['sourceRevision','name','docKey','idempotencyKey']);await owned(c,principal,id);
    return receipt(c,principal,'clone',id,input,async()=>{
     const source=await view(c,id);revision(input.sourceRevision,source.revision);if(!source.definition)throw new OperationError('DRAFT_EMPTY','draft','Save a definition before cloning');
+    if(source.definition.nodeModelVersion===20)throw new OperationError('VERSION_MISMATCH','nodeModelVersion','Model20 whole-template cloning is not supported; use a new draft and an explicitly authored definition');
     if(typeof input.name!=='string'||!input.name.trim()||input.name.length>200||typeof input.docKey!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(input.docKey))invalid('name/docKey');
     const refs=await readReferences(c,id,source.revision);verifyReferences(source.definition,source.fingerprint!,refs);
     const target=randomUUID(),created=await c.query('INSERT INTO templates(id,doc_key,name) VALUES($1,$2,$3) ON CONFLICT DO NOTHING RETURNING id',[target,input.docKey,input.name]);
@@ -119,7 +120,7 @@ export function createAuthoring(pool:Pool,principal:string,options:{maxOutstandi
    return {templateId:id,revision:draft.revision,fontReadiness:await checkFontReadiness(c,draft.definition,draft.fingerprint!,refs,actual,undefined,{preflight:options.preflight,signal})};
   }))),
   validate:async(raw:unknown,signal?:AbortSignal)=>{const warnings:import('@flowdoc/core').Issue[]=[];const result=await safe(()=>(options.preflight??defaultFontPreflightGate).admit(signal,options.maxOutstanding,()=>transaction(pool,async c=>{
-   const input=fields(raw,['definition','sampleRequest']),v=validateTemplate(input.definition);if(!v.ok)throw new AuthoringIssues(v);if(![18,19].includes(v.value.definition.nodeModelVersion))invalid('nodeModelVersion');
+   const input=fields(raw,['definition','sampleRequest']),v=validateTemplate(input.definition);if(!v.ok)throw new AuthoringIssues(v);if(![18,19,20].includes(v.value.definition.nodeModelVersion))invalid('nodeModelVersion');
    let refs=null;
    const owner=(await c.query('SELECT 1 FROM authoring_templates WHERE template_id=$1 AND principal=$2',[v.value.definition.templateId,principal])).rowCount;
    if(owner){const saved=await view(c,v.value.definition.templateId);refs=await readReferences(c,saved.templateId,saved.revision);if(saved.definition)verifyReferences(saved.definition,saved.fingerprint!,refs);if(refs)refs={...refs,definitionFingerprint:v.value.fingerprint};}
