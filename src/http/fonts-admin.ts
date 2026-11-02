@@ -1,3 +1,7 @@
+import type {FontInspector} from '../fonts/inspection.js';
+import type {FontPreflightGate} from '../fonts/preflight-gate.js';
+import {renderDocumentJob} from '../jobs/render.js';
+import type {SpecimenRenderer} from '../fonts/lifecycle.js';
 import {timingSafeEqual} from 'node:crypto';
 import {createFontHeightProfiles} from '../fonts/heightProfiles.js';
 import type {FastifyInstance} from 'fastify';
@@ -9,12 +13,15 @@ import {FONT_LIMITS} from '../fonts/types.js';
 export interface FontAdminAccess {token:string;principal:string}
 export function checkFontAdminAccess(access:FontAdminAccess,authoringToken?:string){if(typeof access.token!=='string'||access.token.length<32||access.token.length>512||/[\s\x00-\x1f\x7f]/.test(access.token)||typeof access.principal!=='string'||!access.principal.trim()||access.principal.length>200||access.token===authoringToken)throw Error('Invalid font administrator configuration');}
 const equal=(a:string,b:string)=>{const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y);};
-export async function registerFontsAdmin(app:FastifyInstance,deps:{pool:Pool;root:string;access:FontAdminAccess;authoringToken?:string;isReady:()=>boolean}){
+export async function registerFontsAdmin(app:FastifyInstance,deps:{pool:Pool;root:string;access:FontAdminAccess;authoringToken?:string;isReady:()=>boolean;inspect?:FontInspector;preflight?:FontPreflightGate}){
  checkFontAdminAccess(deps.access,deps.authoringToken);
+ if(process.env.FLOWDOC_WORKER_ISOLATION==='required'&&(!deps.inspect||!deps.preflight?.render))throw new OperationError('UNAVAILABLE','font','Admin worker dependencies unavailable');
+ const renderSpecimen:SpecimenRenderer=(client,input,signal,snapshot,root)=>{if(!deps.preflight)return renderDocumentJob(input,signal,snapshot,root);return deps.preflight.run(client,signal,s=>(deps.preflight!.render??renderDocumentJob)(input,s,snapshot,root));};
+ const bound=deps.inspect?{inspect:deps.inspect}:{};
  app.addHook('onRequest',async(req,reply)=>{const h=req.headers.authorization,token=typeof h==='string'&&h.startsWith('Bearer ')?h.slice(7):'';if(!equal(token,deps.access.token)){const forbidden=!!deps.authoringToken&&equal(token,deps.authoringToken);return reply.code(forbidden?403:401).send(failure(new OperationError(forbidden?'FORBIDDEN':'UNAUTHORIZED','authorization','Font administrator access required')));}if(!deps.isReady())return reply.code(503).send(failure(new OperationError('UNAVAILABLE','service','Service unavailable')));});
- const lib=await createFontLibrary({pool:deps.pool,root:deps.root,principal:deps.access.principal}),life=createFontLifecycle({pool:deps.pool,root:deps.root,principal:deps.access.principal});
+ const lib=await createFontLibrary({pool:deps.pool,root:deps.root,principal:deps.access.principal,...bound}),life=createFontLifecycle({pool:deps.pool,root:deps.root,principal:deps.access.principal,...bound,renderSpecimen});
  const handler=(run:(req:any)=>Promise<unknown>,success=200)=>async(req:any,reply:any)=>{try{const value=await run(req);reply.code(success);return {ok:true,value,warnings:[]};}catch(error){const result=failure(error),code=result.ok?'UNAVAILABLE':result.issues[0]?.code??'UNAVAILABLE';const status=/NOT_FOUND$/.test(code)?404:code==='FONT_REVIEW_FAILED'?422:/STALE|CONFLICT|DEFAULT_DECISION/.test(code)?409:/LIMIT|TOO_LARGE/.test(code)?413:/^INVALID_|PROVENANCE_REQUIRED|UPLOAD_INCOMPLETE|^FONT_HEIGHT_PROFILE_/.test(code)?422:503;reply.code(status);return result;}};
- const height=createFontHeightProfiles({pool:deps.pool,root:deps.root,principal:deps.access.principal});
+ const height=createFontHeightProfiles({pool:deps.pool,root:deps.root,principal:deps.access.principal,...bound});
  app.post('/admin/fonts/releases/:id/height-profiles',handler(r=>height.measure(r.params.id,r.body)));
  app.get('/admin/fonts/height-profiles/:id',handler(r=>height.get(r.params.id)));
  app.post('/admin/fonts/height-profiles/:id/approve',handler(r=>height.approve(r.params.id,r.body)));
