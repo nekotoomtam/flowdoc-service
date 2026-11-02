@@ -193,7 +193,13 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
         if (m.op === 'finding') {
             if (m.code !== 'IMAGE_UNUSABLE' || !(m.sectionId === null || typeof m.sectionId === 'string' && Buffer.byteLength(m.sectionId) <= 256) || typeof m.pointer !== 'string' || !m.pointer.startsWith('/') || Buffer.byteLength(m.pointer) > 2048 || !Number.isSafeInteger(m.affectedPlacementCount) || m.affectedPlacementCount < 1 || preparationOmitted + m.affectedPlacementCount > 10000 || !m.detail || m.detail.stage !== 'preparation' || Buffer.byteLength(JSON.stringify(m.detail)) > 32768)
                 throw taskError('INVALID_DATA');
-            await transaction(pool, async (client) => { const r = await repo.row(client, row.id); repo.live(r); await client.query("INSERT INTO task_findings(id,task_id,sequence,code,section_id,pointer,affected_placement_count,detail) SELECT $1,$2,coalesce(max(sequence),0)+1,$3,$4,$5,$6,$7 FROM task_findings WHERE task_id=$2 HAVING count(*)<$8", [randomUUID(), row.id, m.code, m.sectionId, m.pointer, m.affectedPlacementCount, JSON.stringify(m.detail),p.findingDetails]); });
+            await transaction(pool, async (client) => {
+                const r = await repo.row(client, row.id); repo.live(r);
+                const findingId=randomUUID();
+                await client.query("INSERT INTO task_findings(id,task_id,sequence,code,section_id,pointer,affected_placement_count,detail) SELECT $1,$2,coalesce(max(sequence),0)+1,$3,$4,$5,$6,$7 FROM task_findings WHERE task_id=$2 HAVING count(*)<$8", [findingId, row.id, m.code, m.sectionId, m.pointer, m.affectedPlacementCount, JSON.stringify(m.detail),p.findingDetails]);
+                // Keep observed totals even if detail retention is capped or no completion follows.
+                await client.query("INSERT INTO task_events(task_id,sequence,event_key,event_type,previous_state,new_state,actor,detail) SELECT $1,coalesce(max(sequence),0)+1,$2,'preparation-finding',$3,$3,$4,$5 FROM task_events WHERE task_id=$1",[row.id,'preparation-finding:'+findingId,r.status,r.created_by_principal,JSON.stringify({version:1,findingCount:preparationFindings+1,omittedPlacementCount:preparationOmitted+m.affectedPlacementCount})]);
+            });
             preparationFindings++;
             preparationOmitted += m.affectedPlacementCount;
             return null;
