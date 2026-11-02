@@ -17,6 +17,7 @@ import {createTaskIntake} from './tasks/intake.js';
 import {readTaskQueueConfig,queueAdmissionLimit} from './tasks/queue-profile.js';
 import {createTaskProcessing} from './tasks/processing.js';
 import {createPool} from './db/connection.js';
+import {assertRuntimeSchema} from './db/runtime-schema.js';
 import {createPdfFiles,readFilePolicy} from './storage/pdf-files.js';
 import {createOutputs} from './storage/outputs.js';
 import {readJobConfig} from './jobs/config.js';
@@ -66,10 +67,11 @@ export async function startService(){
  try{
   // Authenticate required isolation before acquiring runtime, DB or listener state.
   if(workerConfig.mode==='required')launcher=await createWorkerLauncher(workerConfig);
+  pool=createPool(process.env.DATABASE_URL);await assertRuntimeSchema(pool);
   inspector=createFontInspector(launcher);const renderer=createJobRenderer(launcher),preflightRenderer=createJobRenderer(launcher,'font-preflight'),prepare=createImagePreparer(launcher);
   await mkdir(tempRoot,{recursive:true});
   if(!launcher){const resources=await loadBundledResources({pythonExecutable:process.env.PYTHON_EXECUTABLE??'python',tempRoot});if(!resources.ok)throw Error('Runtime unavailable');}
-  const resourceFiles=await createResourceFiles(process.env.UPLOAD_STAGING_DIR??'staging');pool=createPool(process.env.DATABASE_URL);uploads=createUploads({pool,files:resourceFiles,config:uploadConfig});
+  const resourceFiles=await createResourceFiles(process.env.UPLOAD_STAGING_DIR??'staging');uploads=createUploads({pool,files:resourceFiles,config:uploadConfig});
   const files=await createPdfFiles(process.env.EXPORT_OUTPUT_DIR??'output'),outputs=createOutputs(pool,files,policy.tempHours);
   if(resolver){const root=process.env.TASK_STORAGE_DIR??join(tempRoot,'flowdoc-tasks');ownership=await createTaskOwnership(root);ownership.signal.addEventListener('abort',()=>{if(!closing)terminate();},{once:true});taskIntake=await createTaskIntake({pool,root,ownership,...(launcher?{workerLauncher:launcher}:{}),deferRecovery:true,resolveCredential:resolver,policy:{maxOutstanding:queueConfig.maxOutstanding},queueResources:{profile:queueConfig.profile}});taskProcessing=await createTaskProcessing({pool,intake:taskIntake,workerReady:()=>runtimeReady()&&(processor?.isReady()??false)});}
   fontGate=createFontPreflightGate(taskIntake?.processingContext.resources,preflightRenderer.renderDocumentJob);
