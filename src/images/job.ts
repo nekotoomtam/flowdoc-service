@@ -7,12 +7,13 @@ import type {ResolvedDocument,Issue,Length} from '@flowdoc/core';
 import type {ResourceFiles} from '../storage/resource-files.js';
 import type {UploadConfig} from '../uploads/config.js';
 import {transaction} from '../db/connection.js';
-import {prepareImage} from './prepare.js';
+import {workerError} from '../workers/contracts.js';
+import {prepareImage,type ImagePreparer} from './prepare.js';
 import {downloadImage} from './download.js';
 import {assertTaskPoolCapacity} from '../tasks/quota.js';
 export interface RenderImage {path:string;width:number;height:number;mediaType:'image/jpeg'|'image/png'}
 export interface JobImageInput {fontSnapshot?:import('../fonts/snapshot.js').FontSnapshot;fontStorageRoot?:string;document:ResolvedDocument;images:Record<string,RenderImage>}
-export interface ImageJobDependencies {files:ResourceFiles;config:UploadConfig}
+export interface ImageJobDependencies {files:ResourceFiles;config:UploadConfig;prepare?:ImagePreparer}
 export async function processing(pool:Pool,id:string,stage:string,completed:number,total:number,warnings:Issue[]){
  await pool.query(`INSERT INTO job_processing(job_id,stage,completed,total,warnings_json) VALUES($1,$2,$3,$4,$5)
  ON CONFLICT(job_id) DO UPDATE SET stage=$2,completed=$3,total=$4,warnings_json=$5,updated_at=now()`,[id,stage,completed,total,JSON.stringify(warnings)]);
@@ -20,6 +21,7 @@ export async function processing(pool:Pool,id:string,stage:string,completed:numb
 // Internal ownership transfer: only pass a freshly composed, exclusively owned graph.
 // Resource IDs are rewritten in place; callers must not reuse the original graph.
 export async function prepareOwnedJobImages(pool:Pool,jobId:string,document:ResolvedDocument,deps:ImageJobDependencies,signal:AbortSignal):Promise<JobImageInput>{
+ if(process.env.FLOWDOC_WORKER_ISOLATION==='required'&&!deps.prepare)throw workerError('WORKER_IMAGE_PREPARER_REQUIRED');
  const nodes=collectImageNodes(document);
  const images:Record<string,RenderImage>={},warnings:Issue[]=[],sources=new Map<string,string|null>(),derivatives=new Map<string,string|null>();
  let completed=0,aggregate=0;await processing(pool,jobId,'preparing-resources',0,nodes.length,warnings);
@@ -35,6 +37,7 @@ export async function prepareOwnedJobImages(pool:Pool,jobId:string,document:Reso
  const pt=(n:Length)=>n.unit==='mm'?n.value*72/25.4:n.value;
  for(const node of nodes){
   abort.throwIfAborted();const resourceId=node.props.resourceId,path='nodes.'+node.id;
+  let unsafeWorker=false;
   try{
    if(!resourceId){node.props.resourceId='';continue;}
    const item=(await pool.query('SELECT * FROM upload_items WHERE upload_id=$1 AND id=$2',[upload,resourceId])).rows[0];
@@ -53,20 +56,20 @@ export async function prepareOwnedJobImages(pool:Pool,jobId:string,document:Reso
     derivatives.set(key,null);if(Object.keys(images).length>=20)throw Error('Image count budget');
     const budget=32*1048576;await reserve(budget);let retained=0;
     try{
-     const prepared=await prepareImage({sourcePath:source,outputDirectory:directory,widthPt:w,heightPt:h,signal:abort});
+     const prepared=await(deps.prepare??prepareImage)({sourcePath:source,outputDirectory:directory,widthPt:w,heightPt:h,signal:abort});
      warnings.push(...prepared.warnings.map(i=>({...i,path})));
      if(prepared.status==='prepared'){
       const i=prepared.image,size=i.mediaType==='image/png'?i.width*i.height*4:i.byteSize;
       if(aggregate+size>64*1048576){await unlink(i.path);throw Error('Image memory budget');}
       aggregate+=size;retained=i.byteSize;const id=randomUUID();images[id]=i;derivatives.set(key,id);
      }
-    }finally{await reserve(retained-budget);}
+    }catch(error){if((error as {code?:string})?.code==='WORKER_STOP_UNCONFIRMED')unsafeWorker=true;throw error;}finally{if(!unsafeWorker)await reserve(retained-budget);}
    }
    node.props.resourceId=derivatives.get(key)??'';
   }catch(error){
-   if((error as {code?:string})?.code==='STORAGE_CAPACITY')throw error;
+   if(['STORAGE_CAPACITY','WORKER_STOP_UNCONFIRMED','WORKER_IMAGE_PREPARER_REQUIRED'].includes((error as {code?:string})?.code??''))throw error;
    abort.throwIfAborted();node.props.resourceId='';warnings.push({code:'IMAGE_UNUSABLE',path,message:'Image unavailable or exceeded preparation limits'});
-  }finally{completed++;await processing(pool,jobId,'preparing-resources',completed,nodes.length,warnings);}
+  }finally{completed++;if(!unsafeWorker)await processing(pool,jobId,'preparing-resources',completed,nodes.length,warnings);}
  }
  await processing(pool,jobId,'rendering',completed,nodes.length,warnings);return {document,images};
 }

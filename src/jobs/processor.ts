@@ -1,3 +1,4 @@
+import {workerError} from '../workers/contracts.js';
 import {LEGACY_SARABUN} from '../fonts/legacy.js';
 import {validateFontSnapshot,makeFontSnapshot,persistJobFonts,fontRoot} from '../fonts/snapshot.js';
 import {fingerprint} from '../fonts/repository.js';
@@ -17,6 +18,7 @@ import {prepareOwnedJobImages,processing} from '../images/job.js';
 import type {ImageJobDependencies,JobImageInput} from '../images/job.js';
 interface Dependencies {pool:Pool;tasks?:{runNext:(signal:AbortSignal,leader:PoolClient)=>Promise<boolean>;acquireLegacy?:(id:string,signal:AbortSignal,onStop:(code:string)=>void)=>Promise<{release():void}|null>;drain?:()=>Promise<void>};initialize?:(leader:PoolClient)=>Promise<void>;resources?:ImageJobDependencies;files:{writePdf:(id:string,bytes:Uint8Array)=>Promise<{path:string;byteSize:number;release?:()=>void}>};policy:FilePolicy;pollMs?:number;render?:(prepared:PreparedInput,template:TemplateDefinition,signal:AbortSignal,images?:JobImageInput)=>Promise<Result<Pick<PdfArtifact,"bytes"|"mediaType">>>}
 export async function startProcessor(deps:Dependencies){
+ if(process.env.FLOWDOC_WORKER_ISOLATION==='required'){if(!deps.render)throw workerError('WORKER_RENDERER_REQUIRED');if(deps.resources&&!deps.resources.prepare)throw workerError('WORKER_IMAGE_PREPARER_REQUIRED');}
  const {pool}=deps,lock=await pool.connect();let stopping=false,healthy=true;const abort=new AbortController();
  const lost=()=>{healthy=false;stopping=true;abort.abort();};lock.on('error',lost);
  try{const r=await lock.query('SELECT pg_try_advisory_lock(60430404) AS locked');if(!r.rows[0].locked)throw Error('Processor already active');await deps.initialize?.(lock);await failInterruptedJobs(pool);}
@@ -41,7 +43,7 @@ export async function startProcessor(deps:Dependencies){
      await c.query("INSERT INTO document_outputs(id,job_id,path,media_type,byte_size,retain,expires_at) VALUES(uuidv7(),$1,$2,'application/pdf',$3,$4 OR EXISTS(SELECT 1 FROM generation_jobs WHERE id=$1 AND preview_template_id IS NOT NULL),now()+($5 * interval '1 hour'))",[job.id,output.path,output.byteSize,deps.policy.retain,deps.policy.ttlHours]);
     });}finally{output.release?.();}
    }catch(e){if((e as any)?.code==='WORKER_STOP_UNCONFIRMED'){confirmed=false;lost();}await failJob(pool,job.id,[{code:'RENDER_FAILED',path:'job',message:'Document processing failed'}]);}
-   }finally{if(confirmed)grant.release();}
+   }catch(e){if((e as any)?.code==='WORKER_STOP_UNCONFIRMED'){confirmed=false;lost();}throw e;}finally{if(confirmed)grant.release();}
   }catch{lost();}
  }})();
  return {isReady:()=>healthy&&!stopping,async stop(){stopping=true;const timeout=setTimeout(()=>abort.abort(),5000);await loop;await deps.tasks?.drain?.();clearTimeout(timeout);try{if(healthy)await lock.query('SELECT pg_advisory_unlock(60430404)');}finally{lock.removeListener('error',lost);lock.release(!healthy);}}};
@@ -80,5 +82,5 @@ async function claimAndStartRender(deps:Dependencies,signal:AbortSignal){
     const pending=deps.render?deps.render(job.preparedInput,valid.value.definition,signal,imageInput):renderDocumentJob(imageInput,signal);
     return {id:job.id,pending};
 
- }catch(e){const r=failure(e);await failJob(pool,job.id,r.ok?[]:r.issues[0]?.code.startsWith('FONT_')?r.issues:[{code:'RENDER_FAILED',path:'job',message:'Document processing failed'}]);return null;}
+ }catch(e){if((e as any)?.code==='WORKER_STOP_UNCONFIRMED')throw e;const r=failure(e);await failJob(pool,job.id,r.ok?[]:r.issues[0]?.code.startsWith('FONT_')?r.issues:[{code:'RENDER_FAILED',path:'job',message:'Document processing failed'}]);return null;}
 }

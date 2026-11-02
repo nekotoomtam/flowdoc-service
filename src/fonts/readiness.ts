@@ -69,7 +69,7 @@ export async function resolveFontReadiness(c:Pick<PoolClient,'query'>,definition
     legacy.push(...expected.map(f=>({id:f.id,sha256:f.sha256})));}
    snapshot=makeFontSnapshot(definitionFingerprint,inputFingerprint,bindings,legacy);
    if(!actual&&!options.deferFiles)await snapshotResources(snapshot,temp!,root);
-   if(actual){const result=await(options.preflight??defaultFontPreflightGate).run(c,options.signal,signal=>renderDocumentJob({document:fontProbeDocument(actual.document),images:{}},signal,snapshot,root??fontRoot()));
+   if(actual){const gate=options.preflight??defaultFontPreflightGate;const result=await gate.run(c,options.signal,signal=>(gate.render??renderDocumentJob)({document:fontProbeDocument(actual.document),images:{}},signal,snapshot,root??fontRoot()));
     if(!result.ok)for(const i of result.issues){
      const located=i.code==='FONT_GLYPH_MISSING'?locateMissingGlyphs(actual.document,coverage):[];
      issues.push(...(located.length?located:[fontIssue(i.code.startsWith('FONT_')?i.code:'FONT_CHECK_UNAVAILABLE')]));

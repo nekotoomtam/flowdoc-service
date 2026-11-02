@@ -1,3 +1,4 @@
+import type {DocumentJobRenderer} from '../jobs/render.js';
 import type {PoolClient} from 'pg';
 import {randomUUID} from 'node:crypto';
 import {OperationError} from '../errors.js';
@@ -8,13 +9,14 @@ const unavailable=()=>new OperationError('UNAVAILABLE','font','Native font check
  * Actual-input callers must supply their checked-out transaction client. The
  * nonblocking database permit also bounds native checks across service processes.
  */
-export function createFontPreflightGate(resources?:Resources){
+export function createFontPreflightGate(resources?:Resources,render?:DocumentJobRenderer){
  type Waiting={signal:AbortSignal|undefined;work:()=>Promise<unknown>;resolve:(value:any)=>void;reject:(error:unknown)=>void;cancel:()=>void;timer?:NodeJS.Timeout};
  const waiting:Waiting[]=[];let admitting=false,admissionDone:Promise<void>|undefined;
  const rejectWaiting=(w:Waiting,error:unknown)=>{const i=waiting.indexOf(w);if(i>=0)waiting.splice(i,1);clearTimeout(w.timer);w.signal?.removeEventListener('abort',w.cancel);w.reject(error);};
  function drain(){if(admitting||closing||poisoned)return;const w=waiting.shift();if(!w)return;clearTimeout(w.timer);w.signal?.removeEventListener('abort',w.cancel);admitting=true;admissionDone=Promise.resolve().then(w.work).then(w.resolve,w.reject).finally(()=>{admitting=false;admissionDone=undefined;drain();});}
  let active:{abort:AbortController;done:Promise<void>}|undefined,closing=false,poisoned=false;
  return {
+  render,
   isReady:()=>!closing&&!poisoned,
   admit<T>(signal:AbortSignal|undefined,maxWaiting:number,work:()=>Promise<T>):Promise<T>{
    if(closing||poisoned||signal?.aborted)return Promise.reject(unavailable());
@@ -22,7 +24,7 @@ export function createFontPreflightGate(resources?:Resources){
    return new Promise<T>((resolve,reject)=>{const w:Waiting={signal,work,resolve,reject,cancel:()=>rejectWaiting(w,unavailable())};waiting.push(w);w.timer=setTimeout(()=>rejectWaiting(w,unavailable()),120000);signal?.addEventListener('abort',w.cancel,{once:true});if(signal?.aborted)w.cancel();else drain();});
   },
   async run<T>(client:Pick<PoolClient,'query'>,signal:AbortSignal|undefined,work:(signal:AbortSignal)=>Promise<T>):Promise<T>{
-   if(closing||poisoned||active||signal?.aborted)throw unavailable();
+   if(closing||poisoned||active||signal?.aborted||(process.env.FLOWDOC_WORKER_ISOLATION==='required'&&!render))throw unavailable();
    const abort=new AbortController();let complete!:()=>void;const state={abort,done:new Promise<void>(r=>{complete=r;})};active=state;
    const cancelled=()=>abort.abort(unavailable());signal?.addEventListener('abort',cancelled,{once:true});if(signal?.aborted)cancelled();
    let grant:{release():void}|undefined,confirmed=true;
