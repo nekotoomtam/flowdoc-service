@@ -1,3 +1,5 @@
+import type {WorkerLauncher} from '../workers/contracts.js';
+import {workerError} from '../workers/contracts.js';
 import {createReceiveIdle} from './receive-idle.js';
 import {parseOutputFormat} from './output-format.js';
 import type {TaskOwnership} from './ownership.js';
@@ -12,10 +14,11 @@ import {inspectPayload} from './payload.js';import {headerBudget,taskBoundary} f
 import {createQueueResources,type QueueResourceOptions} from './queue-resources.js';
 import {queuePolicy} from './policy.js';
 import {DEFAULT_QUEUE_PROFILE,isQueuePolicyVersion,usesInputWaitBudget} from './queue-profile.js';
-interface Dependencies{ownership?:TaskOwnership;deferRecovery?:boolean;pool:Pool;root:string;resolveCredential:(header:string)=>TaskIdentity|null|Promise<TaskIdentity|null>;policy?:Partial<TaskPolicy>;queueResources?:QueueResourceOptions;freeBytes?:()=>Promise<number>;removeFile?:(path:string)=>Promise<void>;writeChunk?:(handle:FileHandle,chunk:Buffer)=>Promise<void>}
+interface Dependencies{workerLauncher?:WorkerLauncher;ownership?:TaskOwnership;deferRecovery?:boolean;pool:Pool;root:string;resolveCredential:(header:string)=>TaskIdentity|null|Promise<TaskIdentity|null>;policy?:Partial<TaskPolicy>;queueResources?:QueueResourceOptions;freeBytes?:()=>Promise<number>;removeFile?:(path:string)=>Promise<void>;writeChunk?:(handle:FileHandle,chunk:Buffer)=>Promise<void>}
 interface Opening{outputFormat?:unknown;authorization:string;docKey:unknown;contentType:string;contentEncoding?:string;queueMode?:boolean}
 interface Receiving{authorization:string;taskId:string;contentType:string;body:Readable;signal?:AbortSignal}
 export async function createTaskIntake(deps:Dependencies){
+ if(process.env.FLOWDOC_WORKER_ISOLATION==='required'&&!deps.workerLauncher)throw workerError('WORKER_TASK_LAUNCHER_REQUIRED');
  let leader:PoolClient|undefined;
  async function canRecover(r:any){if(!deps.ownership?.isReady()||!leader||r.storage_identity!==deps.ownership.storageId||!r.runtime_owner_id||r.runtime_owner_id===deps.ownership.runtimeId)return false;
   try{return (await leader.query("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND locktype='advisory' AND classid=0 AND objid=60430404 AND objsubid=1 AND granted) AS held")).rows[0].held===true;}catch{return false;}
@@ -161,7 +164,7 @@ export async function createTaskIntake(deps:Dependencies){
  const isReady=()=>!closing&&!quarantined&&(!deps.ownership||deps.ownership.isReady())&&(!resources.enabled()||resources.ready());
  if(!deps.deferRecovery)await sweep(true);let maintenance:Promise<void>|undefined;
  const timer=setInterval(()=>{if(closing||maintenance||deps.deferRecovery&&!leader)return;maintenance=sweep().catch(()=>{}).finally(()=>{maintenance=undefined;});},p.sweepMs);timer.unref();
- return {isReady,storageReady:repo.storageReady,authenticate,quarantined:()=>quarantined,processingContext:{pool,files,repo,owned,active,cleanup,policy:p,resources,ownership:deps.ownership},open,receive,normalize,receiveQueued,findings,reserve:repo.reserve,async inspect(header:string,id:string){return safeTask((await owned(header,id)).r);},fail,
+ return {isReady,storageReady:repo.storageReady,authenticate,quarantined:()=>quarantined,processingContext:{pool,files,repo,owned,active,cleanup,policy:p,resources,ownership:deps.ownership,workerLauncher:deps.workerLauncher},open,receive,normalize,receiveQueued,findings,reserve:repo.reserve,async inspect(header:string,id:string){return safeTask((await owned(header,id)).r);},fail,
   queueSnapshot:resources.snapshot,
   queueState(id:string){const state=queued.get(id);return state?{stage:state.stage,waitReason:state.stage==='waiting'?(resources.snapshot().intakes>=2?'receive_slot':'memory'):null}:null;},
   sharedQueueEnabled:resources.enabled,

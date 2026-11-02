@@ -1,3 +1,4 @@
+import {workerError} from '../workers/contracts.js';
 import {deliveryEvidence} from './delivery.js';
 import {artifactSpec,validateReceipt,DOCX_MAX_BYTES,docxDisclosure} from './artifact.js';
 import type { Pool, PoolClient } from 'pg';
@@ -41,6 +42,7 @@ type Execution = {
 const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 const reason = (e: any) => typeof e?.code === 'string' && /^[A-Z_]+$/.test(e.code) ? e.code : 'RENDER_FAILED';
 export async function createTaskProcessing(deps: Dependencies) {
+    if(process.env.FLOWDOC_WORKER_ISOLATION==='required'&&!deps.intake.processingContext.workerLauncher)throw workerError('WORKER_TASK_LAUNCHER_REQUIRED');
     const { pool, intake } = deps, { repo, files, owned, active, cleanup, resources } = intake.processingContext;
     const executing = new Map<string, Execution>();
     let closing = false, dispatching = false, stopUnconfirmed = false;

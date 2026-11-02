@@ -1,3 +1,5 @@
+import type {BlockedWorker} from '../workers/contracts.js';
+import {workerError} from '../workers/contracts.js';
 import {artifactSpec,validateReceipt,DOCX_MAX_BYTES,type ArtifactReceipt} from './artifact.js';
 import type {OutputFormat} from './output-format.js';
 import { spawn } from 'node:child_process';
@@ -40,6 +42,9 @@ export function fontWorkspaceBound(snapshot: any) {
 }
 /** One owned process group; only the parent publishes/account files, one 64KiB IPC write at a time. */
 export async function renderTask(c: Context, row: any, template: any, snapshot: any, signal: AbortSignal): Promise<TaskRenderReceipt> {
+    const launcher=c.workerLauncher;
+    if(!launcher&&process.env.FLOWDOC_WORKER_ISOLATION==='required')throw workerError('WORKER_TASK_LAUNCHER_REQUIRED');
+    if(launcher&&(!c.ownership?.isReady()||!Number.isInteger(c.ownership.fenceFd)))throw taskError('TASK_OWNER_UNAVAILABLE');
     if (process.platform !== 'linux')
         throw taskError('TASK_RUNTIME_UNAVAILABLE');
     signal.throwIfAborted();
@@ -57,9 +62,9 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
         throw taskError('INPUT_INTEGRITY');
     const env = { ...process.env, ...(c.ownership?{FLOWDOC_TASK_FENCE:c.ownership.directory,FLOWDOC_TASK_RUNTIME:c.ownership.runtimeId,PYTHON_EXECUTABLE:fileURLToPath(new URL('../../runtime/python/task_python.py',import.meta.url))}:{}), NODE_CHANNEL_FD: '3', NODE_CHANNEL_SERIALIZATION_MODE: 'advanced', TMPDIR: workspace, PYTHONDONTWRITEBYTECODE: '1' };
     const readGrant = await taskReadBudget.acquire(row.id,signal);
-    let child:ReturnType<typeof spawn>;
-    try {child = spawn(process.env.PYTHON_EXECUTABLE ?? 'python', [fileURLToPath(new URL('../../runtime/python/task_launcher.py', import.meta.url)), String(bound.fileBytes), process.execPath, fileURLToPath(new URL('./render-child.js', import.meta.url))], { env, detached: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc',...(c.ownership?[c.ownership.fenceFd]:[])], serialization: 'advanced' });}
-    catch(e){readGrant.release();throw e;}
+    let child:ReturnType<typeof spawn>,handle:BlockedWorker|undefined;
+    try {if(launcher){handle=await launcher.spawnBlocked({kind:'task-render',deadlineAt:Date.now()+Math.min(p.processMs,Math.max(1,Number(row.remaining)||p.processMs)),signal,fenceFd:c.ownership!.fenceFd,fileBytes:bound.fileBytes,env:{FLOWDOC_TASK_FENCE:c.ownership!.directory,FLOWDOC_TASK_RUNTIME:c.ownership!.runtimeId,PYTHON_EXECUTABLE:fileURLToPath(new URL('../../runtime/python/task_python.py',import.meta.url)),TMPDIR:workspace}});child=handle.child;}else child = spawn(process.env.PYTHON_EXECUTABLE ?? 'python', [fileURLToPath(new URL('../../runtime/python/task_launcher.py', import.meta.url)), String(bound.fileBytes), process.execPath, fileURLToPath(new URL('./render-child.js', import.meta.url))], { env, detached: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc',...(c.ownership?[c.ownership.fenceFd]:[])], serialization: 'advanced' });}
+    catch(e){if((e as any)?.code!=='WORKER_STOP_UNCONFIRMED')readGrant.release();throw e;}
     let closed = false, failed: unknown, completion: TaskRenderReceipt | undefined, handling = false, chain = Promise.resolve(), workspaceBytes = 0, workspaceClosed = false, preparationFindings = 0, preparationOmitted = 0;
     const handles = new Map<string, {
         handle: FileHandle;
@@ -72,7 +77,9 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
         byteLength: number;
         sha256: string;
     }>();
+    let stopUnknown:unknown;let unknownResolve!:()=>void,cancelResolve!:()=>void;const unknownStop=new Promise<void>(r=>unknownResolve=r),cancelled=new Promise<void>(r=>cancelResolve=r);
     const kill = () => {
+        if(handle){void handle.stop('task limit/error').catch(e=>{stopUnknown=e;unknownResolve();});return;}
         if (!closed && child.pid)
             try {
                 process.kill(-child.pid, 'SIGKILL');
@@ -80,14 +87,16 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
             catch { }
     };
     const abort = () => {
+        cancelResolve();
         send({ type: 'abort', code: (signal.reason as any)?.code ?? 'WORKER_INTERRUPTED' });
     };
     function send(message:any){
-        if(!child.connected)return;
+        if(!child.connected||(handle&&handle.state!=='started'))return;
         try{child.send(message,error=>{if(error){failed??=taskError('RENDER_FAILED');kill();}});}
         catch{failed??=taskError('RENDER_FAILED');kill();}
     }
     const stop = async () => {
+        if(handle){await handle.stop('task stop');return;}
         abort();
         if (!closed) {
             const timer = setTimeout(kill, p.stopMs);
@@ -245,9 +254,11 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
             throw taskError('TASK_RUNTIME_UNAVAILABLE');
         await c.ownership?.trackChild(child.pid);
         await pool.query('UPDATE tasks SET child_pid=$2,child_host=$3 WHERE id=$1', [row.id, child.pid, hostname()]);
+        signal.throwIfAborted();
+        if(handle){await handle.bind();signal.throwIfAborted();await handle.start();signal.throwIfAborted();}
         send({ type: 'init', input: { normalizationVersion:row.normalization_version,outputFormat:row.output_format,taskId:row.id,readCacheBytes:readGrant.cacheBytes,fieldIndexBytes:readGrant.indexBytes,recordReuseBytes:readGrant.recordBytes,path: await files.path(normalized.storage_key), digest: row.normalized_digest, template, templateFingerprint: row.template_pin.fingerprint, core: { version: row.normalization_summary.coreVersion, sha256: row.normalization_summary.coreSha256 }, fontSnapshot: snapshot, fontRoot: process.env.FONT_STORAGE_DIR ?? 'staging/fonts', workspace, sources, policy: p } });
-        const cancelled = new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }));
-        await Promise.race([closure, cancelled]);
+        await Promise.race([closure, cancelled,unknownStop]);
+        if(stopUnknown)throw stopUnknown;
         if (signal.aborted)
             await stop();
         await closure;
@@ -264,8 +275,10 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
     finally {
         clearInterval(memory);
         signal.removeEventListener('abort', abort);
-        if (!closed)
-            await stop();
+        // Placement owner confirms the entire cgroup and direct-child reap first.
+        // Unknown stop deliberately leaves owner tracking, reader credit and scratch.
+        if(handle)await handle.stop('task cleanup');
+        else if (!closed)await stop();
         await chain;
         for (const h of handles.values())
             try {
@@ -273,7 +286,7 @@ export async function renderTask(c: Context, row: any, template: any, snapshot: 
             }
             catch { }
         // Group close is required before releasing its scratch promise, including failed Python descendants.
-        if (child.pid && !await groupStopped(child.pid, hostname(), hostname())) {
+        if (!handle && child.pid && !await groupStopped(child.pid, hostname(), hostname())) {
             try {
                 process.kill(-child.pid, 'SIGKILL');
             }
