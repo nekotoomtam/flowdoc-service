@@ -177,7 +177,10 @@ class Broker:
       try:self.reply(s,request_id,{'step':'MIGRATE_SELF','group':x.group,'epoch':self.epoch},fd=fd)
       finally:os.close(fd)
      elif op=='COMMIT':
-      if x.state!='bound'or exited(x.pidfd):raise ValueError('not bound')
+      if x.state!='bound':raise ValueError('not bound')
+      if exited(x.pidfd):
+       # An authenticated lease lost its child; preserve the session for stop proof.
+       self.kill(x);self.reply(s,request_id,code='WORKER_GATE_FAILED');continue
       x.state='started';self.save();self.reply(s,request_id,{'state':'started'});continue
      elif op=='CANCEL':self.kill(x);self.reply(s,request_id,{'state':x.state});continue
      elif op=='WAIT_EMPTY':self.reply(s,request_id,{'empty':self.stopped(x)});continue
