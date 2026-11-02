@@ -44,7 +44,28 @@ byte identities ด้านล่าง หลักฐาน writer เป็�
 
 แผนผูกกับ system identifier ของ PostgreSQL, database OID, schema, taskId,
 หลักฐาน writer และ snapshot digest การ apply ตรวจซ้ำภายใต้ task-row lock
-ต้องใช้สิทธิ์อ่าน `pg_control_system()`/ตารางที่เกี่ยวข้อง และ INSERT ใน task_events
+โปรไฟล์สิทธิ์ที่พิสูจน์กับ candidate/schema028 บน PostgreSQL18 ในสำเนา lab คือ:
+
+| สิทธิ์ | บัญชีวางแผน | บัญชีใช้แผน |
+| --- | --- | --- |
+| CONNECT ฐานเป้าหมาย และ USAGE schema public | ต้องมี | ต้องมี |
+| SELECT schema_migrations เฉพาะ name, checksum | ต้องมี | ต้องมี |
+| SELECT tasks, task_findings, task_events, task_resource_reservations | ต้องมี | ต้องมี |
+| EXECUTE pg_catalog.pg_control_system() | ต้องมี | ต้องมี |
+| UPDATE เฉพาะ tasks.id สำหรับ SELECT FOR UPDATE | ไม่มี | ต้องมี |
+| INSERT เฉพาะ task_events: task_id, sequence, event_key, event_type, previous_state, new_state, actor, reason, detail | ไม่มี | ต้องมี |
+| EXECUTE pg_catalog.uuidv7() สำหรับ default event id | ไม่มี | ต้องมี |
+
+PostgreSQL ต้องการ UPDATE อย่างน้อยหนึ่งคอลัมน์เพื่อใช้ row lock แม้คำสั่งกู้
+ไม่ UPDATE task เลย จึงจำกัดไว้ที่ id ซึ่ง identity guard เดิมปฏิเสธการเปลี่ยนค่า
+ไม่ใช่สิทธิ์ UPDATE ทั้งตาราง การอ่าน snapshot ผ่าน to_jsonb ต้องอ่านทุกคอลัมน์
+ในสี่ตารางนั้น โปรไฟล์นี้ไม่ให้ SELECT generation_jobs หรือ document_outputs
+และไม่ให้ INSERT id/created_at ของ task_events โดยตรง
+
+ผลทดสอบไม่ต้องใช้ uuidv7(interval), TEMP, CREATE, DELETE, ALTER, owner,
+superuser, pg_monitor หรือ role membership อื่น และปฏิเสธการ SET ROLE เป็น owner
+นี่คือโปรไฟล์ที่จำเป็นกับ implementation/schema และ catalog ACL ที่ทดสอบ
+ไม่ใช่การรับรองสิทธิ์ขั้นต่ำสำหรับ PostgreSQL/schema รุ่นอื่น
 หากอ่านตัวตนฐานข้อมูลไม่ได้ เครื่องมือจะปฏิเสธ ไม่มีการลดระดับการตรวจหรือขอสิทธิ์เอง
 ไม่เพิ่มสิทธิ์ให้ผู้เรียกผ่าน HTTP และไม่ควรเผยแพร่คำสั่งนี้เป็น public API
 
@@ -78,6 +99,14 @@ findings, usage, jobs, outputs หรือ reservations การรันซ�
 แผนผิดฐาน/ข้อมูลเปลี่ยน/ยอดไม่ตรง/receipt ขัดกันจะปฏิเสธ และธุรกรรมล้มเหลว rollback
 แผนและหลักฐานไม่ใช่กลไก authentication; ผู้ถือสิทธิ์ฐานข้อมูลยังต้องอยู่ในขอบเขต
 ที่ได้รับอนุญาต ผลทดสอบบนสำเนาไม่ได้รับรอง eligibility ของข้อมูลจริง
+
+การทบทวนสิทธิ์ยืนยันข้อจำกัดสองจุด: sourceEvidenceSha256/operator/basis เป็น
+คำรับรองที่เครื่องมือไม่ตรวจย้อนถึง executable เอง และบัญชีที่มี INSERT คอลัมน์
+ข้างต้นยังเขียน event/actor/detail ที่ทำให้เข้าใจผิดได้ด้วย SQL ตรง แม้ CLI จะมี
+validation ครบ การจำกัดคอลัมน์ไม่ใช่การบังคับ task scope หรือ semantics ในฐานข้อมูล
+จึงต้องใช้กับ operator ที่เชื่อถือได้ ไม่ใช้เป็นบัญชีแอปทั่วไปหรือมอบให้ผู้ใช้ที่ไม่ trusted
+ถ้าต้องบังคับขอบเขตดังกล่าวที่ฐานข้อมูล ต้องทบทวนแบบ write gateway/policy แยก
+ก่อนให้สิทธิ์จริง รอบตรวจสิทธิ์นี้ไม่ได้เพิ่ม gateway หรือเปลี่ยน runtime
 
 Service0.5.2 ชุดนี้ตรึง Core `0.5.2` ผ่าน vendor/manifest.json ให้ตรวจ checksum ก่อน
 build. รองรับ DOCX เซลล์รวม, border none, Area สุดท้ายชิดล่าง และการปรับ
