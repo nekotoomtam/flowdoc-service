@@ -1,6 +1,7 @@
 import {it,expect,beforeAll,beforeEach,afterAll} from 'vitest';
 import {createHash} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
+import {taskSnapshot} from '../dist/tasks/public.js';
 import {fixture,response,artifact,auth,body,contentType} from './taskDocxFixture.mjs';
 const f=fixture();beforeAll(()=>f.setup());beforeEach(()=>f.reset());afterAll(()=>f.close());
 it.each(['pdf','docx'])('creates and sends a real %s through installed Core and the child process',async format=>{
@@ -25,6 +26,6 @@ it('exports the previously unsupported mixed Thai/English relation as real DOCX 
  await f.save('supported-mixed-relation.docx',file.bytes);
 },30000);
 
-it('reports unavailable image placements as an explicit DOCX capability limit',async()=>{
- const id=await f.task('docx',0),out=response();await expect(f.manager.execute({authorization:auth,taskId:id,response:out})).rejects.toHaveProperty('code','DOCX_CAPABILITY_UNSUPPORTED');expect(Buffer.concat(out.parts).toString()).toContain('DOCX_UNSUPPORTED');
+it('exports unavailable image placements as a partial DOCX with retained diagnostics',async()=>{
+ const id=await f.task('docx',0),out=response(),result=await f.manager.execute({authorization:auth,taskId:id,response:out});expect(result.status).toBe('succeeded');const file=artifact(out.parts);expect(file.bytes.subarray(0,2).toString()).toBe('PK');const view=await taskSnapshot(f.pool,f.intake,auth,id);expect(view.task.completeness).toBe('partial');expect(view.task.counts).toMatchObject({findingCount:1,omittedImagePlacements:1});
 },30000);

@@ -376,7 +376,9 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core is installed solely from `vendor/flowdoc-core-0.5.2.tgz`. Older0.5.0/0.5.1 archives are retained as history.
+Core is installed solely from the archive named in `vendor/manifest.json`.
+The image-omission candidate uses `flowdoc-core-0.5.2-image-omissions-db828b2.tgz`;
+older archives are retained as history.
 Exact SHA256 and Core source commit are recorded in `vendor/manifest.json` and
 the lockfile; earlier candidate archives remain immutable. Service0.5.0 uses
 FlowDocMake0.3.0 with its0.5.0 pin; prepared Service0.5.2 uses FlowDocMake0.3.1
@@ -762,8 +764,17 @@ separate Core writer. Its receipt has the DOCX MIME type, null page count,
 `wordVerified:false`, required field refresh and buffered generation. The writer
 is bounded to32MiB and transports bounded chunks; it is not constant-memory
 streaming. Do not use PDF-only FlowDocMake task parsing for DOCX responses.
-Unsupported required text/image relations or unavailable image placements return
-an explicit DOCX capability failure; no PDF fallback or invented placeholders.
+Unsupported required text/image relations still return an explicit DOCX capability
+failure. For supported body image placements already diagnosed as unavailable,
+Service passes a bounded placement selection through Core's
+`docx-image-omissions/1` contract after durable diagnostics acknowledgements.
+The resulting DOCX succeeds with partial completeness, retains the authored
+frame and unaffected images, and contains no invented picture or PDF fallback.
+Clients cannot select omissions through HTTP. Missing undeclared resources and
+unsupported containers remain errors; direct Core callers remain strict by default.
+Startup refuses a Core without the exact capability before acquiring a DB pool
+or listener. The new private archive identity is recorded in the manifest and
+lockfile; no published artifact is replaced and no migration is added here.
 The previous complete-suite blocker is closed in this0.5.0 preparation:
 581 tests pass,0 fail, with5 environment-specific optional font-height tests
 not run. The18 mandatory paired I6 cases pass in the same complete run under

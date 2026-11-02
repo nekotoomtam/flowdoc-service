@@ -1,6 +1,6 @@
 import {projectArtifactReceipt,DOCX_MAX_BYTES} from './artifact.js';
 import {verifyEnvelopeFormat} from './output-format.js';
-import { composeTaskDocument, validateTemplate, createPdfEngine, createDocxEngine, PDF_STREAM_CONTRACT } from '@flowdoc/core';
+import { composeTaskDocument, validateTemplate, createPdfEngine, createDocxEngine, PDF_STREAM_CONTRACT, DOCX_IMAGE_OMISSIONS_CONTRACT } from '@flowdoc/core';
 import type { TaskValue, StreamPdfImage, PdfStreamRef } from '@flowdoc/core';
 import { createReadStream } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
@@ -220,8 +220,8 @@ async function run(input: any) {
                 }
             }
         }
-        // The packed DOCX API requires complete image resources; never insert placeholders.
-        if(format==='docx'&&omitted.size)throw error('DOCX_CAPABILITY_UNSUPPORTED');
+        // Core owns blank-frame layout. Only supported body placements may opt in.
+        if(format==='docx'&&[...omitted].some(id=>!Object.hasOwn(document.nodes,id)||document.nodes[id]?.type!=='image'))throw error('DOCX_CAPABILITY_UNSUPPORTED');
         const fonts = await snapshotResources(input.fontSnapshot, input.workspace, input.fontRoot);
         const engine = format==='docx'?await createDocxEngine(fonts):await createPdfEngine(fonts);
         if (!engine.ok)
@@ -241,7 +241,7 @@ async function run(input: any) {
         const sink = {write:(b:Uint8Array)=>pdfOutput!.write(b),async abort(){pdfOutput!.abort();}};
         // Both writers consume the same composition, prepared images and verified fonts.
         const result = format==='docx'
-            ? await (engine.value as import('@flowdoc/core').DocxEngine).generateDocxTo(document,provider,sink,{signal:abort.signal,maxBytes:input.policy.docxBytes??DOCX_MAX_BYTES})
+            ? await (engine.value as import('@flowdoc/core').DocxEngine).generateDocxTo(document,provider,sink,{signal:abort.signal,maxBytes:input.policy.docxBytes??DOCX_MAX_BYTES,...(omitted.size?{imageOmissions:{contract:DOCX_IMAGE_OMISSIONS_CONTRACT,nodeIds:[...omitted]}}:{})})
             : await (engine.value as import('@flowdoc/core').PdfEngine).generatePdfTo(document,provider,sink,{signal:abort.signal,maxBytes:input.policy.pdfBytes});
         if (!result.ok)
             throw error(result.issues[0]?.code ?? 'RENDER_FAILED');

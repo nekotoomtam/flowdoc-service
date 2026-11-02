@@ -9,6 +9,8 @@ import {createImagePreparer} from './images/prepare.js';
 import {transaction} from './db/connection.js';
 import {checkFontAdminAccess} from './http/fonts-admin.js';
 import {loadBundledResources} from '@flowdoc/core';
+import * as coreRuntime from '@flowdoc/core';
+import {OperationError} from './errors.js';
 import {resolve,join} from 'node:path';
 import {mkdir,readFile} from 'node:fs/promises';
 import {taskCredentials} from './tasks/config.js';
@@ -31,6 +33,7 @@ import {checkAuthoringAccess} from './http/authoring.js';
 function integer(name:string,value:string|undefined,fallback:number,max:number){const n=Number(value??fallback);if(!Number.isSafeInteger(n)||n<1||n>max)throw Error('Invalid '+name);return n;}
 export async function startService(){
  if(!process.env.DATABASE_URL)throw Error('DATABASE_URL required');
+ if(coreRuntime.DOCX_IMAGE_OMISSIONS_CONTRACT!=='docx-image-omissions/1')throw new OperationError('RENDERER_PIN_MISMATCH','runtime.core','Pinned Core image omission capability unavailable');
  // Validate every setting before acquiring a pool, coordinator, listener or timer.
  const workerConfig=readWorkerConfig(process.env);
  const jobConfig=readJobConfig(process.env);
