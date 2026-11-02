@@ -7,16 +7,22 @@ import {importCurrent,loadCurrent,saveCurrent} from './templates/current.js';
 import {publishCurrent} from './templates/publish.js';
 import {OperationError,failure} from './errors.js';
 import type {Result} from '@flowdoc/core';
+import {readRecoveryArtifact,planLegacyDiagnostics,applyLegacyDiagnostics} from './tasks/legacy-diagnostics-recovery.js';
 async function main():Promise<Result<unknown>>{
  const [command,...args]=process.argv.slice(2);
- const commands=['migrate','register <raw-template.json>','show <docKey> [version]','draft-import <raw-template.json>','draft-show <templateId>','draft-save <current-record.json>','publish <templateId> <requestId>'];
+ const commands=['migrate','register <raw-template.json>','show <docKey> [version]','draft-import <raw-template.json>','draft-show <templateId>','draft-save <current-record.json>','publish <templateId> <requestId>','diagnostics-plan <taskId> <writer-evidence.json>','diagnostics-apply <plan.json> <writer-evidence.json>'];
  if(command==='--help'&&args.length===0)return {ok:true,value:{commands},warnings:[]};
- if(!(command==='migrate'&&args.length===0||['register','draft-import','draft-show','draft-save'].includes(command??'')&&args.length===1||command==='publish'&&args.length===2||command==='show'&&(args.length===1||args.length===2)))throw new OperationError('INVALID_ARGUMENT','command','Use --help for command syntax');
+ if(!(command==='migrate'&&args.length===0||['register','draft-import','draft-show','draft-save'].includes(command??'')&&args.length===1||['publish','diagnostics-plan','diagnostics-apply'].includes(command??'')&&args.length===2||command==='show'&&(args.length===1||args.length===2)))throw new OperationError('INVALID_ARGUMENT','command','Use --help for command syntax');
  let version:number|undefined;
  if(command==='show'&&args.length===2){if(!/^[1-9]\d*$/.test(args[1]!))throw new OperationError('INVALID_ARGUMENT','version','Version must be a positive integer');version=Number(args[1]);if(!Number.isSafeInteger(version)||version>2147483647)throw new OperationError('INVALID_ARGUMENT','version','Version exceeds supported range');}
  const url=process.env.DATABASE_URL;if(!url)throw new OperationError('CONFIGURATION_ERROR','database','DATABASE_URL is required');
  const pool=createPool(url);pool.on('error',()=>{});
  try{
+  if(command==='diagnostics-plan'||command==='diagnostics-apply'){
+   const evidence=await readRecoveryArtifact(args[1]!);
+   const value=command==='diagnostics-plan'?await planLegacyDiagnostics(pool,args[0]!,evidence):await applyLegacyDiagnostics(pool,await readRecoveryArtifact(args[0]!),evidence);
+   return {ok:true,value,warnings:[]};
+  }
   if(command==='migrate')return await migrate(pool);
   if(command==='show')return await loadTemplate(pool,args[0]!,version);
   if(command==='draft-show')return await loadCurrent(pool,args[0]!);

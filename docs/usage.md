@@ -9,6 +9,76 @@ Project Control governs those claims.
 
 ## ชุดพัฒนา 0.5.2
 
+### เครื่องมือกู้ยอด diagnostics ของงานเก่า (candidate)
+
+ใช้ `diagnostics-plan <taskId> <writer-evidence.json>` เพื่อสร้างแผนแบบอ่านอย่างเดียว
+และ `diagnostics-apply <plan.json> <writer-evidence.json>` เพื่อใช้แผนหนึ่งงานโดยชัดแจ้ง
+เครื่องมือไม่ migrate, render, ส่งเอกสารซ้ำ, เปิด Service หรือ cleanup ไฟล์
+ผลลัพธ์ใช้รูปแบบ JSON Result เดียวกับ CLI เดิม
+
+ขอบเขตรุ่นแรกคือประวัติ model20 จาก writer `flowdoc-service/f82d7c6` ที่ตรงกับ
+byte identities ด้านล่าง หลักฐาน writer เป็น **คำรับรองของผู้ปฏิบัติงาน** ที่ต้อง
+ตรวจจากประวัติการรัน/แพ็กเกจจริงก่อน ไม่ใช่ลายเซ็น runtime และไฟล์นี้เพียงอย่างเดียว
+ไม่ได้พิสูจน์ว่า executable ใดเขียนงานนั้น รุ่น writer อื่นยังไม่รองรับ
+เอกสารนี้ไม่อนุญาตให้รันกับข้อมูลจริงหรือถือว่า candidate พร้อมติดตั้ง
+
+ตัวอย่างโครงไฟล์ writer-evidence.json (แทน taskId, SHA หลักฐาน, operator และ basis
+ด้วยค่าที่ทบทวนแล้ว; ใช้ UTF-8):
+
+```json
+{
+  "version": 1,
+  "kind": "legacy-diagnostics-writer-attestation",
+  "taskId": "REPLACE_WITH_EXACT_TASK_UUID",
+  "writer": "flowdoc-service/f82d7c6",
+  "sourceHashes": {
+    "src/tasks/render.ts": "538523243585683b4e6e17f7cebebcb2720fa23ee8adf37f6e926627097fd6c5",
+    "src/tasks/normalize.ts": "8ecea1faf3eadd826b1795ad73f4fe2396dd82683a0d40919b94f1f523b5072d",
+    "src/tasks/public.ts": "98bb6e52654ce61e8a61da88eabee1365e38d084c46abdec521cd215abdd033a"
+  },
+  "sourceEvidenceSha256": "REPLACE_WITH_64_HEX_SHA256_OF_REVIEWED_SOURCE_EVIDENCE",
+  "operator": "reviewed-operator",
+  "basis": "Describe the independently reviewed execution/package evidence"
+}
+```
+
+แผนผูกกับ system identifier ของ PostgreSQL, database OID, schema, taskId,
+หลักฐาน writer และ snapshot digest การ apply ตรวจซ้ำภายใต้ task-row lock
+ต้องใช้สิทธิ์อ่าน `pg_control_system()`/ตารางที่เกี่ยวข้อง และ INSERT ใน task_events
+หากอ่านตัวตนฐานข้อมูลไม่ได้ เครื่องมือจะปฏิเสธ ไม่มีการลดระดับการตรวจหรือขอสิทธิ์เอง
+ไม่เพิ่มสิทธิ์ให้ผู้เรียกผ่าน HTTP และไม่ควรเผยแพร่คำสั่งนี้เป็น public API
+
+ใช้กับเป้าหมายที่ได้รับอนุญาตและมีการควบคุม writer ของงานนั้นแล้วเท่านั้น
+task-row lock ป้องกัน writer ที่ทำตามสัญญา Service เดิม ไม่ได้ fence DBA หรือ writer
+ภายนอกที่ไม่ใช้ lock เดียวกัน การทบทวนสิทธิ์และการควบคุมงานจริงยังเป็นงานแยก
+
+แผนที่ `decision=RECOVERABLE_EXACT` เท่านั้นจะมี `value.plan` ให้ใช้ต่อ ตัวอย่าง
+PowerShell สำหรับสำเนาที่อนุญาตแล้ว โดย DATABASE_URL ต้องชี้สำเนานั้น:
+
+```powershell
+$result = node dist/cli.js diagnostics-plan $taskId .\writer-evidence.json | ConvertFrom-Json
+if (-not $result.ok -or $result.value.decision -ne 'RECOVERABLE_EXACT') {
+  throw 'No exact recovery plan; review the decision before proceeding'
+}
+$json = $result.value.plan | ConvertTo-Json -Depth 20
+[IO.File]::WriteAllText((Join-Path $PWD 'diagnostics-plan.json'), $json, [Text.UTF8Encoding]::new($false))
+# Review the plan and authorization before this separate write command.
+node dist/cli.js diagnostics-apply .\diagnostics-plan.json .\writer-evidence.json
+```
+
+งานต้อง failed/expired, ไม่มี child/writer/lease ที่ถืออยู่, คืน queue slot แล้ว,
+มี normalization และ finding ที่สอดคล้องกัน และจำนวนรายละเอียดต่ำกว่าเพดาน
+เต็มเพดาน/ข้อมูลไม่ครบ/หลักฐานผิดรูปจะไม่มีแผนให้ใช้ ไม่เดายอดที่หายไป
+มี ledger/summary อยู่แล้วหรือ preparation เป็นศูนย์จะไม่เขียนเพิ่ม
+ไฟล์แผน/หลักฐานจำกัด64KiB และ evidence read budget8MiB เพื่อคงงบหน่วยความจำ
+
+apply เพิ่มเฉพาะ immutable `preparation-finding` event ที่ระบุ
+`legacy-reconstruction/1` และ proof/evidence digests ไม่เปลี่ยน task outcome,
+findings, usage, jobs, outputs หรือ reservations การรันซ้ำตรวจ receipt เดิมทั้งชุด
+แผนผิดฐาน/ข้อมูลเปลี่ยน/ยอดไม่ตรง/receipt ขัดกันจะปฏิเสธ และธุรกรรมล้มเหลว rollback
+แผนและหลักฐานไม่ใช่กลไก authentication; ผู้ถือสิทธิ์ฐานข้อมูลยังต้องอยู่ในขอบเขต
+ที่ได้รับอนุญาต ผลทดสอบบนสำเนาไม่ได้รับรอง eligibility ของข้อมูลจริง
+
 Service0.5.2 ชุดนี้ตรึง Core `0.5.2` ผ่าน vendor/manifest.json ให้ตรวจ checksum ก่อน
 build. รองรับ DOCX เซลล์รวม, border none, Area สุดท้ายชิดล่าง และการปรับ
 ขอบเซลล์ native โดยคง line height. ชุดทดสอบ Service รวมและคู่มือ/plugin ต้อง
