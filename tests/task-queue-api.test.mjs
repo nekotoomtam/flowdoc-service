@@ -1,3 +1,5 @@
+import{readQueueMemory}from'../dist/tasks/queue-resources.js';
+import{unitQueueResources}from'./helpers/unit-queue-headroom.mjs';
 import{beforeAll,beforeEach,afterAll,it,expect}from'vitest';import{Readable}from'node:stream';import{readFileSync}from'node:fs';import{mkdtemp,writeFile,readFile}from'node:fs/promises';import{tmpdir}from'node:os';import{join}from'node:path';import{pathToFileURL}from'node:url';import{request}from'node:http';import{createHash}from'node:crypto';
 import{isolatedDatabase}from'./isolatedDatabase.mjs';import{migrate}from'../dist/db/migrate.js';import{registerTemplate}from'../dist/templates/registry.js';import{createTaskIntake}from'../dist/tasks/intake.js';import{createTaskProcessing}from'../dist/tasks/processing.js';import{startProcessor}from'../dist/jobs/processor.js';import{createServer}from'../dist/http/server.js';
 const{generateDocumentTask}=await import(pathToFileURL(join(process.env.STAGE5_PLUGIN_ROOT,'scripts/task-client.mjs')).href);
@@ -9,7 +11,7 @@ const headers={authorization:auth,'doc-key':'queue-api','content-type':'multipar
 const until=async check=>{const end=Date.now()+15000;while(!await check()){if(Date.now()>end)throw Error('condition timeout');await new Promise(r=>setTimeout(r,10));}};
 async function close(){await app?.close();await manager?.stop();await processor?.stop();await intake?.stop();app=manager=processor=intake=undefined;}
 beforeAll(async()=>{await db.setup();expect((await migrate(pool)).ok).toBe(true);expect((await registerTemplate(pool,JSON.stringify(template()))).ok).toBe(true);});
-beforeEach(async()=>{await close();paused=true;root=await mkdtemp(join(tmpdir(),'queue-api-'));intake=await createTaskIntake({pool,root:join(root,'tasks'),resolveCredential:identity,freeBytes:async()=>20_000_000_000});manager=await createTaskProcessing({pool,intake,workerReady:()=>paused||processor?.isReady()});app=createServer({pool,outputs:{},isReady:()=>true,authoring:{token,principal:'author'},tasks:{intake,processing:manager}});base=await app.listen({host:'127.0.0.1',port:0});});
+beforeEach(async()=>{await close();paused=true;root=await mkdtemp(join(tmpdir(),'queue-api-'));intake=await createTaskIntake({pool,root:join(root,'tasks'),resolveCredential:identity,queueResources:{readMemory:async()=>({...await readQueueMemory(),...await unitQueueResources.readMemory()})},freeBytes:async()=>20_000_000_000});manager=await createTaskProcessing({pool,intake,workerReady:()=>paused||processor?.isReady()});app=createServer({pool,outputs:{},isReady:()=>true,authoring:{token,principal:'author'},tasks:{intake,processing:manager}});base=await app.listen({host:'127.0.0.1',port:0});});
 afterAll(async()=>{await close();await db.close();});
 const capability=async()=>{const r=await(await fetch(base+'/authoring/contract',{headers:{authorization:auth}})).json();return r.value.documents.queue;};
 it('delivers terminal metric-loss feedback through HTTP and FlowDocMake for two processing tasks',async()=>{
