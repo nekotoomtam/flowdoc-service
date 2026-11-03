@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "nodeModelVersion": 19,
-  "templateId": "format-sizing-v1",
+  "nodeModelVersion": 20,
+  "templateId": "f15b7023-a8ad-57ae-8a23-5ce31fce739b",
   "docKey": "format-sizing-v1",
   "version": 1,
   "name": "Format sizing acceptance",
@@ -125,7 +125,7 @@
   },
   "sections": [
     {
-      "id": "10000000-0000-4000-8000-000000000001",
+      "id": "8139b451-da18-576a-89d9-45acedb387a9",
       "label": "Document1",
       "nameBase": "Document",
       "inputSchema": {
@@ -157,7 +157,8 @@
             }
           }
         }
-      }
+      },
+      "sectionKey": "S0001"
     }
   ]
 }

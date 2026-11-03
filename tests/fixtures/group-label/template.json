@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "nodeModelVersion": 19,
-  "templateId": "tpl-srs-basic",
+  "nodeModelVersion": 20,
+  "templateId": "990c35f1-7ca3-55c7-8853-160538a2d398",
   "docKey": "srs-basic",
   "version": 1,
   "name": "SRS MVP",
@@ -53,7 +53,7 @@
   },
   "sections": [
     {
-      "id": "10000000-0000-4000-8000-000000000011",
+      "id": "3e2783ac-4f70-5df6-8c4c-506340f92a83",
       "source": {
         "kind": "authored",
         "repeats": [],
@@ -82,7 +82,8 @@
         }
       },
       "label": "Results 1",
-      "nameBase": "Results"
+      "nameBase": "Results",
+      "sectionKey": "S0001"
     }
   ],
   "areaFormats": {

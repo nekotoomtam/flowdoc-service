@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "nodeModelVersion": 19,
+  "templateId": "format-sizing-v1",
+  "docKey": "format-sizing-v1",
+  "version": 1,
+  "name": "Format sizing acceptance",
+  "book": {
+    "contentSlot": "body",
+    "defaultPageLayoutId": "portrait"
+  },
+  "globalSchema": {
+    "type": "object",
+    "fields": {}
+  },
+  "styles": {
+    "body": {
+      "fontFamilyKey": "sarabun",
+      "fontWeight": "normal",
+      "fontSize": {
+        "value": 12,
+        "unit": "pt"
+      },
+      "lineHeightPt": 20
+    }
+  },
+  "examples": [],
+  "areaFormats": {
+    "panel": {
+      "key": "panel",
+      "ownerAreaId": "parts",
+      "sizing": {
+        "mode": "fixed",
+        "height": {
+          "value": 100,
+          "unit": "pt"
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "fields": {
+          "text": {
+            "type": "string",
+            "required": true
+          }
+        }
+      },
+      "repeats": [],
+      "fragment": {
+        "rootIds": [
+          "text"
+        ],
+        "nodes": {
+          "text": {
+            "id": "text",
+            "type": "text-block",
+            "role": {
+              "role": "paragraph"
+            },
+            "props": {
+              "textStyleId": "body"
+            },
+            "children": [
+              {
+                "id": "value",
+                "type": "field-ref",
+                "scope": "local",
+                "key": "text"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "pageLayouts": {
+    "portrait": {
+      "page": {
+        "size": "A4",
+        "orientation": "portrait",
+        "margin": {
+          "top": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "right": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "bottom": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "left": {
+            "value": 20,
+            "unit": "mm"
+          }
+        }
+      }
+    },
+    "landscape": {
+      "page": {
+        "size": "A4",
+        "orientation": "landscape",
+        "margin": {
+          "top": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "right": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "bottom": {
+            "value": 20,
+            "unit": "mm"
+          },
+          "left": {
+            "value": 20,
+            "unit": "mm"
+          }
+        }
+      }
+    }
+  },
+  "sections": [
+    {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "label": "Document1",
+      "nameBase": "Document",
+      "inputSchema": {
+        "type": "object",
+        "fields": {
+          "parts": {
+            "type": "area",
+            "areaId": "parts"
+          }
+        }
+      },
+      "pageLayoutId": "portrait",
+      "headerMode": "continuation",
+      "footerMode": "continuation",
+      "source": {
+        "kind": "authored",
+        "repeats": [],
+        "fragment": {
+          "rootIds": [
+            "parts"
+          ],
+          "nodes": {
+            "parts": {
+              "id": "parts",
+              "type": "area",
+              "props": {
+                "areaId": "parts"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

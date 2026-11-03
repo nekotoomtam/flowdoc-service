@@ -44,18 +44,18 @@ it('returns nested input schemas without graphs and rejects invalid nested value
  const r=request(),contract=ok((await app.inject('/templates/'+r.docKey+'/contract?version=1')).json());
  expect(contract.areaFormats.meeting.inputSchema.fields.companies.items.fields.members.items.fields.photo.type).toBe('image');expect(JSON.stringify(contract)).not.toContain('rowTemplateIds');
  const count=(await db.pool.query('SELECT count(*) FROM generation_jobs')).rows[0].count;
- for(const members of [null,'wrong',[{name:123}],undefined]){const bad=request();bad.sections.main.data.content[0].data.companies[0]={name:'Company',...(members===undefined?{}:{members})};const res=await app.inject({method:'POST',url:'/jobs',payload:bad});expect(res.statusCode).toBe(422);expect(res.json().issues.some(i=>i.path.includes('companies[0].members'))).toBe(true);}
+ for(const members of [null,'wrong',[{name:123}],undefined]){const bad=request();bad.sections[0].data.content[0].data.companies[0]={name:'Company',...(members===undefined?{}:{members})};const res=await app.inject({method:'POST',url:'/jobs',payload:bad});expect(res.statusCode).toBe(422);expect(res.json().issues.some(i=>i.path.includes('companies[0].members'))).toBe(true);}
  expect((await db.pool.query('SELECT count(*) FROM generation_jobs')).rows[0].count).toBe(count);
 });
 it('returns an actionable client error for Core expansion limits without enqueueing',async()=>{
- const r=request();r.sections.main.data.content[0].data.companies=[{name:'Large',members:[{name:'x\n'.repeat(50001)}]}];
+ const r=request();r.sections[0].data.content[0].data.companies=[{name:'Large',members:[{name:'x\n'.repeat(50001)}]}];
  const count=(await db.pool.query('SELECT count(*) FROM generation_jobs')).rows[0].count;
  const res=await app.inject({method:'POST',url:'/jobs',payload:r});expect(res.statusCode,res.body).toBe(422);expect(res.json().issues[0].code).toBe('EXPANSION_LIMIT');
  expect((await db.pool.query('SELECT count(*) FROM generation_jobs')).rows[0].count).toBe(count);
 });
 it('reloads nested prepared data, renders member images/links, and retains pinned published input',async()=>{
  for(const staged of [false,true]){
-  const r=request();r.version=1;const members=r.sections.main.data.content[0].data.companies[0].members;
+  const r=request();r.version=1;const members=r.sections[0].data.content[0].data.companies[0].members;
   for(const m of members)m.link={type:'link',text:'Reference',url:'https://example.com/member'};
   if(staged){const u=await upload();r.uploadId=u.uploadId;for(const m of members)m.photo=u.items[0].resourceId;}
   const res=await app.inject({method:'POST',url:'/jobs',payload:r});expect(res.statusCode,res.body).toBe(202);const id=ok(res.json()).jobId;
@@ -65,9 +65,9 @@ it('reloads nested prepared data, renders member images/links, and retains pinne
  }
 },30000);
 it('supports empty arrays and refuses forged nested prepared values on worker reload',async()=>{
- for(const companies of [[],[{name:'Empty',members:[]}]]){const r=request();r.sections.main.data.content[0].data.companies=companies;const res=await app.inject({method:'POST',url:'/jobs',payload:r});expect(res.statusCode,res.body).toBe(202);expect((await waitJob(ok(res.json()).jobId)).status).toBe('succeeded');}
+ for(const companies of [[],[{name:'Empty',members:[]}]]){const r=request();r.sections[0].data.content[0].data.companies=companies;const res=await app.inject({method:'POST',url:'/jobs',payload:r});expect(res.statusCode,res.body).toBe(202);expect((await waitJob(ok(res.json()).jobId)).status).toBe('succeeded');}
  await processor.stop();processor=undefined;const r=request(),res=await app.inject({method:'POST',url:'/jobs',payload:r});expect(res.statusCode).toBe(202);const accepted=ok(res.json()).jobId;
- const path='{sections,main,data,content,entries,0,data,companies,0,members,0,name}';
+ const path='{sections,0,data,content,entries,0,data,companies,0,members,0,name}';
  await expect(db.pool.query('UPDATE generation_jobs SET prepared_input=jsonb_set(prepared_input,$1,$2) WHERE id=$3',[path,'"FORGED"',accepted])).rejects.toBeDefined();
  const id=(await db.pool.query('INSERT INTO generation_jobs(id,template_version_id,original_input,prepared_input,warnings_json,skipped_indices) SELECT uuidv7(),template_version_id,original_input,jsonb_set(prepared_input,$1,$2),warnings_json,skipped_indices FROM generation_jobs WHERE id=$3 RETURNING id',[path,'"FORGED"',accepted])).rows[0].id;
  processor=await startProcessor({pool:db.pool,files:await createPdfFiles(join(root,'pdf')),policy:{retain:true,ttlHours:24,tempHours:24},resources:{files:await createResourceFiles(join(root,'staging')),config:readUploadConfig({})}});
@@ -80,5 +80,5 @@ it('exposes keepStart fallback warnings through completed job status',async()=>{
  ok(await importCurrent(db.pool,JSON.stringify(t)));ok(await publishCurrent(db.pool,{templateId:t.templateId,requestId:'fallback'}));
  const r=request();r.docKey=t.docKey;const res=await app.inject({method:'POST',url:'/jobs',payload:r});expect(res.statusCode).toBe(202);
  const view=await waitJob(ok(res.json()).jobId);expect(view.status,JSON.stringify(view)).toBe('succeeded');
- const warnings=view.warnings.filter(w=>w.code==='ROW_GROUP_KEEP_START_RELAXED');expect(warnings.map(w=>w.groupIndex)).toEqual([0,1]);expect(warnings.every(w=>w.groupId==='companies'&&w.sectionId==='main')).toBe(true);
+ const warnings=view.warnings.filter(w=>w.code==='ROW_GROUP_KEEP_START_RELAXED');expect(warnings.map(w=>w.groupIndex)).toEqual([0,1]);expect(warnings.every(w=>w.groupId==='companies'&&w.sectionId==='instance-I0001')).toBe(true);
 },30000);

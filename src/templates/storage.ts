@@ -22,13 +22,8 @@ export async function readRecord(c:PoolClient,id:string,version=false):Promise<C
 export async function writeCurrent(c:PoolClient,r:CurrentRecord,inherited:ReferenceSet|null=null,additionalInherited:ReferenceSet[]=[]):Promise<void>{
  checkRecord(r);
  const prior=(await c.query('SELECT revision FROM template_current WHERE template_id=$1',[r.templateId])).rows[0];
- const currentPublicIds=new Set<string>();
  const previous=prior?await readReferences(c,r.templateId,prior.revision):inherited;
- if(prior){const old=validateTemplate(assemble(await readRecord(c,r.templateId),1));if(!old.ok)throw new OperationError('STORAGE_FAILED','draft','Stored draft failed validation');verifyReferences(old.value.definition,old.value.fingerprint,previous);for(const section of old.value.definition.sections)currentPublicIds.add(section.id);}
- if(r.payload.nodeModelVersion===19)for(const section of r.sections??[]){
-  const inserted=await c.query('INSERT INTO section_instance_history(template_id,public_id) VALUES($1,$2) ON CONFLICT DO NOTHING RETURNING public_id',[r.templateId,section.sourceDefinitionId]);
-  if(!inserted.rowCount&&!currentPublicIds.has(section.sourceDefinitionId))throw new OperationError('SECTION_ID_REUSED','sections.id','Deleted public Section IDs cannot be reused');
- }
+ if(prior){const old=validateTemplate(assemble(await readRecord(c,r.templateId),1));if(!old.ok)throw new OperationError('STORAGE_FAILED','draft','Stored draft failed validation');verifyReferences(old.value.definition,old.value.fingerprint,previous);}
  // Retain original creation times when replacing an ID-bearing current graph.
  const times=new Map<string,Date>();for(const row of (await c.query('SELECT id,created_at FROM sections WHERE template_id=$1 UNION ALL SELECT id,created_at FROM formats WHERE template_id=$1 UNION ALL SELECT id,created_at FROM variable_schemas WHERE template_id=$1 UNION ALL SELECT v.id,v.created_at FROM variables v JOIN variable_schemas s ON s.id=v.schema_id WHERE s.template_id=$1',[r.templateId])).rows)times.set(row.id,row.created_at);
  await c.query('INSERT INTO template_current(template_id,payload) VALUES($1,$2) ON CONFLICT(template_id) DO UPDATE SET payload=$2,revision=template_current.revision+1,updated_at=now()',[r.templateId,JSON.stringify(r.payload)]);

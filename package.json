@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@fastify/busboy": "3.2.3",
-    "@flowdoc/core": "file:vendor/flowdoc-core-0.5.2-image-omissions-db828b2.tgz",
+    "@flowdoc/core": "file:vendor/flowdoc-core-0.5.2-model20-only-6f36c42.tgz",
     "@modelcontextprotocol/server": "2.3.1",
     "fastify": "5.12.5",
     "ipaddr.js": "2.5.0",

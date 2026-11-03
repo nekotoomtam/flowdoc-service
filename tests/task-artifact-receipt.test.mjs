@@ -11,11 +11,11 @@ import * as artifact from '../dist/tasks/artifact.js';
 const project=(format,r)=>artifact.projectArtifactReceipt?.(format,r)??({...r,mediaType:artifact.artifactSpec(format).mediaType,...(format==='docx'?artifact.docxDisclosure:{})});
 it('keeps a real 1800-record DOCX completion below the unchanged IPC guard without truncating Core diagnostics',async()=>{
  const sid='00000000-0000-4000-8000-000000000001',t=JSON.parse(await readFile('examples/area-document-template.json','utf8'));
- t.templateId=t.docKey='audit-fixture';t.name='audit-fixture';t.nodeModelVersion=19;t.version=1;t.examples=[];t.globalSchema={type:'object',fields:{}};
+ t.templateId=t.docKey='audit-fixture';t.name='audit-fixture';t.nodeModelVersion=20;t.version=1;t.examples=[];t.globalSchema={type:'object',fields:{}};
  t.areaFormats={item:{key:'item',ownerAreaId:'parts',inputSchema:{type:'object',fields:{message:{type:'string',required:true}}},repeats:[],fragment:{rootIds:['text'],nodes:{text:{id:'text',type:'text-block',role:{role:'paragraph'},props:{textStyleId:'body'},children:[{id:'leaf',type:'field-ref',scope:'local',key:'message'}]}}}}};
- t.sections=[{id:sid,label:'Audit',nameBase:'Audit',inputSchema:{type:'object',fields:{parts:{type:'area',areaId:'parts'}}},source:{kind:'authored',repeats:[],fragment:{rootIds:['parts'],nodes:{parts:{id:'parts',type:'area',props:{areaId:'parts'}}}}}}];
+ t.sections=[{id:sid,sectionKey:'task-section',label:'Audit',nameBase:'Audit',inputSchema:{type:'object',fields:{parts:{type:'area',areaId:'parts'}}},source:{kind:'authored',repeats:[],fragment:{rootIds:['parts'],nodes:{parts:{id:'parts',type:'area',props:{areaId:'parts'}}}}}}];
  const must=r=>{expect(r.ok,JSON.stringify(r)).toBe(true);return r.value;};
- const v=must(validateTemplate(t)),p=must(prepareGeneration(v,{docKey:t.docKey,data:{},sections:[{id:sid,data:{parts:Array.from({length:1800},(_,n)=>({format:'item',data:{message:'Record '+n+' — audit ownership text '+('bounded input '+n+' ').repeat(8)}}))}}]})),doc=must(composeDocument(v,p));
+ const v=must(validateTemplate(t)),p=must(prepareGeneration(v,{docKey:t.docKey,data:{},sections:[{sectionKey:'task-section',instanceKey:'first',data:{parts:Array.from({length:1800},(_,n)=>({format:'item',data:{message:'Record '+n+' — audit ownership text '+('bounded input '+n+' ').repeat(8)}}))}}]})),doc=must(composeDocument(v,p));
  const root=await mkdtemp(join(tmpdir(),'task-receipt-'));let bytes=0;
  try{
   const resources=must(await loadBundledResources({pythonExecutable:process.env.PYTHON_EXECUTABLE??'python',tempRoot:root})),engine=must(await createDocxEngine(resources));

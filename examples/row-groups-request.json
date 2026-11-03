@@ -1,8 +1,8 @@
 {
   "docKey": "srs-basic",
   "data": {},
-  "sections": {
-    "main": {
+  "sections": [
+    {
       "data": {
         "content": [
           {
@@ -28,7 +28,9 @@
             }
           }
         ]
-      }
+      },
+      "sectionKey": "S0001",
+      "instanceKey": "I0001"
     }
-  }
+  ]
 }

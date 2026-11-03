@@ -42,6 +42,6 @@ it('uses two saved definitions for three real Core request instances in A-B-A or
  expect(d.value.sections[0].header.nodes[d.value.sections[0].header.rootIds[0]].children[0].text).toBe('FIRST header');
  expect(d.value.sections[2].footer.nodes[d.value.sections[2].footer.rootIds[0]].children[0].text).toBe('LAST footer');
 });
-it.each(['examples/area-document-template.json','tests/fixtures/format-sizing/template.json'])('preserves the unchanged old model envelope and fingerprint: %s',path=>{
+it.each(['examples/area-document-template.json','tests/fixtures/format-sizing/template.json'])('roundtrips explicitly converted20 fixture metadata and fingerprint: %s',path=>{
  const t=JSON.parse(readFileSync(path,'utf8')),v=valid(t),restored=assemble(decompose(t,randomUUID),t.version);expect(restored).toEqual(t);expect(valid(restored).fingerprint).toBe(v.fingerprint);
 });

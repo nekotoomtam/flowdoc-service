@@ -1,3 +1,4 @@
+import {migrateThrough028,legacyModule,legacyTemplate} from './helpers/historical-service.mjs';
 import {beforeAll,afterAll,it,expect} from 'vitest';
 import {mkdtemp,readFile,writeFile,rm,cp,readdir} from 'node:fs/promises';
 import {join} from 'node:path';
@@ -138,16 +139,16 @@ it('upgrades a populated 018 database without changing assets, releases or legac
   for(const name of (await readdir('migrations')).filter(n=>/^\d{3}_.*\.sql$/.test(n)&&Number(n.slice(0,3))<=18))await cp(join('migrations',name),join(folder,name));
   expect((await migrate(old.pool,folder)).ok).toBe(true);
   const f=await stageSet(old.pool,root),assets=(await old.pool.query('SELECT * FROM font_assets ORDER BY id')).rows,release=(await old.pool.query('SELECT * FROM font_releases WHERE id=$1',[f.id])).rows;
-  const app=createServer({pool:old.pool,outputs:{},isReady:()=>true,authoring:{token:'d'.repeat(40),principal:'legacy-writer'},fontStorageRoot:root});await app.ready();
+  const {createServer:oldServer}=await legacyModule('http/server');const app=oldServer({pool:old.pool,outputs:{},isReady:()=>true,authoring:{token:'d'.repeat(40),principal:'legacy-writer'},fontStorageRoot:root});await app.ready();
   let draft;
   try{
    const headers={authorization:'Bearer '+'d'.repeat(40)},created=await app.inject({method:'POST',url:'/authoring/drafts',headers,payload:{name:'Retained legacy',docKey:'height-legacy',idempotencyKey:'legacy-create'}});
    expect(created.statusCode,created.body).toBe(201);const id=created.json().value.templateId;
-   const definition=JSON.parse(await readFile('examples/area-document-template.json','utf8'));definition.templateId=id;definition.docKey='height-legacy';definition.version=1;
+   const definition=legacyTemplate('examples/area-document-template.json');definition.templateId=id;definition.docKey='height-legacy';definition.version=1;
    const saved=await app.inject({method:'PUT',url:'/authoring/drafts/'+id,headers,payload:{definition,expectedRevision:0,idempotencyKey:'legacy-save'}});expect(saved.statusCode,saved.body).toBe(200);draft=saved.json().value;
-   expect((await migrate(old.pool)).value.applied).toEqual(['019_font_height_profiles.sql','020_font_height_proposals.sql','021_section_instances.sql','022_task_intake.sql','023_task_normalization.sql','024_task_processing.sql','025_task_output_format.sql','026_task_file_names.sql','027_task_runtime_ownership.sql','028_model20_section_definitions.sql']);
+   expect((await migrateThrough028(old.pool)).value.applied).toEqual(['019_font_height_profiles.sql','020_font_height_proposals.sql','021_section_instances.sql','022_task_intake.sql','023_task_normalization.sql','024_task_processing.sql','025_task_output_format.sql','026_task_file_names.sql','027_task_runtime_ownership.sql','028_model20_section_definitions.sql']);
    expect((await old.pool.query('SELECT count(*) FROM font_height_adjustment_proposals')).rows[0].count).toBe('0');
-   expect((await migrate(old.pool)).value.applied).toEqual([]);
+   expect((await migrateThrough028(old.pool)).value.applied).toEqual([]);
    const read=(await app.inject({method:'GET',url:'/authoring/drafts/'+id,headers})).json().value;
    expect(read.definition).toEqual(draft.definition);expect(read.fingerprint).toBe(draft.fingerprint);expect(read.revision).toBe(draft.revision);
   }finally{await app.close();}

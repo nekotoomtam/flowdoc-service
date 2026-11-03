@@ -13,11 +13,11 @@ export function bindImages(input,contract,ids){
   }
   return value;
  }
- result.data=visit(result.data,contract.globalSchema);
- for(const [key,section] of Object.entries(result.sections??{})){
-  const scope=Object.hasOwn(contract.sections??{},key)?contract.sections[key]:undefined;
+ if(Object.hasOwn(result,'data'))result.data=visit(result.data,contract.globalSchema);
+ for(const section of result.sections??[]){
+  const scope=contract.sections?.find(s=>s.sectionKey===section?.sectionKey);
   if(!scope||!section||typeof section!=='object')continue;
-  section.data=visit(section.data,scope.inputSchema);section.header=visit(section.header,scope.header);section.footer=visit(section.footer,scope.footer);
+  for(const [field,schema] of [['data',scope.inputSchema],['header',scope.header],['footer',scope.footer]])if(Object.hasOwn(section,field))section[field]=visit(section[field],schema);
  }
  return result;
 }

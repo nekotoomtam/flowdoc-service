@@ -1,13 +1,17 @@
 {
   "name": "@flowdoc/core",
   "version": "0.5.2",
-  "file": "flowdoc-core-0.5.2-image-omissions-db828b2.tgz",
-  "sha256": "5cdb6f4cc34f5c89b7292715c1f707e1a63e73aee71aebb1c16aaf49d058f026",
-  "sourceCommit": "db828b2b528fe0402ce99cff5edea540c562f048",
-  "sourceArtifact": "C:\\Users\\nekot\\Documents\\FlowDoc-recovery\\service-docx-omission-implementation-20261102\\packed\\flowdoc-core-0.5.2-image-omissions-db828b2.tgz",
+  "file": "flowdoc-core-0.5.2-model20-only-6f36c42.tgz",
+  "sha256": "ef82f85163be57159c89dd64a535efd11a8791d4c7274f16ae5bb1670cf7aba8",
+  "sourceCommit": "6f36c42e51f7dc04fe42b837430f8369541ba707",
+  "sourceArtifact": "C:\\Users\\nekot\\Documents\\FlowDoc-recovery\\model20-only-20261103\\package-cutover5\\flowdoc-core-0.5.2-model20-xml-candidate.tgz",
   "runtime": "linux-x64 glibc, Node24, Python3.11, fontTools4.58.2",
-  "delivery": "Private image-omission development candidate; isolated Oracle lab acceptance only; no release/install",
+  "delivery": "Private model20-only development candidate; isolated Oracle/OCI lab acceptance only; no push/release/install",
   "capabilities": {
-    "imageOmissions": "docx-image-omissions/1"
+    "imageOmissions": "docx-image-omissions/1",
+    "nodeModelVersions": [
+      20
+    ],
+    "taskInput": "flowdoc-task-input/2"
   }
 }

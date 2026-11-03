@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "templateId": "tpl-contents-sections",
+  "templateId": "cc7e259f-7359-52d6-8f3c-cc2afbcde2c5",
   "docKey": "contents-sections",
   "version": 1,
   "name": "Cover and reserved text trial",
@@ -69,7 +69,7 @@
       "lineHeightPt": 22
     }
   },
-  "nodeModelVersion": 18,
+  "nodeModelVersion": 20,
   "globalSchema": {
     "type": "object",
     "fields": {
@@ -81,8 +81,7 @@
   },
   "sections": [
     {
-      "id": "section-intro",
-      "key": "intro",
+      "id": "82205dbc-26d0-5259-8ec7-6024e47b2f79",
       "pageLayoutId": "portrait",
       "inputSchema": {
         "type": "object",
@@ -133,14 +132,16 @@
               "id": "toc",
               "type": "table-of-contents",
               "props": {
-                "textStyleId": "body"
+                "textStyleId": "body",
+                "scope": {
+                  "kind": "document"
+                }
               }
             }
           }
         },
         "repeats": []
       },
-      "formats": {},
       "header": {
         "inputSchema": {
           "type": "object",
@@ -186,11 +187,13 @@
             }
           }
         }
-      }
+      },
+      "sectionKey": "S0001",
+      "label": "intro",
+      "nameBase": "intro"
     },
     {
-      "id": "section-details",
-      "key": "details",
+      "id": "7ab86f1e-b167-5b37-8831-c8537d89fe19",
       "pageLayoutId": "landscape",
       "inputSchema": {
         "type": "object",
@@ -240,7 +243,6 @@
         },
         "repeats": []
       },
-      "formats": {},
       "header": {
         "inputSchema": {
           "type": "object",
@@ -291,11 +293,13 @@
         "mode": "restart",
         "startAt": 10,
         "visibility": "hide"
-      }
+      },
+      "sectionKey": "S0002",
+      "label": "details",
+      "nameBase": "details"
     },
     {
-      "id": "section-closing",
-      "key": "closing",
+      "id": "fa26c868-930c-550d-801c-93864a124b87",
       "pageLayoutId": "portrait",
       "inputSchema": {
         "type": "object",
@@ -345,7 +349,6 @@
         },
         "repeats": []
       },
-      "formats": {},
       "header": {
         "inputSchema": {
           "type": "object",
@@ -385,7 +388,10 @@
       },
       "numbering": {
         "mode": "exclude"
-      }
+      },
+      "sectionKey": "S0003",
+      "label": "closing",
+      "nameBase": "closing"
     }
   ],
   "examples": []

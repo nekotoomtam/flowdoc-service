@@ -37,33 +37,33 @@ async function upload(){
 const request=()=>JSON.parse(readFileSync('examples/page-numbering-request.json','utf8'));
 async function waitJob(id){let view;for(let i=0;i<400;i++){view=ok((await app.inject('/jobs/'+id)).json());if(['succeeded','failed'].includes(view.status))break;await new Promise(r=>setTimeout(r,25));}return view;}
 it('returns scoped contracts without graphs and retains old published labels',async()=>{
- const url='/templates/page-numbering/contract?version=1',before=ok((await app.inject(url)).json());expect(Object.keys(before.sections)).toEqual(['intro','details','closing']);expect(before.sections.intro.header.fields.photo.type).toBe('image');expect(JSON.stringify(before)).not.toContain('rootIds');expect(JSON.stringify(before)).not.toContain('system-page-field');expect(JSON.stringify(before)).not.toContain('page.current');
- let current=ok(await loadCurrent(db.pool,'tpl-page-numbering'));current.sections[0].label='renamed';ok(await saveCurrent(db.pool,current,current.revision));ok(await publishCurrent(db.pool,{templateId:current.templateId,requestId:'new'}));expect(ok((await app.inject(url)).json())).toEqual(before);
+ const url='/templates/page-numbering/contract?version=1',before=ok((await app.inject(url)).json());expect(before.sections.map(s=>s.sectionKey)).toEqual(['S0001','S0002','S0003']);expect(before.sections[0].header.fields.photo.type).toBe('image');expect(JSON.stringify(before)).not.toContain('rootIds');expect(JSON.stringify(before)).not.toContain('system-page-field');expect(JSON.stringify(before)).not.toContain('page.current');
+ let current=ok(await loadCurrent(db.pool,'4ce9dcfe-10d7-5a36-82ec-fc2f3f2b6fd3'));current.sections[0].label='renamed';ok(await saveCurrent(db.pool,current,current.revision));ok(await publishCurrent(db.pool,{templateId:current.templateId,requestId:'new'}));expect(ok((await app.inject(url)).json())).toEqual(before);
 });
 it('rejects mixed and sole unknown sections with no new jobs and precise required paths',async()=>{
  const before=(await db.pool.query('SELECT count(*) FROM generation_jobs')).rows[0].count;
- for(const sections of [{typo:{}},{intro:{},typo:{}}]){const r=request();r.sections=sections;const res=await app.inject({method:'POST',url:'/jobs',payload:r});expect(res.statusCode,res.body).toBe(422);expect(res.json().issues.some(i=>i.code==='UNKNOWN_SECTION'&&i.path==='sections.typo')).toBe(true);}
- const missing=request();missing.sections.details={data:{}};const response=await app.inject({method:'POST',url:'/jobs',payload:missing});expect(response.statusCode).toBe(422);expect(response.json().issues.some(i=>i.path==='sections.details.data.title')).toBe(true);
+ for(const sections of [[{sectionKey:'typo',instanceKey:'unknown'}],[{sectionKey:'S0001',instanceKey:'known',data:{}},{sectionKey:'typo',instanceKey:'unknown'}]]){const r=request();r.sections=sections;const res=await app.inject({method:'POST',url:'/jobs',payload:r});expect(res.statusCode,res.body).toBe(422);expect(res.json().issues.some(i=>i.code==='SECTION_KEY_UNKNOWN'&&i.path.endsWith('.sectionKey'))).toBe(true);}
+ const missing=request();missing.sections[1].data={};const response=await app.inject({method:'POST',url:'/jobs',payload:missing});expect(response.statusCode).toBe(422);expect(response.json().issues.some(i=>i.path==='sections[1].data.title')).toBe(true);
  expect((await db.pool.query('SELECT count(*) FROM generation_jobs')).rows[0].count).toBe(before);
 });
 it('reloads direct and staged scoped requests, claims each section image and leaves originals unchanged',async()=>{
- for(const staged of [false,true]){const r=request();r.version=1;r.sections={closing:r.sections.closing,details:r.sections.details,intro:r.sections.intro};r.sections.intro.data.current='9999';r.sections.intro.data.total='9999';r.sections.intro.data.zzzz='ignored';r.sections.intro.data.a='ignored';
+ for(const staged of [false,true]){const r=request();r.version=1;r.sections.reverse();
  if(staged){const resources=[];const u=await upload();resources.push(u);r.uploadId=u.uploadId;for(const key of Object.keys(r.sections))r.sections[key].header={name:'band '+key,photo:u.items[0].resourceId};}
  const res=await app.inject({method:'POST',url:'/jobs',payload:r});expect(res.statusCode,res.body).toBe(202);const id=ok(res.json()).jobId,view=await waitJob(id);expect(view.status,JSON.stringify(view)).toBe('succeeded');const pdf=await app.inject('/jobs/'+id+'/pdf');expect(pdf.statusCode).toBe(200);expect(pdf.rawPayload.subarray(0,5).toString()).toBe('%PDF-');if(staged)expect(pdf.rawPayload.toString('latin1')).toContain('/Subtype /Image');
  expect((await db.pool.query('SELECT original_input FROM generation_jobs WHERE id=$1',[id])).rows[0].original_input).toEqual(r);
  }
 },30000);
-it('ignores caller page values and fails overflow without publishing a PDF',async()=>{
+it('rejects caller page values and fails overflow without publishing a PDF',async()=>{
  const generate=async(r)=>{const res=await app.inject({method:'POST',url:'/jobs',payload:r});expect(res.statusCode,res.body).toBe(202);const id=ok(res.json()).jobId;return {id,view:await waitJob(id),pdf:await app.inject('/jobs/'+id+'/pdf')};};
  const clean=request();clean.version=1;const forged=structuredClone(clean);for(const s of Object.values(forged.sections)){s.data.current='9999';s.data.total='9999';}
- const a=await generate(clean),b=await generate(forged);expect(a.view.status).toBe('succeeded');expect(b.view.status).toBe('succeeded');expect(b.pdf.rawPayload.equals(a.pdf.rawPayload)).toBe(true);
- const current=ok(await loadCurrent(db.pool,'tpl-page-numbering'));for(const section of current.sections)for(const n of Object.values(section.payload.header.fragment.nodes))for(const c of n.children??[])if(c.type==='system-page-field')c.width={value:0.01,unit:'pt'};
+ const a=await generate(clean);expect(a.view.status).toBe('succeeded');const count=(await db.pool.query('SELECT count(*) FROM generation_jobs')).rows;const bad=await app.inject({method:'POST',url:'/jobs',payload:forged});expect(bad.statusCode).toBe(422);expect(bad.json().issues.every(i=>i.code==='INVALID_DATA')).toBe(true);expect((await db.pool.query('SELECT count(*) FROM generation_jobs')).rows).toEqual(count);
+ const current=ok(await loadCurrent(db.pool,'4ce9dcfe-10d7-5a36-82ec-fc2f3f2b6fd3'));for(const section of current.sections)for(const n of Object.values(section.payload.header.fragment.nodes))for(const c of n.children??[])if(c.type==='system-page-field')c.width={value:0.01,unit:'pt'};
  ok(await saveCurrent(db.pool,current,current.revision));const published=ok(await publishCurrent(db.pool,{templateId:current.templateId,requestId:'narrow'}));const r=request();r.version=published.version;const failed=await generate(r);expect(failed.view.status,JSON.stringify(failed.view)).toBe('failed');expect(failed.pdf.statusCode).not.toBe(200);
 },30000);
 it('rejects corrupted prepared section input on worker reload',async()=>{
  await processor.stop();processor=undefined;const res=await app.inject({method:'POST',url:'/jobs',payload:request()});expect(res.statusCode).toBe(202);const accepted=ok(res.json()).jobId;
- await expect(db.pool.query(`UPDATE generation_jobs SET prepared_input=jsonb_set(prepared_input,'{sections,section-intro,data,title}','"FORGED"') WHERE id=$1`,[accepted])).rejects.toBeDefined();
- const id=(await db.pool.query(`INSERT INTO generation_jobs(id,template_version_id,original_input,prepared_input,warnings_json,skipped_indices) SELECT uuidv7(),template_version_id,original_input,jsonb_set(prepared_input,'{sections,section-intro,data,title}','"FORGED"'),warnings_json,skipped_indices FROM generation_jobs WHERE id=$1 RETURNING id`,[accepted])).rows[0].id;
+ await expect(db.pool.query(`UPDATE generation_jobs SET prepared_input=jsonb_set(prepared_input,'{sections,0,data,title}','"FORGED"') WHERE id=$1`,[accepted])).rejects.toBeDefined();
+ const id=(await db.pool.query(`INSERT INTO generation_jobs(id,template_version_id,original_input,prepared_input,warnings_json,skipped_indices) SELECT uuidv7(),template_version_id,original_input,jsonb_set(prepared_input,'{sections,0,data,title}','"FORGED"'),warnings_json,skipped_indices FROM generation_jobs WHERE id=$1 RETURNING id`,[accepted])).rows[0].id;
 
  processor=await startProcessor({pool:db.pool,files:await createPdfFiles(join(root,'pdf')),policy:{retain:true,ttlHours:24,tempHours:24},resources:{files:await createResourceFiles(join(root,'staging')),config:readUploadConfig({})}});expect((await waitJob(id)).status).toBe('failed');expect((await app.inject('/jobs/'+id+'/pdf')).statusCode).not.toBe(200);
 },30000);

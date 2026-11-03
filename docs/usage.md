@@ -9,6 +9,11 @@ Project Control governs those claims.
 
 ## ชุดพัฒนา 0.5.2
 
+รอบ model20-only นี้ใช้ Core source6f36c42 และ archive/hash ใน vendor/manifest.json.
+ต้องมี migration029 ก่อนเริ่มแอป; Service/plugin คนละ pin ไม่ถือว่าเข้ากันเพียงเพราะ
+เลขรุ่น0.5.2เท่ากัน. หลักฐานรับรองข้าม repo อยู่ใน Project Control แผนเปลี่ยนเป็น20เท่านั้น.
+ไม่มีการติดตั้งหรือ release จากการแก้คู่มือนี้.
+
 ### เครื่องมือกู้ยอด diagnostics ของงานเก่า (candidate)
 
 ใช้ `diagnostics-plan <taskId> <writer-evidence.json>` เพื่อสร้างแผนแบบอ่านอย่างเดียว
@@ -159,7 +164,7 @@ Prepared/default FlowDocMake0.3.1 ตรึง archive รุ่นก่อน 
 ก่อนติดตั้ง0.5.2 ต้องสำรอง DB และ staging/output เป็นชุดเดียวพร้อม hashes
 ตามขั้นตอน backup/recovery ด้านล่าง ทดสอบ restore ในฐานแยก แล้วใช้ CLI
 สำหรับ development candidate ปัจจุบัน ใช้ `migrate` ของ image ที่ตรงกับ
-vendor/source identity ให้ครบถึง027; release v0.5.2 เดิมมีขอบเขตถึง026
+vendor/source identity ของ candidate นี้ให้ครบถึง029; release v0.5.2 เดิมมีขอบเขตถึง026
 ต้องแยกสองชุดนี้ด้วย source/image/checksum ไม่ใช้เลข0.5.2เพียงอย่างเดียว
 ห้ามแก้หรือ renumber migration ที่เคยใช้แล้ว ทดสอบอัปเกรดในฐานแยกก่อนเสมอ
 ตรวจ readiness, live Service/Core version/hash และลองออก PDF/DOCX พร้อมชื่อ
@@ -184,30 +189,25 @@ PID1 สำหรับงาน task เพราะเมื่อ worker ถ�
 หลักการเก็บ/หยุด/ล้างไฟล์และข้อจำกัดอยู่ในหัวข้อ Internal task processing ของ README.
 
 Candidate เซลล์ชื่อกลุ่ม: ตรวจ `groupLabelSpans.version:1` ใน authoring contract
-ก่อนส่ง rowGroups.groupLabel (model19/schema1,2). Core package/checksum อยู่ใน
+ก่อนส่ง rowGroups.groupLabel (model20/font schema1,2). Core package/checksum อยู่ใน
 vendor/manifest.json; ชุดส่งมอบ Service0.5.0/Core0.5.0 ยังไม่ใช่คำอนุญาตติดตั้ง.
-save/read/clone/import คง declaration; job ตรึง revision/ข้อมูล/engine/font เดิม.
+save/read และ snapshot ที่ตรึงแล้วคง declaration; job ตรึง revision/ข้อมูล/engine/font เดิม.
 auto ตรวจฟอนต์รวม ` (ต่อ)`; fixed ไม่มีหน้าต่อและส่ง FORMAT_CONTENT_OMITTED
 พร้อม groupId/groupIndex/itemIndex ของส่วนค้าง. ถ้าชื่อเต็มใส่ auto ไม่ได้
 ให้ LAYOUT_FAILED reason group-label-does-not-fit; ไม่มี PDF บางส่วนให้ดาวน์โหลด.
 
-Section19 ช่วง1: candidate นี้เพิ่ม `create_draft_section` และ
-`import_draft_sections` ตาม `/authoring/drafts/:id/sections[/import]`.
-ต่อ/แยกสำเนาลง draft ก่อนส่งข้อมูล `sections:[{id,data,header?,footer?}]`;
-ลำดับพิมพ์ตาม definition และ clone/import จัด ID ใหม่พร้อม sectionIdMap.
-ต้องตรวจสิทธิ์ทั้งต้นทาง/ปลายทางและ revision; retry ใช้ key/body เดิม.
-Migration021 เพิ่มประวัติ ID กันใช้ ID ที่ลบกลับมาใหม่ และขยาย job pin/ownership
-สำหรับ19 โดยไม่ rewrite ข้อมูล18. Model18 ยังใช้ object input และ clone เดิม.
-ช่วง2 เปิด fixed-height text ใน Area ที่วางตรง flow หลักของ Section19;
-ข้อความที่กำหนด props.heightMode:fixed / props.height ต้องพอดีกรอบและ body มิฉะนั้น preview ล้มเหลว.
-คนละสัญญากับ Format sizing.fixed ด้านท้ายคู่มือ ซึ่งแสดงส่วนที่พอในเพดานความสูง
-min(ความสูงที่กำหนด, พื้นที่หน้าที่เหลือ) แล้วแจ้งส่วนที่ไม่แสดง โดยไม่ย่อ/ตัดกลางบรรทัด.
-Section ยังคุมหน้าและหัว–ท้าย; fixed ใน cell/repeat และ Area ซ้อนยังห้าม.
-ช่วง3 เปิด TOC ของ19ด้วย props.scope kind section/document ชัดเจน หนึ่งต่อขอบเขต;
-clone คง scope ตาม Section เจ้าของที่ได้ ID ใหม่. เลขและลิงก์คำนวณจากหน้าเป้าหมาย
-ของ pinned preview;18ยังใช้ TOC เดิมโดยไม่ใส่ scope. ยังไม่แปลง18→19อัตโนมัติ. ใช้ package/hash จาก
-README และ vendor/manifest.json ปัจจุบัน; ส่วนคู่มือคลังฟอนต์ด้านล่างเก็บบริบท
-คำอธิบายความสามารถเดิมไว้และไม่ใช่คำอนุญาตติดตั้งอัตโนมัติ.
+Candidate model20 ใช้การ create/get/save/validate/preview definition ทั้งฉบับ.
+ส่ง sections เป็นรายการ `{sectionKey,instanceKey,data,header?,footer?}` ตามลำดับ
+ที่ต้องการพิมพ์ ใช้ definition ซ้ำได้เมื่อ instanceKey ต่างกัน; ไม่ส่งส่วนใดก็ไม่พิมพ์ส่วนนั้น.
+หน้าปกต้องเป็น occurrence แรกและมีเพียงครั้งเดียว. Internal UUID ไม่ใช่ selector.
+เลิก route/tool สร้าง Section, import Section และ clone template ของ19แล้ว;
+ไม่มี alias20 ที่ทำงานไม่ครบ และ JSON ไม่ให้สิทธิ์ฟอนต์หรือ origin เพิ่มเอง.
+fixed-height text ใช้ที่ flow root/top-level Area; overflow ล้มเหลว ไม่ตัด/ย่อข้อความ.
+Format sizing.fixed แยกจากกรอบข้อความ และคงพฤติกรรมรายงานส่วนที่ไม่แสดง.
+TOC ระบุ scope kind section/document ชัดเจน; scope section เป็นของ occurrence.
+ยังไม่อนุญาต fixed ใน cell/repeat หรือ Area ซ้อน. ไม่มีการแปลง18/19ระหว่างรับงาน.
+ใช้ migration029 กับ namespace ใหม่;001–028คง checksum เดิม. หลักฐานสิทธิ์ schema028
+ที่เก็บด้านบนเป็นประวัติ ไม่ใช่การรับรองสิทธิ์ขั้นต่ำ029 ซึ่งต้องตรวจใน lab ปัจจุบัน.
 
 ## Authority Boundary
 
@@ -231,7 +231,7 @@ Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP 
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
 
 คู่มือนี้ตาม development Service0.5.2/Core0.5.2; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
-annotated tag หลังผ่านเกณฑ์ออกรุ่น ไม่อนุมานจากชื่อ image. รองรับ Area18 ทั้ง schemaVersion 1
+annotated tag หลังผ่านเกณฑ์ออกรุ่น ไม่อนุมานจากชื่อ image. candidate นี้รองรับ model20 ทั้ง font schemaVersion 1
 (Sarabun เดิม) และ 2 (คลังฟอนต์). เลข schema, รุ่นฟอนต์, รุ่นแม่แบบ และรุ่น Service
 เป็นคนละค่า. คำสั่ง publish ด้านล่างคือเผยแพร่เวอร์ชันแม่แบบ ไม่ใช่ Git release;
 ผู้ดูแลต้องมีคำอนุญาตเผยแพร่แม่แบบนั้นก่อนใช้.
@@ -275,8 +275,8 @@ proxy; ไม่เพิ่ม CORS หรือ static route ให้ product
 
 ## 1. เริ่มต้นและออก PDF แรก
 
-ตัวอย่าง area-document และ sections.main ในข้อ 1–5 ใช้ model18 เพื่อให้เอกสารเดิมยังใช้ได้.
-สำหรับ model19 ใช้ sections เป็น array ระบุ ID ตาม contract; ห้ามแปลงชื่อเป็น ID เอง.
+ตัวอย่าง area-document ในข้อ1–5 แปลงเป็น model20แล้ว. sections เป็นรายการ
+sectionKey/instanceKey ตาม contract; อ่านค่าที่ประกาศจริง ห้ามเดา key จากชื่อหรือ UUID.
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
 เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด development Service0.5.2
@@ -314,7 +314,8 @@ docker @dc up -d api
 ของ project `flowdoc-manual` หาก port 4318 ใช้อยู่ ให้เปลี่ยนค่าก่อนเริ่ม API
 เปิด terminal ใหม่ให้กำหนด `$dc` อีกครั้ง ไม่ต้องสร้างรหัสผ่านหรือ import ซ้ำ
 `CURRENT_EXISTS` หมายถึงมีฉบับแก้ไขอยู่แล้ว ไม่ใช่คำสั่งแทนที่ข้อมูลเดิม
-`migrate` ของ0.5.2 ต้องครบ001–026; อัปเกรดจาก0.5.0/0.5.1 ที่มี025แล้วจะเพิ่ม026
+`migrate` ของ candidate นี้ต้องครบ001–029;029ปฏิเสธข้อมูลเก่าโดยไม่เปลี่ยนแปลงข้อมูล
+ใช้ namespace ใหม่หลังแปลง template อย่างชัดเจน และอย่าอัปเกรดระบบที่ติดตั้งอยู่จากคู่มือนี้
 และการรันซ้ำที่ครบแล้วไม่ควรมีรายการ applied ใหม่. ห้ามแก้ SQL migration ที่ใช้แล้ว.
 ตัวอย่างแรกใช้ Sarabun เดิม จึงยังไม่ต้องนำเข้าคลังหรือเปิดสิทธิ์ admin.
 
@@ -366,7 +367,7 @@ Invoke-WebRequest "$base/jobs/$jobId/pdf" -OutFile artifacts/manual/first.pdf
 }
 ```
 
-`data` เป็นค่ากลาง ส่วน `sections.main.data.details` เป็นค่าของ Area ที่ประกาศไว้
+`data` เป็นค่ากลาง ส่วน `sections[0].data.details` เป็นค่าของ Area ที่ประกาศไว้
 ระบุ version เพื่อให้ได้แม่แบบเดิมเสมอ หากไม่ส่ง ระบบเลือกเวอร์ชันล่าสุดครั้งเดียว
 ตอนรับงานและล็อกไว้กับ job การ publish ใหม่ไม่เปลี่ยน job ที่รับไปแล้ว
 
@@ -496,23 +497,19 @@ authoring/admin ใช้ token และ principal แยกตามส่ว�
 ไม่ได้เพิ่มระบบบัญชีผู้ใช้หรือหน้า admin.
 หลัง restart งาน queued ทำต่อ แต่งาน running ที่ถูกตัดจบเป็น PROCESS_INTERRUPTED
 รายละเอียด configuration และการทดสอบอยู่ใน [README](../README.md)
-ชุด0.5.0 เพิ่ม DOCX แบบ opt-in แต่ไม่รวมหน้าแก้ไขเอกสารหรือ SLA งานพร้อมกันจำนวนมาก; รองรับ Area18 และ Section19 ตาม contract
+ชุด0.5.0 เพิ่ม DOCX แบบ opt-in แต่ไม่รวมหน้าแก้ไขเอกสารหรือ SLA งานพร้อมกันจำนวนมาก; รองรับ model20 ตาม contract
 
 
-## รูปแบบแม่แบบ Area 18
+## รูปแบบแม่แบบ model20
 
-ตั้งแต่รุ่น 0.3.0 และในชุด 0.4.0 รับเฉพาะ `nodeModelVersion: 18` ไม่แปลง model4–17 อัตโนมัติ
-SQL migrations เดิมยังเก็บตาม checksum แต่ข้อมูลแม่แบบรุ่นเก่าไม่สามารถนำมาสร้างงานได้
-สำรองฐานข้อมูลก่อนอัปเกรดและตรวจแม่แบบที่ต้องใช้ก่อนเปลี่ยนบริการ
+candidate นี้รับเฉพาะ `nodeModelVersion:20`; font schemaVersion1/2 เป็นคนละค่า.
+ใช้ migration029; ข้อมูลเก่าต้องแปลงอย่างชัดเจนลง namespace ใหม่ ไม่เปลี่ยนเลขรุ่น
+หรือลบ/เขียนทับ template/job เก่าระหว่างอัปเกรด. ข้อมูลไม่ตรงสัญญาจะถูกปฏิเสธ.
 
-ดู `examples/area-document-template.json` และ `examples/area-document-request.json`
-Section มี authored fragment หรือหน้าปก, inputSchema และ `formats: {}`
-เนื้อหาที่ผู้เรียกเลือกเรียงต้องประกาศตัวแปร `area` และรูปแบบใน `areaFormats`
-ส่งข้อมูลผ่าน `sections.<key>.data` โดยค่าของ Area เป็นรายการ `{format,data}`
-ไม่ส่ง `content` ที่ระดับบนหรือใน Section ตัวอย่าง static/cover ไม่จำเป็นต้องมี Area
-
-แม่แบบรองรับหัวท้ายแยก schema, เลขหน้า, สารบัญ, ภาพ, ลิงก์ และ array สองระดับ
-ผู้สร้างกำหนด rowGroups และกติกาจัดหน้า ผู้เรียกส่งเพียงข้อมูลตาม contract
+ดูคู่ template/request ใน examples/area-document. definition มี UUID id,
+sectionKey, label/nameBase, authored/blank source และ inputSchema โดยไม่มี key/formats.
+ส่ง sections เป็น `{sectionKey,instanceKey,data,header?,footer?}` ตามลำดับที่ต้องการ.
+Area ยังเป็นรายการ `{format,data}`; graph/ฟอนต์/ภาพและงบเดิมไม่เพิ่มเพดาน.
 
 ## 0.3.0: คิวเต็มและงานล้มเหลว
 
@@ -816,7 +813,7 @@ Profile/assignment/review และ proposals/receipts ต้องอยู่�
 
 ## Format sizing development candidate
 
-Core 0.5.0 accepts model19 Format `sizing` (auto/fixed), with independent
+This candidate accepts model20 Format `sizing` (auto/fixed), with independent
 fixed maximum heights per Area entry at Section flow roots. Each call reserves
 min(declared height, current body remainder), including short/empty content.
 Positive space shows fitting whole units; only zero space omits the frame.
@@ -842,7 +839,7 @@ until their original expiry. A minimal credential entry has token (at least32
 characters), ownerKey, principalId, docKeys array and taskRead boolean; supply
 trusted server identities, never caller-claimed identities. Do not commit secrets.
 Use the same override file for migration/start/stop. Check actual Init=true,
-Service/Core versions and archive SHA, migrations through025, authenticated
+Service/Core versions and archive SHA, migrations through029, authenticated
 feedback/PDF/hash/closing boundary, denied-owner lookup and interruption cleanup
 in an isolated instance before enabling real requests. Backup task storage and
 credentials consistently with the DB. Roll back using a matching DB/files/image
@@ -950,8 +947,8 @@ operator checklist for a future authorized installation, not a claim it ran here
 Send `Authorization: Bearer <configured-task-token>`, `Doc-Key: <authorized-key>`,
 `Content-Type: multipart/form-data; boundary=<request-boundary>` and optionally
 `Accept: multipart/mixed`. The first part is `payload` with application/json:
-`{"data":{},"sections":[{"id":"<saved-section-id>","data":{...}}]}` for model19;
-model18 retains its Section map. Root docKey/taskId are not generation selectors.
+`{"data":{},"sections":[{"sectionKey":"<saved-key>","instanceKey":"first","data":{...}}]}` for model20.
+Repeated definitions need distinct instanceKey; an empty assembly is refused. Root docKey/taskId are not generation selectors.
 
 An image value is `{"image":{"upload":true}}`, optionally with assetKey. A matching
 binary part name is the original JSON Pointer ending at that image object. A keyed
@@ -981,14 +978,14 @@ See README's queue addition for scope; deploy still requires separate approval.
 
 ส่วนนี้เป็นคู่มือเฉพาะ Service development candidate ภายใต้แผน DOCX ใน Project
 Control ไม่ใช่คำสั่งติดตั้ง release. ใช้ Core archive/hash ใน vendor/manifest.json
-และ migration025 ที่ตรงกัน; สำรองฐานข้อมูลและไฟล์ทรัพยากรแยกก่อนการทดลอง.
+และ migration029 ของ candidate ที่ตรงกัน; สำรองฐานข้อมูลและไฟล์ทรัพยากรแยกก่อนการทดลอง.
 `POST /documents` รับ `Output-Format: DOCX` ทั้งโหมดปกติและ `Task-Mode: queue-v1`.
 ถ้าไม่ส่ง Output-Format หรือส่ง PDF จะสร้าง PDF ตามเดิม. ข้อมูลธุรกิจและ template
 เหมือนกัน; ระบบตรึง format กับงานและส่ง MIME/นามสกุลตรงชนิดจริง ไม่มี PDF fallback.
 DOCX มี pageCount:null และต้องอัปเดตฟิลด์/สารบัญใน Word; ห้ามอนุมานว่าตรวจ Word แล้ว
 จากการสร้างไฟล์สำเร็จ. ตัวเขียนเก็บข้อมูลระหว่างสร้างและจำกัดไฟล์32MiB.
 บางความสัมพันธ์ข้อความ/ภาพที่เกินกรอบยังเป็นข้อจำกัดชัดเจน. Candidate ที่ตรึง
-`flowdoc-core-0.5.2-image-omissions-db828b2.tgz` รองรับภาพใน body ที่ระบบตรวจว่า
+`flowdoc-core-0.5.2-model20-only-6f36c42.tgz` รองรับภาพใน body ที่ระบบตรวจว่า
 ใช้ไม่ได้แล้ว: บันทึก diagnostics ก่อนส่งตำแหน่งภาพให้ Core ผ่านสัญญา
 `docx-image-omissions/1` แล้วสร้าง DOCX ที่ส่งสำเร็จแต่ completeness เป็น partial.
 คงกรอบภาพเดิม ข้อความและภาพตำแหน่งอื่น ไม่มีภาพสมมติหรือ PDF fallback.
@@ -1014,8 +1011,8 @@ mount client0.2.7 เดิมที่ /legacy-plugin สำหรับกร�
 
 ### Candidate task recovery after container replacement
 
-The F1 development candidate requires migration027 before task credentials can
-be enabled. It pins each new task to an immutable runtime UUID and persistent
+Runtime ownership was introduced in migration027; this model20-only candidate
+requires migration029 before task credentials can be enabled. It pins each new task to an immutable runtime UUID and persistent
 storage UUID. Keep the entire task root, including its hidden identity/lock
 files, on the same local Linux filesystem across container recreation. The
 runtime requires working POSIX flock semantics; remote/distributed filesystem

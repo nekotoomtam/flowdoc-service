@@ -16,18 +16,18 @@ const save=(d,revision=0,key=randomUUID(),server=app)=>call('PUT',d.url,{definit
 // Direct storage seeding isolates safety guards/preview from the new save allow-list.
 async function seeded(change=()=>{}){const d=await draft();change(d);ok(await importCurrent(db.pool,JSON.stringify(d.t)));return d;}
 const counts=async id=>(await db.pool.query('SELECT (SELECT count(*) FROM authoring_receipts WHERE target=$1)::int receipts,(SELECT count(*) FROM authoring_audit WHERE template_id=$1)::int audit,(SELECT count(*) FROM generation_jobs WHERE preview_template_id=$1)::int jobs',[id])).rows[0];
-it('advertises bounded model20 whole-definition support separately from model19 Section instances',async()=>{
- expect((await app.inject('/authoring/contract')).statusCode).toBe(401);const c=ok((await call('GET','/authoring/contract')).json());expect(c.nodeModelVersions).toEqual([18,19,20]);expect(c.publicationEnabled).toBe(false);
- expect(c.sectionInstances).toMatchObject({model:19,input:'array-by-id',assembly:'saved-definition'});
+it('advertises bounded model20 whole-definition support without retired Section-instance capabilities',async()=>{
+ expect((await app.inject('/authoring/contract')).statusCode).toBe(401);const c=ok((await call('GET','/authoring/contract')).json());expect(c.nodeModelVersions).toEqual([20]);expect(c.publicationEnabled).toBe(false);
+ expect(c).not.toHaveProperty('sectionInstances');
  expect(c.sectionDefinitions).toEqual({model:20,input:'array-by-section-key',instanceKey:'required-unique-per-request',assembly:'request',reuseDefinitions:true,authoring:'whole-definition',createSection:false,importSections:false,cloneTemplate:false});
  // Do not promote model20 layout support from structural authoring checks alone.
- expect(c.groupLabelSpans.nodeModelVersions).toEqual([19]);expect(c.formatSizing.nodeModelVersions).toEqual([19]);
+ expect(c.groupLabelSpans.nodeModelVersions).toEqual([20]);expect(c.formatSizing.nodeModelVersions).toEqual([20]);
 });
-it.each([18,19,20])('saves/gets/validates model%s exactly through authenticated HTTP without implicit conversion',async model=>{
+it.each([20])('saves/gets/validates model%s exactly through authenticated HTTP without implicit conversion',async model=>{
  const d=await draft(model),s=await save(d,0,'first');expect(s.statusCode,s.body).toBe(200);const value=s.json().value;expect(value.definition).toEqual(d.t);expect(value.revision).toBe(1);expect(value.fontReadiness.status).toBe('ready');
  expect((await call('GET',d.url)).json().value.definition).toEqual(d.t);expect((await save(d,0,'first')).json().value).toEqual(value);
  const before=await counts(d.id.templateId),v=await call('POST','/authoring/validate',{definition:d.t});expect(v.statusCode,v.body).toBe(200);expect(v.json().value).toMatchObject({composed:false,fingerprint:ok(validateTemplate(d.t)).fingerprint,fontReadiness:{status:'ready'}});expect(await counts(d.id.templateId)).toEqual(before);
- const converted=fixture(model===20?19:20,d.id.docKey).t;converted.templateId=d.id.templateId;const mismatch=await save({...d,t:converted},1);expect(mismatch.statusCode).toBe(422);expect(mismatch.json().issues[0].code).toBe('VERSION_MISMATCH');
+ const converted=JSON.parse((await import('node:fs')).readFileSync('tests/fixtures/legacy-rejection/19-template.json'));converted.templateId=d.id.templateId;converted.docKey=d.id.docKey;const mismatch=await save({...d,t:converted},1);expect(mismatch.statusCode).toBe(422);expect(mismatch.json().issues[0].code).toBe('INVALID_TEMPLATE');
 });
 it('protects model20 principal, identity, receipts and concurrent revisions without partial writes',async()=>{
  const d=await draft();expect((await save(d)).statusCode).toBe(200);const before=await counts(d.id.templateId);
@@ -45,14 +45,9 @@ it('rejects valid client-forged model20 origin and preserves server-retained ori
 });
 it('refuses model20 whole-template clone before identity, font references or receipts are written',async()=>{
  const d=await seeded(d=>{d.t.examples=[];});const revision=(await call('GET',d.url)).json().value.revision,key='unsupported-copy-'+randomUUID(),before=(await db.pool.query('SELECT count(*)::int n FROM templates')).rows;
- const r=await call('POST',d.url+'/clone',{sourceRevision:revision,name:'Unsupported copy',docKey:key,idempotencyKey:'copy'});expect(r.statusCode,r.body).toBe(422);expect(r.json().issues[0].code).toBe('VERSION_MISMATCH');expect((await db.pool.query('SELECT count(*)::int n FROM templates')).rows).toEqual(before);expect((await db.pool.query("SELECT * FROM authoring_receipts WHERE target=$1 AND operation='clone'",[d.id.templateId])).rows).toEqual([]);
+ const r=await call('POST',d.url+'/clone',{sourceRevision:revision,name:'Unsupported copy',docKey:key,idempotencyKey:'copy'});expect(r.statusCode,r.body).toBe(404);expect((await db.pool.query('SELECT count(*)::int n FROM templates')).rows).toEqual(before);expect((await db.pool.query("SELECT * FROM authoring_receipts WHERE target=$1 AND operation='clone'",[d.id.templateId])).rows).toEqual([]);
 });
-it('keeps create/import model19-only and rejects model20 in either import direction atomically',async()=>{
- const d=await seeded(),legacy=await draft(19);expect((await save(legacy)).statusCode).toBe(200);const empty=await draft(),before=await counts(d.id.templateId);
- const create=await call('POST',d.url+'/sections',{expectedRevision:1,pageLayoutId:d.t.book.defaultPageLayoutId,idempotencyKey:'create'});expect(create.statusCode).toBe(422);expect(create.json().issues[0].code).toBe('VERSION_MISMATCH');
- for(const [source,target,revision]of [[d,empty,0],[legacy,d,1]]){const r=await call('POST',target.url+'/sections/import',{sourceTemplateId:source.id.templateId,sourceRevision:1,sourceSectionIds:[source.t.sections[0].id],expectedRevision:revision,beforeSectionId:null,idempotencyKey:randomUUID()});expect(r.statusCode).toBe(422);expect(r.json().issues[0].code).toBe('VERSION_MISMATCH');}
- expect(await counts(d.id.templateId)).toEqual(before);expect((await call('GET',empty.url)).json().value.revision).toBe(0);
-});
+it('keeps removed granular routes absent without writing receipt/audit/jobs',async()=>{const d=await seeded(),before=await counts(d.id.templateId);for(const route of ['/sections','/sections/import'])expect((await call('POST',d.url+route,{expectedRevision:1,idempotencyKey:'removed'})).statusCode).toBe(404);expect(await counts(d.id.templateId)).toEqual(before);});
 it('composes actual model20 input for font readiness and pins one exact preview revision with retry isolation',async()=>{
  const d=await seeded(),readiness=await call('POST',d.url+'/font-readiness',{expectedRevision:1,sampleRequest:d.request});expect(readiness.statusCode,readiness.body).toBe(200);expect(readiness.json().value.fontReadiness).toMatchObject({status:'ready',checkedScope:'actual_input'});
  const validation=await call('POST','/authoring/validate',{definition:d.t,sampleRequest:d.request});expect(validation.statusCode,validation.body).toBe(200);expect(validation.json().value).toMatchObject({composed:true,fontReadiness:{status:'ready',checkedScope:'actual_input'}});
@@ -71,7 +66,7 @@ it('retains only owned server-granted model20 font tuples; copied JSON cannot in
  const copy=await draft();copy.t={...structuredClone(d.t),templateId:copy.id.templateId,docKey:copy.id.docKey,examples:[]};const copied=await save(copy);expect(copied.statusCode,copied.body).toBe(200);expect(copied.json().value.fontReadiness.status).toBe('blocked');expect((await readReferences(db.pool,copy.id.templateId,1)).bindings).toEqual([]);
  d.t.name='Retained';expect((await save(d,1)).json().value.fontReadiness.status).toBe('ready');expect((await readReferences(db.pool,d.id.templateId,2)).bindings).toEqual([f.fontSelection].map(({releaseId,weight,style})=>({releaseId,weight,style})));
 },30000);
-it('describes route-specific whole-definition tools and model19-only clone without claiming client adoption',async()=>{
+it('describes route-specific whole-definition tools and absence of retired clone tools',async()=>{
  const server=createAuthoringTools({baseUrl:'http://127.0.0.1:3018',token,fetch:async(url,init)=>{const r=await app.inject({method:init.method,url:new URL(url).pathname,headers:init.headers,...(init.body?{payload:init.body}:{})});return new Response(r.rawPayload,{status:r.statusCode,headers:{'content-type':'application/json'}});}}),client=new Client({name:'model20-contract',version:'1'}),[a,b]=InMemoryTransport.createLinkedPair();await server.connect(a);await client.connect(b);
- try{const tools=(await client.listTools()).tools;for(const name of ['update_template_draft','validate_template','preview_template_draft'])expect(tools.find(t=>t.name===name).description).toContain('/authoring/contract');expect(tools.find(t=>t.name==='clone_template_draft').description).toMatch(/model20.*not supported/i);const c=JSON.parse((await client.callTool({name:'get_authoring_contract',arguments:{}})).content[0].text);expect(c.value.sectionDefinitions.model).toBe(20);}finally{await client.close();await server.close();}
+ try{const tools=(await client.listTools()).tools;for(const name of ['update_template_draft','validate_template','preview_template_draft'])expect(tools.find(t=>t.name===name).description).toContain('/authoring/contract');for(const name of ['clone_template_draft','import_draft_sections','create_draft_section'])expect(tools.some(t=>t.name===name)).toBe(false);const c=JSON.parse((await client.callTool({name:'get_authoring_contract',arguments:{}})).content[0].text);expect(c.value.sectionDefinitions.model).toBe(20);}finally{await client.close();await server.close();}
 });

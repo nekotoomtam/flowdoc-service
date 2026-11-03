@@ -1,3 +1,4 @@
+import {migrateThrough028,legacyModule,legacyTemplate} from './helpers/historical-service.mjs';
 import {beforeAll,afterAll,it,expect} from 'vitest';
 import {isolatedDatabase} from './isolatedDatabase.mjs';
 import {mkdtemp,readFile,readdir,rm} from 'node:fs/promises';
@@ -20,7 +21,7 @@ async function intake(l,b,key='regular',retrievedAt='2026-10-16T00:00:00.000Z'){
  const license=await readFile(new URL('../node_modules/@flowdoc/core/assets/fonts/OFL.txt',import.meta.url));
  const i=await l.createImport({requestId:randomUUID(),reason:'test',files:[{clientKey:key,byteLength:b.length,sha256:sha(b)}],licenseFiles:[{clientKey:'license',byteLength:license.length,sha256:sha(license)}],sourceEvidence:[{...evidence(key,b),retrievedAt}]});
  await l.receive(i.id,key,(async function*(){yield b;})());await l.receive(i.id,'license',(async function*(){yield license;})());
- return l.inspectImport(i.id,{requestId:randomUUID(),expectedRevision:0,reason:'inspect'});
+ const request={requestId:randomUUID(),expectedRevision:0,reason:'inspect'},deadline=Date.now()+10000;for(;;){try{return await l.inspectImport(i.id,request);}catch(e){if(e.code!=='UNAVAILABLE'||e.message!=='Font parser busy'||Date.now()>=deadline)throw e;await new Promise(r=>setTimeout(r,20));}}
 }
 it('creates audited preparing releases, stores three weights, deduplicates concurrent imports and exact sets',async()=>{
  lib=await library();const family=await lib.createFamily({requestId:randomUUID(),reason:'test',displayName:'Sarabun',internalNames:['Sarabun'],sourceIdentity:{provider:'google-fonts',providerFamilyKey:'sarabun'}});
@@ -81,16 +82,16 @@ it('rolls back failed catalog writes and recovers unreferenced immutable files w
 });
 it('migrates an existing 015 database without changing stored templates, and replays cleanly',async()=>{
  const {readdirSync,mkdtempSync,copyFileSync,readFileSync,rmSync}=await import('node:fs');
- const {registerTemplate,loadTemplate}=await import('../dist/templates/registry.js');
+ const {registerTemplate,loadTemplate}=await legacyModule('templates/registry');
  const old=isolatedDatabase(),dir=mkdtempSync(join(tmpdir(),'fonts-old-migrations-'));
  try{
   await old.setup();for(const n of readdirSync('migrations').filter(n=>/^0(?:0[1-9]|1[0-5])_/.test(n)))copyFileSync(join('migrations',n),join(dir,n));
-  unwrap(await migrate(old.pool,dir));const t=JSON.parse(readFileSync('examples/area-document-template.json','utf8'));
+  unwrap(await migrate(old.pool,dir));const t=legacyTemplate('examples/area-document-template.json');
   t.docKey='font-migration-'+randomUUID();t.templateId=t.docKey;unwrap(await registerTemplate(old.pool,JSON.stringify(t)));
   const before=unwrap(await loadTemplate(old.pool,t.docKey,1));
-  expect(unwrap(await migrate(old.pool)).applied).toEqual(['016_font_library_staging.sql','017_font_references_jobs.sql','018_font_lifecycle.sql','019_font_height_profiles.sql','020_font_height_proposals.sql','021_section_instances.sql','022_task_intake.sql','023_task_normalization.sql','024_task_processing.sql','025_task_output_format.sql','026_task_file_names.sql','027_task_runtime_ownership.sql','028_model20_section_definitions.sql']);
+  expect(unwrap(await migrateThrough028(old.pool)).applied).toEqual(['016_font_library_staging.sql','017_font_references_jobs.sql','018_font_lifecycle.sql','019_font_height_profiles.sql','020_font_height_proposals.sql','021_section_instances.sql','022_task_intake.sql','023_task_normalization.sql','024_task_processing.sql','025_task_output_format.sql','026_task_file_names.sql','027_task_runtime_ownership.sql','028_model20_section_definitions.sql']);
   const legacy=(await old.pool.query('SELECT legacy_bindings FROM font_reference_sets')).rows;expect(legacy.length).toBeGreaterThan(0);expect(legacy.every(r=>r.legacy_bindings.length===4)).toBe(true);
-  expect(unwrap(await migrate(old.pool)).applied).toEqual([]);
+  expect(unwrap(await migrateThrough028(old.pool)).applied).toEqual([]);
   expect(unwrap(await loadTemplate(old.pool,t.docKey,1))).toEqual(before);
  }finally{await old.close();rmSync(dir,{recursive:true,force:true});}
 });

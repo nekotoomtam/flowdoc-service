@@ -1,5 +1,5 @@
 import {it,expect} from 'vitest';
-import {readFileSync} from 'node:fs';import {createHash} from 'node:crypto';
+import {readFileSync} from 'node:fs';
 import {validateTemplate,prepareGeneration} from '@flowdoc/core';
 import {templateContract} from '../dist/templates/contract.js';
 import {model20Fixture} from './helpers/model20.mjs';
@@ -11,10 +11,7 @@ it('describes model20 definition selection, instance identity and caller-control
  expect(c.examples[0].request.sections.map(s=>[s.sectionKey,s.instanceKey])).toEqual([['A','first'],['B','middle'],['A','last']]);
  expect(prepareGeneration(v.value,c.examples[0].request).ok).toBe(true);expect(c).not.toHaveProperty('prepared');expect(c).not.toHaveProperty('normalizationVersion');expect(t).toEqual(before);
 });
-// Golden hashes captured from the unchanged pinned Service image's contract function.
-it.each([
- ['examples/area-document-template.json','18d4acfba37de8f673308906a1f8fdbf66b67623630e278063bb588446679b1c'],
- ['tests/fixtures/format-sizing/template.json','db74d4ed82c33316a6feedcab8204c12073075382e51eb7d5cda238a424d5168']
-])('keeps the exact model18/19 JSON contract bytes: %s',(path,hash)=>{
- const t=JSON.parse(readFileSync(path,'utf8'));expect(createHash('sha256').update(JSON.stringify(templateContract(t))).digest('hex')).toBe(hash);
+// Historical contract goldens remain in Git and the frozen Service baseline.
+it.each(['tests/fixtures/legacy-rejection/18-template.json','tests/fixtures/legacy-rejection/19-template.json'])('rejects the retired contract instead of advertising it: %s',path=>{
+ const t=JSON.parse(readFileSync(path,'utf8'));expect(validateTemplate(t).ok).toBe(false);expect(()=>templateContract(t)).toThrow(expect.objectContaining({code:'INVALID_TEMPLATE',path:'nodeModelVersion'}));
 });

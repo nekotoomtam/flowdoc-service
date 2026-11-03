@@ -1,3 +1,4 @@
+import {migrateThrough028} from './helpers/historical-service.mjs';
 import {it,expect} from 'vitest';
 import {readFileSync,readdirSync} from 'node:fs';
 import {randomUUID,createHash} from 'node:crypto';
@@ -15,11 +16,11 @@ it('adds format/version metadata without rewriting existing pins, jobs or normal
   const jid=randomUUID(),original={contract:'flowdoc-task-request/1',taskId:id,inputDigest:digest},prepared={contract:'flowdoc-task-job/1',taskId:id,normalizedFileId:fid,normalizedDigest:digest,core};await db.pool.query('INSERT INTO generation_jobs(id,task_id,template_version_id,original_input,prepared_input) VALUES($1,$2,$3,$4,$5)',[jid,id,vid,original,prepared]);
   const oid=randomUUID();await db.pool.query("INSERT INTO document_outputs(id,job_id,path,media_type,byte_size) VALUES($1,$2,'old.pdf','application/pdf',10)",[oid,jid]);
   const history=(await db.pool.query('SELECT name,checksum FROM schema_migrations ORDER BY name')).rows;
-  const before=(await db.pool.query('SELECT template_pin,normalized_digest,normalization_summary FROM tasks WHERE id=$1',[id])).rows[0];const upgraded=await migrate(db.pool);expect(upgraded.ok,JSON.stringify(upgraded)).toBe(true);expect(upgraded.value.applied).toEqual(['025_task_output_format.sql','026_task_file_names.sql','027_task_runtime_ownership.sql','028_model20_section_definitions.sql']);
+  const before=(await db.pool.query('SELECT template_pin,normalized_digest,normalization_summary FROM tasks WHERE id=$1',[id])).rows[0];const upgraded=await migrateThrough028(db.pool);expect(upgraded.ok,JSON.stringify(upgraded)).toBe(true);expect(upgraded.value.applied).toEqual(['025_task_output_format.sql','026_task_file_names.sql','027_task_runtime_ownership.sql','028_model20_section_definitions.sql']);
   expect((await db.pool.query('SELECT template_pin,normalized_digest,normalization_summary FROM tasks WHERE id=$1',[id])).rows[0]).toEqual(before);expect((await db.pool.query('SELECT file_name,default_file_name FROM tasks WHERE id=$1',[id])).rows[0]).toEqual({file_name:'document',default_file_name:'document'});expect((await db.pool.query('SELECT output_format,normalization_version FROM tasks WHERE id=$1',[id])).rows[0]).toEqual({output_format:'pdf',normalization_version:1});expect((await db.pool.query('SELECT original_input,prepared_input,output_format FROM generation_jobs WHERE id=$1',[jid])).rows[0]).toEqual({original_input:original,prepared_input:prepared,output_format:'pdf'});
   expect((await db.pool.query('SELECT name,checksum FROM schema_migrations WHERE name<$1 ORDER BY name',['025_'])).rows).toEqual(history);
   expect((await db.pool.query('SELECT path,media_type,byte_size,page_count,output_format FROM document_outputs WHERE id=$1',[oid])).rows[0]).toMatchObject({path:'old.pdf',media_type:'application/pdf',byte_size:'10',page_count:null,output_format:'pdf'});
-  expect((await migrate(db.pool)).value.applied).toEqual([]);
+  expect((await migrateThrough028(db.pool)).value.applied).toEqual([]);
   // Historical job descriptors stay V1 and remain valid on ordinary state updates.
   await db.pool.query("UPDATE generation_jobs SET status='running' WHERE id=$1",[jid]);
   await expect(db.pool.query("UPDATE generation_jobs SET output_format='docx' WHERE id=$1",[jid])).rejects.toHaveProperty('code','55000');

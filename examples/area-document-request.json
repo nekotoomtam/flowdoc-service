@@ -1,8 +1,8 @@
 {
   "docKey": "area-document",
   "data": {},
-  "sections": {
-    "main": {
+  "sections": [
+    {
       "data": {
         "details": [
           {
@@ -28,7 +28,9 @@
             }
           }
         ]
-      }
+      },
+      "sectionKey": "S0001",
+      "instanceKey": "I0001"
     }
-  }
+  ]
 }

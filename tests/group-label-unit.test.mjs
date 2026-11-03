@@ -26,6 +26,6 @@ it('advertises the exact optional group label contract only behind authoring aut
  try{
   expect((await app.inject('/authoring/contract')).statusCode).toBe(401);
   const r=await app.inject({url:'/authoring/contract',headers:{authorization:'Bearer '+'a'.repeat(40)}});
-  expect(r.json().value.groupLabelSpans).toEqual({version:1,nodeModelVersions:[19],schemaVersions:[1,2],continuationSuffix:' (ต่อ)',fixed:'formatSizing-v2',diagnosticsVersion:1});
+  expect(r.json().value.groupLabelSpans).toEqual({version:1,nodeModelVersions:[20],schemaVersions:[1,2],continuationSuffix:' (ต่อ)',fixed:'formatSizing-v2',diagnosticsVersion:1});
  }finally{await app.close();}
 });

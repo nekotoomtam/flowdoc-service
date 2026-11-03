@@ -15,7 +15,7 @@ beforeAll(async()=>{
  Object.assign(process.env,{FLOWDOC_WORKER_ISOLATION:'required',FLOWDOC_WORKER_BROKER_SOCKET:'/results/broker/service.sock',FLOWDOC_WORKER_ANCHOR:'/results/public-anchor.json',TASK_QUEUE_PROFILE:'1g-2cpu',TASK_CREDENTIALS_FILE:root+'/credentials.json',TASK_STORAGE_DIR:root+'/tasks',EXPORT_TEMP_DIR:root+'/temp',EXPORT_OUTPUT_DIR:root+'/outputs',UPLOAD_STAGING_DIR:root+'/staging',FONT_ADMIN_TOKEN:'a'.repeat(40),FONT_ADMIN_PRINCIPAL:'font-test-admin',FONT_STORAGE_DIR:root+'/fonts',HOST:'127.0.0.1',PORT:'31841'});
  await writeFile(process.env.TASK_CREDENTIALS_FILE,JSON.stringify([{token:'t'.repeat(40),ownerKey:'lab',principalId:'lab',docKeys:['docx-small'],taskRead:true}]));
  pool=(await import('../dist/db/connection.js')).createPool(process.env.DATABASE_URL);expect((await(await import('../dist/db/migrate.js')).migrate(pool)).ok).toBe(true);
- for(const m of [18,19]){const {t}=fixture(m,'p5-model'+m);expect((await(await import('../dist/templates/registry.js')).registerTemplate(pool,JSON.stringify(t))).ok).toBe(true);}
+ for(const m of [20]){const {t}=fixture(m,'p5-model'+m);expect((await(await import('../dist/templates/registry.js')).registerTemplate(pool,JSON.stringify(t))).ok).toBe(true);}
  expect((await(await import('../dist/templates/registry.js')).registerTemplate(pool,JSON.stringify(template()))).ok).toBe(true);
  const mod=await import('../dist/workers/launcher.js'),original=mod.createWorkerLauncher;
  spy=vi.spyOn(mod,'createWorkerLauncher').mockImplementation((c,d={})=>original(c,{...d,onGateEvent:e=>{events.push(e);appendFileSync('/results/app/http-gate-events.jsonl',JSON.stringify(e)+'\n');}}));
@@ -24,9 +24,9 @@ beforeAll(async()=>{
  const end=Date.now()+10000;while((await request('/health')).status!==200){if(Date.now()>end)throw Error('Service not ready');await wait(50);}
 },45000);
 afterAll(async()=>{await service?.stop();spy?.mockRestore();intakeSpy?.mockRestore();await pool?.end();});
-it('serves actual legacy model18/19 PDF requests with font preflight and valid artifacts',async()=>{
+it('serves actual model20 job PDF requests with font preflight and valid artifacts',async()=>{
  const receipts=[];
- for(const model of [18,19]){
+ for(const model of [20]){
   const input=fixture(model,'p5-model'+model).request;
   const submitted=await request('/jobs',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(input)});expect(submitted.status,submitted.bytes.toString()).toBe(202);
   const job=JSON.parse(submitted.bytes).value.jobId;let state;const end=Date.now()+20000;
@@ -82,7 +82,7 @@ it('cancels an actual task renderer on client disconnect, releases its DB slot a
 it('handles gate death after bind through real HTTP without poisoning health or retaining worker grants',async()=>{
  const launcher=await spy.mock.results[0].value,original=launcher.spawnBlocked;let injected=false,deadHandle;const launches=[];
  const fault=vi.spyOn(launcher,'spawnBlocked').mockImplementation(async spec=>{const h=await original(spec);if(spec.kind!=='legacy-render')return h;const jobs=(await pool.query("SELECT id FROM generation_jobs WHERE status='running'")).rows;expect(jobs).toHaveLength(1);launches.push(jobs[0].id);if(injected)return h;injected=true;deadHandle=h;return {...h,async bind(){const proof=await h.bind(),closed=new Promise(r=>h.child.once('close',r));process.kill(h.identity.pid,'SIGKILL');await closed;return proof;}};});
- const submit=async()=>{const r=await request('/jobs',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(fixture(19,'p5-model19').request)});expect(r.status,r.bytes.toString()).toBe(202);return JSON.parse(r.bytes).value.jobId;};
+ const submit=async()=>{const r=await request('/jobs',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(fixture(20,'p5-model20').request)});expect(r.status,r.bytes.toString()).toBe(202);return JSON.parse(r.bytes).value.jobId;};
  const terminal=async id=>{const end=Date.now()+10000;while(true){const row=(await pool.query('SELECT * FROM generation_jobs WHERE id=$1',[id])).rows[0];if(['failed','succeeded'].includes(row.status))return row;if(Date.now()>end)throw Error('P5-01 HTTP task did not terminate');await wait(20);}};
  try{
   const failedId=await submit();expect((await terminal(failedId)).status).toBe('failed');expect(await deadHandle.waitStopped()).toEqual({childReaped:true,groupGone:true,scopeEmpty:true});const end=Date.now()+5000;while(intake.processingContext.resources.snapshot().workers&&Date.now()<end)await wait(20);expect(intake.processingContext.resources.snapshot()).toMatchObject({workers:0,creditsMiB:128});expect((await request('/health')).status).toBe(200);await wait(500);expect(launches.filter(id=>id===failedId)).toHaveLength(1);

@@ -3,21 +3,27 @@
   "data": {
     "projectName": "Shared project"
   },
-  "sections": {
-    "intro": {
+  "sections": [
+    {
       "data": {
         "title": "Introduction"
-      }
+      },
+      "sectionKey": "S0001",
+      "instanceKey": "I0001"
     },
-    "details": {
+    {
       "data": {
         "title": "Details"
-      }
+      },
+      "sectionKey": "S0002",
+      "instanceKey": "I0002"
     },
-    "closing": {
+    {
       "data": {
         "title": "Closing"
-      }
+      },
+      "sectionKey": "S0003",
+      "instanceKey": "I0003"
     }
-  }
+  ]
 }

@@ -5,7 +5,7 @@ import {join} from 'node:path';
 import type {Pool} from 'pg';
 import {OperationError} from '../errors.js';
 
-const required='028_model20_section_definitions.sql';
+const required='029_model20_only.sql';
 const directory=fileURLToPath(new URL('../../migrations/',import.meta.url));
 const requiredError=()=>new OperationError('RUNTIME_SCHEMA_REQUIRED','schema','Required database schema is not available');
 const unavailable=()=>new OperationError('RUNTIME_SCHEMA_UNAVAILABLE','schema','Runtime schema verification unavailable');
@@ -15,7 +15,7 @@ export async function assertRuntimeSchema(pool:Pick<Pool,'query'>,location=direc
  let expected:{name:string;checksum:string}[];
  try{
   const names=(await readdir(location)).filter(n=>/^\d{3}_[a-zA-Z0-9_-]+\.sql$/.test(n)).sort();
-  if(names.at(-1)!==required||names.length!==28||names.some((name,i)=>!name.startsWith(String(i+1).padStart(3,'0')+'_')))throw Error();
+  if(names.at(-1)!==required||names.length!==29||names.some((name,i)=>!name.startsWith(String(i+1).padStart(3,'0')+'_')))throw Error();
   expected=await Promise.all(names.map(async name=>({name,checksum:createHash('sha256').update(await readFile(join(location,name))).digest('hex')})));
  }catch{throw unavailable();}
  let rows:{name:string;checksum:string}[];

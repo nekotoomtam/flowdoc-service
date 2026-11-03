@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "nodeModelVersion": 18,
-  "templateId": "a5b93e22-242e-4712-8806-2fcc6c147158",
+  "nodeModelVersion": 20,
+  "templateId": "8c7ef204-9ef5-56c6-81e1-170bb11b35d7",
   "docKey": "codex-self-srs",
   "version": 1,
   "name": "ข้อกำหนดระบบคลังสินค้า — ทดสอบโดย Codex",
@@ -67,8 +67,7 @@
   },
   "sections": [
     {
-      "id": "main",
-      "key": "main",
+      "id": "766addab-15af-5f4d-86e8-412b5408579e",
       "source": {
         "kind": "authored",
         "fragment": {
@@ -139,7 +138,6 @@
           }
         }
       },
-      "formats": {},
       "footer": {
         "inputSchema": {
           "type": "object",
@@ -190,7 +188,10 @@
             }
           }
         }
-      }
+      },
+      "sectionKey": "S0001",
+      "label": "main",
+      "nameBase": "main"
     }
   ],
   "areaFormats": {

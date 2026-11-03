@@ -24,5 +24,5 @@ export async function migrate(pool:Pool,location=directory):Promise<Result<{appl
    if(done.includes('017_font_references_jobs.sql'))await backfillLegacyFontReferences(client);
    return done;
   });return {ok:true,value:{applied},warnings:[]};
- }catch(error){return failure(error);}
+ }catch(error){return failure((error as {code?:string})?.code==='FD020'?new OperationError('LEGACY_MODEL_DATA','migration','Legacy data requires explicit conversion into a new model20 namespace'):error);}
 }

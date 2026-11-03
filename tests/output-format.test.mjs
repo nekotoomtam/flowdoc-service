@@ -1,3 +1,4 @@
+import {unitQueueResources} from './helpers/unit-queue-headroom.mjs';
 import {it,expect,beforeAll,afterAll} from 'vitest';
 import {readFileSync} from 'node:fs';
 import {mkdtemp,readFile} from 'node:fs/promises';
@@ -13,10 +14,10 @@ const formats=await import('../dist/tasks/output-format.js').catch(()=>({}));
 it.each([[undefined,'pdf'],[[],'pdf'],['PDF','pdf'],['pdf','pdf'],['DOCX','docx'],[' DocX\t','docx'],[['PDF'],'pdf']])('normalizes header %j to %s',(value,expected)=>{expect(formats.parseOutputFormat).toBeTypeOf('function');expect(formats.parseOutputFormat(value)).toBe(expected);});
 it.each(['',' ','txt','pdf,docx','pdf,pdf',null,42,['PDF','PDF'],['pdf','docx']])('rejects invalid/duplicate header %j',value=>{expect(formats.parseOutputFormat).toBeTypeOf('function');expect(()=>formats.parseOutputFormat(value)).toThrowError(expect.objectContaining({code:'INVALID_REQUEST'}));});
 const db=isolatedDatabase(),pool=db.pool,auth='Bearer '+'f'.repeat(40),contentType='multipart/form-data; boundary=format-test';let intake,root,app;
-function smallTemplate(){const t=JSON.parse(readFileSync('examples/area-document-template.json','utf8'));t.nodeModelVersion=18;t.templateId=t.docKey='format-small';t.examples=[];t.globalSchema={type:'object',fields:{}};delete t.areaFormats;t.sections=[{id:'main',key:'main',formats:{},inputSchema:{type:'object',fields:{}},source:{kind:'authored',repeats:[],fragment:{rootIds:['text'],nodes:{text:{id:'text',type:'text-block',role:{role:'paragraph'},props:{textStyleId:'body'},children:[{id:'leaf',type:'text',text:'Small ไทย'}]}}}}}];return t;}
+function smallTemplate(){const t=JSON.parse(readFileSync('examples/area-document-template.json','utf8'));t.nodeModelVersion=20;t.templateId=t.docKey='format-small';t.examples=[];t.globalSchema={type:'object',fields:{}};delete t.areaFormats;t.sections=[{id:'10000000-0000-4000-8000-000000000011',sectionKey:'main',label:'Main',nameBase:'Main',inputSchema:{type:'object',fields:{}},source:{kind:'authored',repeats:[],fragment:{rootIds:['text'],nodes:{text:{id:'text',type:'text-block',role:{role:'paragraph'},props:{textStyleId:'body'},children:[{id:'leaf',type:'text',text:'Small ไทย'}]}}}}}];return t;}
 const identity=h=>h===auth?{ownerKey:'owner',principalId:'creator',taskRead:true,docKeys:['format-small']}:null;
-const multipart=()=>Buffer.from('--format-test\r\nContent-Disposition: form-data; name="payload"\r\nContent-Type: application/json\r\n\r\n{"data":{},"sections":{}}\r\n--format-test--\r\n');
-beforeAll(async()=>{await db.setup();expect((await migrate(pool)).ok).toBe(true);expect((await registerTemplate(pool,JSON.stringify(smallTemplate()))).ok).toBe(true);root=await mkdtemp(join(tmpdir(),'format-i4-'));intake=await createTaskIntake({pool,root,resolveCredential:identity,policy:{maxTasks:10,maxOwnerTasks:10,maxOutstanding:20},freeBytes:async()=>20_000_000_000});app=createServer({pool,outputs:{},isReady:()=>true,tasks:{intake,processing:{execute:async()=>{throw Object.assign(Error('not connected'),{code:'UNAVAILABLE'});}}}});});
+const multipart=()=>Buffer.from('--format-test\r\nContent-Disposition: form-data; name="payload"\r\nContent-Type: application/json\r\n\r\n{"data":{},"sections":[{"sectionKey":"main","instanceKey":"first","data":{}}]}\r\n--format-test--\r\n');
+beforeAll(async()=>{await db.setup();expect((await migrate(pool)).ok).toBe(true);expect((await registerTemplate(pool,JSON.stringify(smallTemplate()))).ok).toBe(true);root=await mkdtemp(join(tmpdir(),'format-i4-'));intake=await createTaskIntake({pool,root,resolveCredential:identity,queueResources:unitQueueResources,policy:{maxTasks:10,maxOwnerTasks:10,maxOutstanding:20},freeBytes:async()=>20_000_000_000});app=createServer({pool,outputs:{},isReady:()=>true,tasks:{intake,processing:{execute:async()=>{throw Object.assign(Error('not connected'),{code:'UNAVAILABLE'});}}}});});
 afterAll(async()=>{await app?.close();await intake?.stop();await db.close();});
 it.each([undefined,'PDF','dOcX'])('persists new-task format %s and version2 envelope without changing business input',async outputFormat=>{
  const t=await intake.open({authorization:auth,docKey:'format-small',contentType,...(outputFormat!==undefined?{outputFormat}:{})});const expected=outputFormat?.toLowerCase()??'pdf';expect(t.outputFormat).toBe(expected);
@@ -52,7 +53,7 @@ it.each([[undefined,'pdf'],['PDF','pdf'],[' dOcX ','docx']])('accepts HTTP forma
 });
 it('retains format through intake restart and exposes it through lookup without reselection',async()=>{
  const t=await intake.open({authorization:auth,docKey:'format-small',contentType,outputFormat:'DOCX'});
- await intake.stop();intake=await createTaskIntake({pool,root,resolveCredential:identity,policy:{maxTasks:10,maxOwnerTasks:10,maxOutstanding:20},freeBytes:async()=>20_000_000_000});
+ await intake.stop();intake=await createTaskIntake({pool,root,resolveCredential:identity,queueResources:unitQueueResources,policy:{maxTasks:10,maxOwnerTasks:10,maxOutstanding:20},freeBytes:async()=>20_000_000_000});
  expect((await intake.inspect(auth,t.taskId)).outputFormat).toBe('docx');
  const {taskSnapshot}=await import('../dist/tasks/public.js');expect((await taskSnapshot(pool,intake,auth,t.taskId)).task.outputFormat).toBe('docx');
 });

@@ -4,16 +4,16 @@ import {createClient,bindImages,describeFailure} from '../examples/api-client/cl
 import {createLocalServer} from '../examples/api-client/serve.mjs';
 
 const schema={type:'object',fields:{photo:{type:'image'},caption:{type:'string'},groups:{type:'array',items:{type:'object',fields:{members:{type:'array',items:{type:'object',fields:{photo:{type:'image'}}}}}}},details:{type:'area',areaId:'a'}}};
-const contract={version:2,globalSchema:schema,sections:{body:{inputSchema:schema,header:schema,footer:schema,formats:{entry:{inputSchema:schema}}}},areaFormats:{f:{ownerAreaId:'a',key:'picture',inputSchema:schema}}};
+const contract={nodeModelVersion:20,version:2,globalSchema:schema,sections:[{sectionKey:'body',inputSchema:schema,header:schema,footer:schema}],areaFormats:{f:{ownerAreaId:'a',key:'picture',inputSchema:schema}}};
 describe('local API client',()=>{
  it('maps image fields through scopes, two arrays and Area without rewriting text or source',()=>{
   const data={photo:'pic',caption:'pic',groups:[{members:[{photo:'pic'}]}],details:[{format:'picture',data:{photo:'pic'}}]};
-  const input={docKey:'demo',data,sections:{body:{data,header:data,footer:data}}};
+  const input={docKey:'demo',data,sections:[{sectionKey:'body',instanceKey:'body',data,header:data,footer:data}]};
   const mapped=bindImages(input,contract,new Map([['pic','resource']]));
   expect(mapped.data.photo).toBe('resource');expect(mapped.data.caption).toBe('pic');
   expect(mapped.data.groups[0].members[0].photo).toBe('resource');
   expect(mapped.data.details[0].data.photo).toBe('resource');
-  for(const scope of ['data','header','footer'])expect(mapped.sections.body[scope].photo).toBe('resource');
+  for(const scope of ['data','header','footer'])expect(mapped.sections[0][scope].photo).toBe('resource');
  });
  it('uploads serially, finalizes, pins contract version and only prepares until explicitly submitted',async()=>{
   const calls=[];let active=0,max=0;

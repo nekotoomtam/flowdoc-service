@@ -3,7 +3,7 @@ export const id=n=>`10000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const text=(value,scope='section')=>({id:'text',type:'text-block',role:{role:'paragraph'},props:{textStyleId:'body'},children:[{id:'value',type:'field-ref',scope,key:value}]});
 export function model20Fixture({rich=false,schemaVersion=1}={}){
  const t=JSON.parse(readFileSync('tests/fixtures/group-label/template.json','utf8'));t.nodeModelVersion=20;t.sections[0].sectionKey='A';
- const a=t.sections[0];a.numbering={mode:'restart',startAt:1};
+ const a=t.sections[0];a.id=id(11);a.numbering={mode:'restart',startAt:1};
  for(const band of ['header','footer'])a[band]={inputSchema:{type:'object',fields:{note:{type:'string',required:true}}},baseTextStyleId:'body',fragment:{rootIds:['text'],nodes:{text:text('note',band)}}};
  t.sections.push({id:id(12),sectionKey:'B',label:'Middle',nameBase:'Middle',inputSchema:{type:'object',fields:{title:{type:'string',required:true}}},source:{kind:'authored',repeats:[],fragment:{rootIds:['text'],nodes:{text:text('title')}}}});
  const instance=(instanceKey,value)=>({sectionKey:'A',instanceKey,data:{content:[{format:'meeting',data:{companies:[{name:'G-'+value,members:[{name:value}]}]}}]},header:{note:value+' header'},footer:{note:value+' footer'}});

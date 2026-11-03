@@ -4,8 +4,8 @@
   "data": {
     "projectName": "SRS ทดลองตาราง"
   },
-  "sections": {
-    "main": {
+  "sections": [
+    {
       "data": {
         "content": [
           {
@@ -37,7 +37,9 @@
             }
           }
         ]
-      }
+      },
+      "sectionKey": "S0001",
+      "instanceKey": "I0001"
     }
-  }
+  ]
 }

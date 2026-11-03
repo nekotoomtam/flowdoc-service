@@ -10,21 +10,21 @@ const db=isolatedDatabase(),read=n=>JSON.parse(readFileSync('examples/area-docum
 const ok=r=>{expect(r.ok,JSON.stringify(r)).toBe(true);return r.value;};let app;
 beforeAll(async()=>{await db.setup();ok(await migrate(db.pool));const t=read('template');ok(await importCurrent(db.pool,JSON.stringify(t)));ok(await publishCurrent(db.pool,{templateId:t.templateId,requestId:'area-v18'}));app=createServer({pool:db.pool,outputs:{available:async()=>false},isReady:()=>true,imagesEnabled:true});});
 afterAll(async()=>{await app?.close();await db.close();});
-it('persists model18 section variables and owned formats in immutable snapshots',async()=>{
+it('persists model20 section variables and owned formats in immutable snapshots',async()=>{
  const t=read('template'),loaded=ok(await loadTemplate(db.pool,t.docKey,1));
- expect(loaded.template.definition).toMatchObject({nodeModelVersion:18});
+ expect(loaded.template.definition).toMatchObject({nodeModelVersion:20});
  const c=ok((await app.inject('/templates/'+t.docKey+'/contract?version=1')).json());
- expect(c.sections.main.inputSchema.fields.details.type).toBe('area');
- expect(c.sections.main.formats).toEqual({});expect(c.areaFormats.meeting.ownerAreaId).toBe('main-details');
+ expect(c.sections[0].inputSchema.fields.details.type).toBe('area');
+ expect(c.sections[0]).not.toHaveProperty('formats');expect(c.areaFormats.meeting.ownerAreaId).toBe('main-details');
 });
 it('enqueues section Area data and rejects malformed entries without partial jobs',async()=>{
  const good=await app.inject({method:'POST',url:'/jobs',payload:read('request')});expect(good.statusCode,good.body).toBe(202);
  const count=(await db.pool.query('SELECT count(*) FROM generation_jobs')).rows[0].count;
  for(const entry of [{format:'wrong',data:{}},{format:'meeting',data:{}},{format:'meeting',data:{companies:'wrong'}}]){
-  const r=read('request');r.sections.main.data.details.push(entry);
+  const r=read('request');r.sections[0].data.details.push(entry);
   const out=await app.inject({method:'POST',url:'/jobs',payload:r});expect(out.statusCode,out.body).toBe(422);
-  expect(out.json().issues.some(i=>i.path.startsWith('sections.main.data.details[1]'))).toBe(true);
+  expect(out.json().issues.some(i=>i.path.startsWith('sections[0].data.details[1]'))).toBe(true);
  }
  expect((await db.pool.query('SELECT count(*) FROM generation_jobs')).rows[0].count).toBe(count);
- const r=read('request');r.sections.main.content=[];expect((await app.inject({method:'POST',url:'/jobs',payload:r})).statusCode).toBe(422);
+ const r=read('request');r.sections[0].content=[];expect((await app.inject({method:'POST',url:'/jobs',payload:r})).statusCode).toBe(422);
 });

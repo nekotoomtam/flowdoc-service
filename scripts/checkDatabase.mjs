@@ -1,5 +1,5 @@
 import {execFileSync} from 'node:child_process';
-import {mkdirSync,writeFileSync,readFileSync} from 'node:fs';
+import {mkdirSync,writeFileSync,readFileSync,readdirSync} from 'node:fs';
 import {randomBytes} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {join} from 'node:path';
@@ -15,7 +15,7 @@ try{
  compose(['build','registry','verification'],'build');
  const runtimeImage=docker(['image','inspect',runtimeTag,'--format','{{.Id}}']).trim(),verificationImage=docker(['image','inspect',verifyTag,'--format','{{.Id}}']).trim();
  compose(['up','-d','--wait','db'],'database-start');
- const migration=cli(['migrate'],'migrate');assert.equal(migration.ok,true);assert.deepEqual(migration.value.applied,['001_initial.sql','002_current_version.sql','003_output_lifetime.sql','004_upload_staging.sql','005_image_variable_type.sql','006_upload_job_claims.sql','007_job_processing.sql','008_link_variable_type.sql','009_area_ownership.sql','010_page_band_schemas.sql','011_section_ownership.sql','012_page_numbering.sql','013_row_groups.sql','014_area_document.sql','015_authoring_previews.sql','016_font_library_staging.sql','017_font_references_jobs.sql','018_font_lifecycle.sql']);
+ const migration=cli(['migrate'],'migrate');assert.equal(migration.ok,true);const catalog=readdirSync(join(root,'migrations')).filter(n=>/^\d{3}_.*[.]sql$/.test(n)).sort();assert.equal(catalog.at(-1),'029_model20_only.sql');assert.deepEqual(migration.value.applied,catalog);
  const testText=compose(['run','--rm','-T','verification','--reporter=json'],'tests');const tests=JSON.parse(testText);assert.equal(tests.success,true);assert.equal(tests.numPendingTests,0);
  const registration=cli(['register','examples/srs-template.json'],'register');assert.equal(registration.ok,true);assert.equal(registration.value.created,true);
  const cliCurrent=JSON.parse(compose(['run','--rm','-T','--entrypoint','node','verification','tests/checkCurrentCli.mjs'],'current-cli'));assert.equal(cliCurrent.status,'PASS');

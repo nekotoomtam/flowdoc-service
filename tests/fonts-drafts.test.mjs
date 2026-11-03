@@ -23,16 +23,16 @@ it('saves/readbacks unresolved drafts, rejects malformed/foreign/stale atomicall
  const preview=await api.preview(id.templateId,{expectedRevision:1,sampleRequest:{...sample,docKey:id.docKey},idempotencyKey:'blocked'});expect(preview).toMatchObject({ok:false,issues:[{code:'FONT_NOT_SELECTED'}]});
  expect((await pool.query('SELECT count(*) FROM generation_jobs')).rows[0].count).toBe('0');
 });
-it('grants only active exact tuples; preserves retired tuples through rename/clone and removes them after omission',async()=>{
+it('grants only active exact tuples; preserves retired tuples through rename and removes them after omission',async()=>{
  const f=await stageFont(pool,root);await pool.query("UPDATE font_releases SET state='active',ever_activated_at=now() WHERE id=$1",[f.id]);
  const {id,definition}=await draft(f.fontSelection);expect(ok(await api.save(id.templateId,{definition,expectedRevision:0,idempotencyKey:'active'})).fontReadiness.status).toBe('ready');
  await pool.query("UPDATE font_releases SET state='retired' WHERE id=$1",[f.id]);
- const inherited=ok(await api.cloneDraft(id.templateId,{sourceRevision:1,name:'Copy',docKey:'copy-'+randomUUID(),idempotencyKey:'clone'}));expect(inherited.fontReadiness.status).toBe('ready');
- expect(await other.cloneDraft(id.templateId,{sourceRevision:1,name:'Bad',docKey:'bad',idempotencyKey:'bad'})).toMatchObject({ok:false,issues:[{code:'TEMPLATE_NOT_FOUND'}]});
+ expect(api).not.toHaveProperty('cloneDraft');
+ expect(ok(await api.get(id.templateId)).fontReadiness.status).toBe('ready');
  const rename=structuredClone(definition);rename.styles.extra=structuredClone(Object.values(rename.styles)[0]);expect(ok(await api.save(id.templateId,{definition:rename,expectedRevision:1,idempotencyKey:'rename'})).fontReadiness.status).toBe('ready');
  const omitted=structuredClone(definition);for(const s of Object.values(omitted.styles))s.font={kind:'unselected'};ok(await api.save(id.templateId,{definition:omitted,expectedRevision:2,idempotencyKey:'remove'}));
  expect(ok(await api.save(id.templateId,{definition,expectedRevision:3,idempotencyKey:'restore-json'})).fontReadiness).toMatchObject({status:'blocked',issues:[{code:'FONT_REFERENCE_NOT_RETAINED'}]});
- expect(ok(await api.cloneDraft(id.templateId,{sourceRevision:1,name:'Copy',docKey:inherited.docKey,idempotencyKey:'clone'})).templateId).toBe(inherited.templateId);
+ expect(await other.get(id.templateId)).toMatchObject({ok:false,issues:[{code:'TEMPLATE_NOT_FOUND'}]});
 });
 it('saves unknown, preparing and missing faces with issues; JSON cannot confer retained rights',async()=>{
  const f=await stageFont(pool,root);
@@ -45,8 +45,8 @@ it('saves unknown, preparing and missing faces with issues; JSON cannot confer r
  expect(await api.save(id.templateId,{definition,expectedRevision:1,idempotencyKey:'injected'})).toMatchObject({ok:false,issues:[{code:'INVALID_FONT_SELECTION'}]});
 });
 it('adds readiness without dropping existing Core data warnings',async()=>{
- const {id,definition}=await draft(),input={...structuredClone(sample),docKey:id.docKey};input.data.extra='unknown';
- const v=ok(validateTemplate(definition)),p=ok(prepareGeneration(v,input)),d=composeDocument(v,p);expect(d.ok).toBe(true);expect(p.warnings.length).toBeGreaterThan(0);
+ const {id,definition}=await draft(),input={...structuredClone(sample),docKey:id.docKey};input.sections[0].data.details.push({format:'meeting',data:{companies:[]}});
+ const v=ok(validateTemplate(definition)),p=ok(prepareGeneration(v,input)),d=composeDocument(v,p);expect(d.ok).toBe(true);expect(Array.isArray(p.warnings)).toBe(true);
  const result=await api.validate({definition,sampleRequest:input});expect(result.ok).toBe(true);expect(result.warnings).toEqual([...p.warnings,...d.warnings]);
 });
 it('saves a missing asset as incomplete and blocks previews with missing provenance',async()=>{

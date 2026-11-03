@@ -7,7 +7,7 @@ import {createAuthoring} from '../dist/authoring/service.js';
 const definition=template();definition.areaFormats.item.fragment.rootIds=['text'];delete definition.areaFormats.item.fragment.nodes.photo;definition.defaultFileName='ตั้งต้น CLIS';
 const f=fixture(definition);let url;
 const ok=r=>{expect(r.ok,JSON.stringify(r)).toBe(true);return r.value;};
-function body(extra={}){return Buffer.from('--docx-fixture\r\nContent-Disposition: form-data; name="payload"\r\nContent-Type: application/json\r\n\r\n'+JSON.stringify({...extra,data:{},sections:[{id:sid,data:{parts:[{format:'item',data:{text:'ชื่อไฟล์ ไทย EN'}}]}}]})+'\r\n--docx-fixture--\r\n');}
+function body(extra={}){return Buffer.from('--docx-fixture\r\nContent-Disposition: form-data; name="payload"\r\nContent-Type: application/json\r\n\r\n'+JSON.stringify({...extra,data:{},sections:[{sectionKey:'task-section',instanceKey:'first',data:{parts:[{format:'item',data:{text:'ชื่อไฟล์ ไทย EN'}}]}}]})+'\r\n--docx-fixture--\r\n');}
 beforeAll(async()=>{await f.setup();await f.reset();url=await f.server();},30000);
 afterAll(()=>f.close());
 for(const format of ['pdf','docx'])for(const [label,extra,name] of [['override',{fileName:'  รายงาน CLIS  '},'รายงาน CLIS'],['default',{},'ตั้งต้น CLIS'],['blank',{fileName:'  '},'ตั้งต้น CLIS']])it(format+' '+label+' delivers named real bytes and exposes the frozen base name',async()=>{
@@ -49,7 +49,7 @@ it('authoring save/read/clone and immutable registry versions retain the default
  const t=template();t.templateId=created.templateId;t.docKey='named-authoring';t.defaultFileName='ชื่อรายงาน';
  const saved=ok(await a.save(created.templateId,{definition:t,expectedRevision:0,idempotencyKey:'save'}));expect(saved.definition.defaultFileName).toBe(t.defaultFileName);
  expect(ok(await a.get(created.templateId)).definition.defaultFileName).toBe(t.defaultFileName);
- expect(ok(await a.cloneDraft(created.templateId,{sourceRevision:1,name:'Clone',docKey:'named-clone',idempotencyKey:'clone'})).definition.defaultFileName).toBe(t.defaultFileName);
+ expect(a).not.toHaveProperty('cloneDraft');
  // Registry publication is exercised only inside this disposable schema.
  ok(await registerTemplate(f.pool,JSON.stringify(saved.definition)));
  const loaded=ok(await loadTemplate(f.pool,'named-authoring'));expect(loaded.template.definition.defaultFileName).toBe(t.defaultFileName);

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "nodeModelVersion": 18,
-  "templateId": "area-demo",
+  "nodeModelVersion": 20,
+  "templateId": "c35f5a4d-b7b1-51f6-8efa-ff1b107dc765",
   "docKey": "area-demo",
   "version": 1,
   "name": "Array image evidence",
@@ -247,7 +247,7 @@
   },
   "sections": [
     {
-      "id": "contents",
+      "id": "996881de-7b97-5258-8499-1eb641b2edb3",
       "source": {
         "kind": "authored",
         "fragment": {
@@ -259,22 +259,26 @@
               "id": "toc",
               "type": "table-of-contents",
               "props": {
-                "textStyleId": "body"
+                "textStyleId": "body",
+                "scope": {
+                  "kind": "document"
+                }
               }
             }
           }
         },
         "repeats": []
       },
-      "key": "contents",
       "inputSchema": {
         "type": "object",
         "fields": {}
       },
-      "formats": {}
+      "sectionKey": "S0001",
+      "label": "contents",
+      "nameBase": "contents"
     },
     {
-      "id": "evidence",
+      "id": "efe6e919-841b-5d5b-8f55-041e4244c5e0",
       "source": {
         "kind": "authored",
         "fragment": {
@@ -409,7 +413,6 @@
         },
         "repeats": []
       },
-      "key": "evidence",
       "inputSchema": {
         "type": "object",
         "fields": {
@@ -419,10 +422,12 @@
           }
         }
       },
-      "formats": {}
+      "sectionKey": "S0002",
+      "label": "evidence",
+      "nameBase": "evidence"
     },
     {
-      "id": "merged",
+      "id": "56d165ef-48f4-5424-8411-b99b80b7802b",
       "source": {
         "kind": "authored",
         "fragment": {
@@ -634,7 +639,6 @@
         },
         "repeats": []
       },
-      "key": "merged",
       "inputSchema": {
         "type": "object",
         "fields": {
@@ -644,10 +648,12 @@
           }
         }
       },
-      "formats": {}
+      "sectionKey": "S0003",
+      "label": "merged",
+      "nameBase": "merged"
     },
     {
-      "id": "summary",
+      "id": "0a2865bf-07bf-5082-8fa6-4635d6aa8d7d",
       "source": {
         "kind": "authored",
         "fragment": {
@@ -686,12 +692,13 @@
         },
         "repeats": []
       },
-      "key": "summary",
       "inputSchema": {
         "type": "object",
         "fields": {}
       },
-      "formats": {}
+      "sectionKey": "S0004",
+      "label": "summary",
+      "nameBase": "summary"
     }
   ]
 }

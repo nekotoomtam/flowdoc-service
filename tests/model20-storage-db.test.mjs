@@ -4,7 +4,7 @@ import {importCurrent,loadCurrent,saveCurrent} from '../dist/templates/current.j
 import {assemble} from '../dist/templates/assembly.js';import {reconcileDefinition} from '../dist/authoring/adapter.js';import {readReferences} from '../dist/fonts/retention.js';
 import {ok,fixture,prepared,insertJob} from './helpers/model20-db.mjs';
 const db=isolatedDatabase();beforeAll(async()=>{await db.setup();ok(await migrate(db.pool))});afterAll(()=>db.close());
-it.each([18,19,20])('registers model%s atomically, retains font snapshot provenance and repeats idempotently',async model=>{
+it.each([20])('registers model%s atomically, retains font snapshot provenance and repeats idempotently',async model=>{
  const {t}=fixture(model,'model'+model+'-register'),[a,b]=await Promise.all([registerTemplate(db.pool,JSON.stringify(t)),registerTemplate(db.pool,JSON.stringify(t))]);const x=ok(a),y=ok(b);expect(x.versionId).toBe(y.versionId);expect([x.created,y.created].sort()).toEqual([false,true]);
  const loaded=ok(await loadTemplate(db.pool,t.docKey,1));expect(loaded.template.definition).toEqual(t);
  const refs=await readReferences(db.pool,t.templateId,0,x.versionId);expect(refs.definitionFingerprint).toBe(x.fingerprint);expect(refs.legacyBindings).toHaveLength(4);
@@ -43,7 +43,7 @@ it('rolls back current graph, snapshots, receipts and font reference writes on i
  await db.pool.query('DROP TRIGGER m20_fail_refs ON font_reference_sets; DROP FUNCTION m20_fail_refs()');expect(ok(await publishCurrent(db.pool,{templateId:t.templateId,requestId:'fail'})).version).toBe(1);expect(ok(await registerTemplate(db.pool,JSON.stringify(failedRegistration))).created).toBe(true);
 });
 it.each([[1,'pdf'],[2,'pdf'],[2,'docx']])('preserves the task-job v%s pin and immutable %s output format branch',async(normalization,format)=>{
- const {t}=fixture(18,'task-pin-'+normalization+'-'+format),v=ok(await registerTemplate(db.pool,JSON.stringify(t))),id=randomUUID(),fid=randomUUID(),digest='a'.repeat(64),core={version:'pinned',sha256:'b'.repeat(64)};
+ const {t}=fixture(20,'task-pin-'+normalization+'-'+format),v=ok(await registerTemplate(db.pool,JSON.stringify(t))),id=randomUUID(),fid=randomUUID(),digest='a'.repeat(64),core={version:'pinned',sha256:'b'.repeat(64)};
  await db.pool.query("INSERT INTO tasks(id,owner_key,created_by_principal,template_version_id,template_pin,resource_policy,output_format,normalization_version,status) VALUES($1,'owner','creator',$2,$3,'{}',$4,$5,'receiving')",[id,v.versionId,{docKey:t.docKey,version:1,fingerprint:v.fingerprint},format,normalization]);
  await db.pool.query("INSERT INTO task_files(id,task_id,role,logical_path,part_order,media_type,state,checksum,storage_key) VALUES($1,$2,'normalized','normalized-input-v2',0,'application/json','received',$3,$4)",[fid,id,digest,id+'/normalized/'+fid+'.bin']);
  await db.pool.query("UPDATE tasks SET status='validating',sealed_at=now(),file_name='document',input_digest=$2,normalized_at=now(),normalized_digest=$2,normalized_file_id=$3,normalization_summary=$4 WHERE id=$1",[id,digest,fid,{normalizationVersion:normalization,outputFormat:format,coreVersion:core.version,coreSha256:core.sha256}]);

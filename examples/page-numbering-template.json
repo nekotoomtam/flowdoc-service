@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "templateId": "tpl-page-numbering",
+  "templateId": "4ce9dcfe-10d7-5a36-82ec-fc2f3f2b6fd3",
   "docKey": "page-numbering",
   "version": 1,
   "name": "Cover and reserved text trial",
@@ -69,7 +69,7 @@
       "lineHeightPt": 22
     }
   },
-  "nodeModelVersion": 18,
+  "nodeModelVersion": 20,
   "globalSchema": {
     "type": "object",
     "fields": {
@@ -81,8 +81,7 @@
   },
   "sections": [
     {
-      "id": "section-intro",
-      "key": "intro",
+      "id": "c5a1fcde-56ef-5bb6-8ef5-bf56016d8fc0",
       "pageLayoutId": "portrait",
       "inputSchema": {
         "type": "object",
@@ -128,7 +127,6 @@
         },
         "repeats": []
       },
-      "formats": {},
       "header": {
         "inputSchema": {
           "type": "object",
@@ -174,11 +172,13 @@
             }
           }
         }
-      }
+      },
+      "sectionKey": "S0001",
+      "label": "intro",
+      "nameBase": "intro"
     },
     {
-      "id": "section-details",
-      "key": "details",
+      "id": "92ef6027-a78b-560c-826d-f8179cbf8cfb",
       "pageLayoutId": "landscape",
       "inputSchema": {
         "type": "object",
@@ -224,7 +224,6 @@
         },
         "repeats": []
       },
-      "formats": {},
       "header": {
         "inputSchema": {
           "type": "object",
@@ -274,11 +273,13 @@
       "numbering": {
         "mode": "restart",
         "startAt": 10
-      }
+      },
+      "sectionKey": "S0002",
+      "label": "details",
+      "nameBase": "details"
     },
     {
-      "id": "section-closing",
-      "key": "closing",
+      "id": "a0cdec36-180f-5e37-817b-0291da83af2d",
       "pageLayoutId": "portrait",
       "inputSchema": {
         "type": "object",
@@ -324,7 +325,6 @@
         },
         "repeats": []
       },
-      "formats": {},
       "header": {
         "inputSchema": {
           "type": "object",
@@ -370,7 +370,10 @@
             }
           }
         }
-      }
+      },
+      "sectionKey": "S0003",
+      "label": "closing",
+      "nameBase": "closing"
     }
   ],
   "examples": []
