@@ -1,5 +1,7 @@
 # FlowDoc Service
 
+> **Release withdrawn — 2026-11-05:** Core/Service v0.6.0 is withdrawn by owner request. The release branch is restored to v0.5.2. Version 0.6.0 code, packages and scoped lab evidence remain candidates; current-chat actual-use acceptance has not passed. The 0.6.0 preparation instructions below do not authorize installation or publication.
+
 Development version0.6.0 uses the exact Core0.6.0 archive in vendor/manifest.json.
 It accepts model20 only and requires migrations through029. Models18/19 need
 explicit offline conversion into a new namespace; no automatic rewrite or

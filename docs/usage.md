@@ -1,5 +1,7 @@
 # คู่มือใช้งาน FlowDoc Service 0.6.0
 
+> **Release withdrawn — 2026-11-05:** Core/Service v0.6.0 is withdrawn by owner request. The release branch is restored to v0.5.2. Version 0.6.0 code, packages and scoped lab evidence remain candidates; current-chat actual-use acceptance has not passed. The 0.6.0 preparation instructions below do not authorize installation or publication.
+
 ## Authority Boundary
 
 Owner: flowdoc-service. Scope: repository-owned runtime setup, API usage and
