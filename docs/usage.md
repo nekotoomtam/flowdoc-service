@@ -9,10 +9,81 @@ Project Control governs those claims.
 
 ## ชุดพัฒนา 0.6.0
 
-รอบ model20-only นี้ใช้ Core source937bed1 และ archive/hash ใน vendor/manifest.json.
+รอบ model20-only นี้ใช้ Core sourcec284498 และ archive/hash ใน vendor/manifest.json.
 ต้องมี migration029 ก่อนเริ่มแอป; Service/plugin คนละ pin ไม่ถือว่าเข้ากันเพียงเพราะ
 เลขรุ่น0.6.0เท่ากัน. หลักฐานรับรองข้าม repo อยู่ใน Project Control แผนเปลี่ยนเป็น20เท่านั้น.
 ไม่มีการติดตั้งหรือ release จากการแก้คู่มือนี้.
+
+## อัปเดตจาก0.5.2 เป็น0.6.0: เตรียมก่อนติดตั้ง
+
+ส่วนนี้เป็นขั้นตอนเตรียมของรุ่น0.6.0 ไม่ใช่ผลว่าระบบที่ติดตั้งอยู่ถูกอัปเดตแล้ว.
+การออก Git release ไม่เปิด API, ไม่รัน migration และไม่เปลี่ยนฐานหรือไฟล์เดิม.
+Core/Service0.6.0 รับเฉพาะ model20; FlowDocMake0.3.1 ที่ตรึง0.5.2 ใช้แทน client
+model20 ไม่ได้. FlowDocMake รุ่นใหม่ยังเป็น candidate ที่ต้องตั้งค่าแยกอย่างชัดเจน.
+
+### เส้นทางแนะนำสำหรับระบบที่ยังอยู่ระหว่างเตรียมใช้งาน
+
+1. ตรวจ snapshot/tag `v0.6.0`, Service package/lock และ `vendor/manifest.json`
+   ให้ตรงกัน. รัน `node scripts/verifyVendor.mjs` กับ source ที่ตรึงไว้ก่อน build.
+   เก็บ release0.5.2, image digest, config และ archive เดิมไว้ ไม่เขียนทับ tag.
+2. เมื่อได้รับอนุญาตติดตั้ง จึงเก็บ backup DB และพื้นที่ staging/output/task/fonts
+   ให้เป็นจุดเดียวกัน พร้อมรายการไฟล์/checksum และซ้อม restore บนสำเนาแยก.
+   เก็บ credentials แยกจากรายงาน ไม่ใส่ connection string หรือ token ในหลักฐาน.
+3. เตรียมฐานและ storage root ชื่อใหม่สำหรับ0.6.0. อย่าชี้ binary0.6.0 ไปที่ฐาน
+   model18/19 เดิม หรือคัดลอกไฟล์ runtime/storage identity ของ task root เก่ามา
+   เพื่อทำให้ระบบใหม่รับงาน. เก็บระบบเก่าและข้อมูลเก่าไว้สำหรับตรวจย้อนหลัง/ย้อนกลับ.
+4. แปลงเฉพาะ template และข้อมูลตัวอย่างบนสำเนาด้วยตัวแปลง offline ที่ Project
+   Control จัดไว้ (`tools/model20/convert-legacy-cli.mjs`); ระบุ SDK เก่า/ใหม่และ
+   hash ที่ตรวจแล้ว. เริ่ม `--dry-run`, ตรวจผลและ mapping ก่อนเขียน output directory
+   ใหม่. การเปลี่ยน `nodeModelVersion` เป็น20เฉยๆ ไม่ใช่การแปลง. ถ้าตัวแปลงปฏิเสธ
+   TOC หรือโครงที่พิสูจน์ความเท่ากันไม่ได้ ให้หยุดและจัดทำแม่แบบนั้นใหม่โดยชัดแจ้ง.
+5. รัน `migrate` ของ image0.6.0 เฉพาะฐานใหม่; ต้องครบ001–029. รันซ้ำแล้วไม่ควร
+   มีรายการ applied ใหม่. นำเข้า/ตรวจ/เผยแพร่เฉพาะ template20ที่รับรองแล้ว; เริ่ม
+   generation jobs/tasks ใหม่ ไม่ย้ายประวัติงานค้างหรือ diagnostics ให้ดูเหมือนงานใหม่.
+6. เตรียม host isolation ตามหัวข้อด้านล่างก่อนเปิดงานที่ต้องรับประกัน512MiB/worker.
+   ตรวจ `/health`, `/authoring/contract`, รุ่น Service/Core, archive/tree identity,
+   PDF และ DOCX/receipt จริง รวมทั้งยอด diagnostics และ queue reservations.
+   ทดสอบ cancel/retry กับงานจำลองก่อนเปิดรับผู้ใช้จริง. Word field refresh และ
+   การตรวจรูปแบบ DOCX ยังเป็นอีกขั้น; MCP task ของ FlowDocMake ยังเป็น PDF-only.
+
+### ขอบเขต migration และการย้อนกลับ
+
+Migration029 ตรวจ current/version/snapshot/preview/prepared jobs ว่าเป็น20 และ
+กำหนด ownership ของ formats. ถ้ายังพบ legacy จะปฏิเสธด้วย SQLSTATE `FD020`;
+ไม่แปลง ไม่ลบ และไม่ relabel graph เดิม. Migration runner ใช้ transaction เดียว
+ครอบ pending migrations ทั้งหมดของการเรียกครั้งนั้น: ถ้า029ล้มเหลว027/028ที่ทำ
+ในการเรียกเดียวกันจะ rollback ด้วย. ส่วน migrationที่ commit ไว้ก่อนเริ่มคำสั่ง
+ครั้งนี้ไม่ถูกย้อนกลับ. ห้ามแก้ checksum ของ001–028 หรือใช้ SQL down ที่ไม่มีสัญญารองรับ.
+
+ถ้าตรวจหลังติดตั้งไม่ผ่าน ให้แยก/หยุดเฉพาะระบบใหม่ตามแผนที่ได้รับอนุญาต และคืน
+image/config/DB/files จาก backup ชุดเดียวลง namespace แยกก่อนสลับกลับ.
+ห้ามเปิด binary0.5.2 ทับฐานที่ migrate แล้ว หรือแก้ metadata migration เพื่อหลอกว่า
+ย้อนแล้ว. ห้ามส่งเอกสารซ้ำอัตโนมัติเพียงเพราะ task failed: ตรวจ delivery evidence
+และไฟล์ที่ client ได้รับก่อน. การสลับระบบ/หยุดบริการต้องมีคำอนุญาตติดตั้งแยก.
+
+### Host worker prerequisites ของชุดที่ทดสอบใน Oracle lab
+
+ผล512MiB/worker ใช้ `FLOWDOC_WORKER_ISOLATION=required`, profile `1g-2cpu`,
+Linux cgroup v2 และ broker/anchor ที่ host จัดให้ภายใต้สิทธิ์/ownership ที่ Core
+และ Service ตรวจจริง. กำหนด `FLOWDOC_WORKER_BROKER_SOCKET`,
+`FLOWDOC_WORKER_ANCHOR` และ `FLOWDOC_WORKER_BOOTSTRAP_PYTHON` ให้ตรง host.
+Worker leaf ต้อง memory.max536870912, swap.max0; Service aggregate budgetเดิม
+คือ1GiB. ขาด broker, anchor, counters หรือสิทธิ์ที่ต้องใช้ให้ถือว่ายังไม่พร้อมรับงาน.
+
+Compose เดิมไม่ได้สร้าง host broker/cgroup delegation เหล่านี้อัตโนมัติ. ค่า
+worker isolation เริ่มต้นเป็น `disabled`; การเปิดแอปในโหมดนั้นไม่ใช่หลักฐานว่า
+บังคับ512MiBต่อworkerแล้ว. ห้ามปิด guard หรือใช้สิทธิ์กว้างขึ้นเพื่อข้ามขั้นเตรียม.
+ก่อนติดตั้งแบบ required ต้องตรวจ host-specific launcher/broker lifecycle และ
+shutdown/recovery บนสำเนาในสภาพแวดล้อมปลายทาง; ผล lab ไม่แทนผลติดตั้งจริง.
+อย่าคัดลอก path, anchor, PID หรือ cgroup ของ lab ไปใช้กับบริการเดิม.
+
+### ข้อจำกัดที่ยังคงอยู่ใน0.6.0
+
+DOCX ยังไม่รับรอง Word fidelity ทุกชนิด, font fallback ราย glyph, การทำนาย
+ความสูงแถว/พื้นที่หน้าทั่วไป หรือ Module labelซ้ำพร้อม“ต่อ”ในหน้าใหม่.
+ค่า XML เริ่มต้นยัง50000 nodes; UATเต็มชุดใน lab ที่ใช้ explicit override300000
+ไม่ใช่ผลว่าผ่านค่าเริ่มต้น. เก็บข้อยกเว้นของเทสต์และ historical operator cases
+ตามหลักฐาน Project Control. เริ่มเปิดใช้งานด้วยแม่แบบที่ตรวจรับแล้วและ PDFเป็นหลัก.
 
 ### เครื่องมือกู้ยอด diagnostics ของงานเก่า (candidate)
 
@@ -985,7 +1056,7 @@ Control ไม่ใช่คำสั่งติดตั้ง release. ใ�
 DOCX มี pageCount:null และต้องอัปเดตฟิลด์/สารบัญใน Word; ห้ามอนุมานว่าตรวจ Word แล้ว
 จากการสร้างไฟล์สำเร็จ. ตัวเขียนเก็บข้อมูลระหว่างสร้างและจำกัดไฟล์32MiB.
 บางความสัมพันธ์ข้อความ/ภาพที่เกินกรอบยังเป็นข้อจำกัดชัดเจน. Candidate ที่ตรึง
-`flowdoc-core-0.6.0.tgz` รองรับภาพใน body ที่ระบบตรวจว่า
+`flowdoc-core-0.6.0-release-c284498.tgz` รองรับภาพใน body ที่ระบบตรวจว่า
 ใช้ไม่ได้แล้ว: บันทึก diagnostics ก่อนส่งตำแหน่งภาพให้ Core ผ่านสัญญา
 `docx-image-omissions/1` แล้วสร้าง DOCX ที่ส่งสำเร็จแต่ completeness เป็น partial.
 คงกรอบภาพเดิม ข้อความและภาพตำแหน่งอื่น ไม่มีภาพสมมติหรือ PDF fallback.

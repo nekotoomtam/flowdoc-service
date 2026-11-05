@@ -9,6 +9,17 @@ repeated, and general Word pagination/font fallback is not certified. This
 local development integration does not update the existing0.5.2 release or
 any running installation. Back up DB/files together before any later migration.
 
+For the0.5.2→0.6.0 update, read [update preparation](docs/usage.md#อัปเดตจาก052-เป็น060-เตรียมก่อนติดตั้ง).
+Use a new model20 DB/storage namespace; migration029 refuses legacy graphs and
+is not an automatic converter. One transaction covers all pending migrations
+in each migrate invocation; a029 refusal rolls back changes in that invocation,
+not migrations committed by earlier runs. Restore a matched backup/image/config in an isolated
+namespace, never with old binaries against an upgraded DB. The Oracle-tested
+512MiB worker guarantee requires a separately prepared host broker/cgroup
+deployment and required isolation mode; existing Compose does not provision it.
+FlowDocMake remains a separately tested private candidate, not a released or
+installed client. Git snapshot/tag publication does not perform deployment.
+
 ## 0.6.0 development integration
 
 This candidate pins Core `0.6.0` through `vendor/manifest.json`; verify its checksum
@@ -41,7 +52,7 @@ Migration029 is candidate-only. It refuses legacy data without rewriting/deletin
 See the matching usage guide for explicit image selection, development migration029
 (the retained v0.5.2 release used026),
 consistent DB/files backup and separately verified restore/post-install checks.
-This local0.6.0 integration pins Core source937bed1 with R1 prefix-fit measurement,
+This local0.6.0 integration pins Core sourcec284498 with R1 prefix-fit measurement,
 M1 merged-label inset mapping, and native text-run coalescing within
 authored spans and unchanged XML limits; the exact archive is in manifest/lock.
 Use the matching private model20 FlowDocMake candidate profile for that archive;
@@ -380,9 +391,9 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-This candidate vendors Core 0.6.0, installed solely from `vendor/flowdoc-core-0.6.0.tgz`.
-This model20-only candidate uses `flowdoc-core-0.6.0.tgz`;
-its exact SHA256 is `145af7ff91416094e35ff9d283e350e6f86f7f7e2bb1707783591c877185e3fb`.
+This candidate vendors Core 0.6.0, installed solely from `vendor/flowdoc-core-0.6.0-release-c284498.tgz`.
+This model20-only candidate uses `flowdoc-core-0.6.0-release-c284498.tgz`;
+its exact SHA256 is `5e3e3ada2bfd5e65dd6774ff165756f198b217d466dea1b5d1a97291e973bc50`.
 The old SDK is retained in offline evidence/Git, not as an active runtime archive.
 Exact SHA256 and Core source commit are recorded in `vendor/manifest.json` and
 the lockfile; earlier candidate archives remain immutable. Service0.5.0 uses
