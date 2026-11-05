@@ -1,8 +1,17 @@
 # FlowDoc Service
 
-## 0.5.2 development candidate
+Development version0.6.0 uses the exact Core0.6.0 archive in vendor/manifest.json.
+It accepts model20 only and requires migrations through029. Models18/19 need
+explicit offline conversion into a new namespace; no automatic rewrite or
+deletion is performed. M1 preserves Menu textboxes while correcting eligible
+merged Module label insets. Native DOCX continuation labels are still not
+repeated, and general Word pagination/font fallback is not certified. This
+local development integration does not update the existing0.5.2 release or
+any running installation. Back up DB/files together before any later migration.
 
-This candidate pins Core `0.5.2` through `vendor/manifest.json`; verify its checksum
+## 0.6.0 development integration
+
+This candidate pins Core `0.6.0` through `vendor/manifest.json`; verify its checksum
 before building. It includes native DOCX vertical merges, borderless tables,
 final-Area alignment and native cell-margin adaptation. Full Service acceptance
 is recorded separately in Project Control, not inferred from Core tests.
@@ -11,15 +20,15 @@ This is a local development/lab candidate, not an installed or published release
 Sections explicitly describing0.5.0 below document the earlier delivery; the
 current candidate package/archive identity is always `vendor/manifest.json`.
 
-For a locally built private candidate use `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.5.2`.
+For a locally built private candidate use `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.6.0`.
 Set `FLOWDOC_REGISTRY_IMAGE` to the explicitly recorded integration image tag
-or digest. The generic `:0.5.2` tag alone does not identify this candidate.
+or digest. The generic `:0.6.0` tag alone does not identify this candidate.
 Apply migrations through 029 before starting this development candidate.
 Migration029 is candidate-only. It refuses legacy data without rewriting/deleting it; use a newly named model20 namespace for testing. Historical001–028 checksums remain unchanged.
 
 ### Manual/runtime boundaries before release
 
-| Surface |0.5.2 development contract |
+| Surface |0.6.0 development contract |
 | --- | --- |
 | Definitions | Model20 only; explicit ordered definition/instance-key calls |
 | Default download base name | definition root defaultFileName, versioned with template |
@@ -32,11 +41,12 @@ Migration029 is candidate-only. It refuses legacy data without rewriting/deletin
 See the matching usage guide for explicit image selection, development migration029
 (the retained v0.5.2 release used026),
 consistent DB/files backup and separately verified restore/post-install checks.
-This integration candidate pins Core source6f36c42 with native text-run coalescing within
+This local0.6.0 integration pins Core source937bed1 with R1 prefix-fit measurement,
+M1 merged-label inset mapping, and native text-run coalescing within
 authored spans and unchanged XML limits; the exact archive is in manifest/lock.
-Use the explicit reviewed FlowDocMake integration candidate for that archive;
+Use the matching private model20 FlowDocMake candidate profile for that archive;
 prepared/default0.3.1 and older candidate.2 have different frozen pins. Package
-version0.5.2 alone is not sufficient to identify a matching runtime/plugin pair.
+version0.6.0 alone is not sufficient to identify a matching runtime/plugin pair.
 Check the Project Control candidate evidence before
 promotion. A docs commit changes neither the installed image nor its pin.
 
@@ -53,7 +63,7 @@ in both0.5.0 and0.5.2. It remains a PDF authoring example, not a DOCX capability
 promise. Supported simple and I6 fixtures are verified separately; no renderer
 guard or layout rule is relaxed for package acceptance.
 
-### Output base names (0.5.2 candidate; migration026)
+### Output base names (introduced in0.5.2; migration026)
 
 Templates may set `defaultFileName` beside `docKey`. The existing `/documents`
 multipart `payload` JSON may set a root `fileName` beside `data` and `sections`:
@@ -112,9 +122,9 @@ remain prohibited. There is no automatic conversion, deployment or release.
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Package version:0.5.2. A release identity requires an annotated tag on the
+Package version:0.6.0. A release identity requires an annotated tag on the
 snapshot branch; a package version alone does not establish release acceptance.
-This package pins Core0.5.2 for streamed document tasks, group-label spans,
+This package pins Core0.6.0 for streamed document tasks, group-label spans,
 the bounded segmenter session, and opt-in font-height proposal/confirmation.
 The exact file/checksum/source commit are in vendor/manifest.json. Installation
 is separate from the Git release; this repository does not identify a running server.
@@ -238,7 +248,7 @@ decoded JSON keys in raw template, draft and HTTP request input.
 
 ## Font-aware draft and job candidate
 
-This candidate vendors Core 0.5.2 with its verified checksum in `vendor/manifest.json`.
+This candidate vendors Core 0.6.0 with its verified checksum in `vendor/manifest.json`.
 Schema 1 retains the four verified Sarabun hashes. Schema 2 uses exact library
 release/weight/style references. Save/get/validate return `fontReadiness` separately
 from the saved revision: `ready`, `blocked` or `incomplete`, with `checkedScope`
@@ -370,14 +380,14 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-This candidate vendors Core 0.5.2, installed solely from `vendor/flowdoc-core-0.5.2-model20-only-6f36c42.tgz`.
-This model20-only candidate uses `flowdoc-core-0.5.2-model20-only-6f36c42.tgz`;
-its exact SHA256 is `ef82f85163be57159c89dd64a535efd11a8791d4c7274f16ae5bb1670cf7aba8`.
+This candidate vendors Core 0.6.0, installed solely from `vendor/flowdoc-core-0.6.0.tgz`.
+This model20-only candidate uses `flowdoc-core-0.6.0.tgz`;
+its exact SHA256 is `145af7ff91416094e35ff9d283e350e6f86f7f7e2bb1707783591c877185e3fb`.
 The old SDK is retained in offline evidence/Git, not as an active runtime archive.
 Exact SHA256 and Core source commit are recorded in `vendor/manifest.json` and
 the lockfile; earlier candidate archives remain immutable. Service0.5.0 uses
 FlowDocMake0.3.0 with its0.5.0 pin; prepared Service0.5.2 uses FlowDocMake0.3.1
-with the0.5.2 pin above. Installation is separately authorized.
+with its historical0.5.2 pin. The private model20 candidate targets0.6.0. Installation is separately authorized.
 `/authoring/contract` advertises optional `groupLabelSpans`
 v1 for model20/font schema1,2. Stored definitions and queued jobs retain
 the declaration. Font snapshots pin this exact engine checksum; a different engine
@@ -747,10 +757,10 @@ This development checkout is governed by Project Control's
 `flowdoc-docx-export-plan-2026-10-20.md`, I5/I6; it is not a release or an
 installation authorization. The original0.5.0 integration used Core SHA256
 `2bec67cf379d5913cd8d6881b7eeb973b7b4159b95231e07cd04db4faf1c43b1`;
-that is historical evidence, not the current0.5.2 pin. Current version/hash/source
+that is historical evidence, not the current0.6.0 pin. Current version/hash/source
 are in `vendor/manifest.json`. Retain old archives and run
-`node scripts/verifyVendor.mjs` before building. Current0.5.2 requires all
-migrations through026; the DOCX format addition itself was migration025.
+`node scripts/verifyVendor.mjs` before building. Current0.6.0 requires all
+migrations through029; the DOCX format addition itself was migration025.
 
 For `POST /documents`, `Output-Format: DOCX` selects DOCX in both normal and
 `Task-Mode: queue-v1` requests. Explicit `PDF` and an omitted header keep PDF.

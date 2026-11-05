@@ -1,12 +1,12 @@
 {
   "name": "@flowdoc/core",
-  "version": "0.5.2",
-  "file": "flowdoc-core-0.5.2-model20-only-6f36c42.tgz",
-  "sha256": "ef82f85163be57159c89dd64a535efd11a8791d4c7274f16ae5bb1670cf7aba8",
-  "sourceCommit": "6f36c42e51f7dc04fe42b837430f8369541ba707",
-  "sourceArtifact": "C:\\Users\\nekot\\Documents\\FlowDoc-recovery\\model20-only-20261103\\package-cutover5\\flowdoc-core-0.5.2-model20-xml-candidate.tgz",
+  "version": "0.6.0",
+  "file": "flowdoc-core-0.6.0.tgz",
+  "sha256": "145af7ff91416094e35ff9d283e350e6f86f7f7e2bb1707783591c877185e3fb",
+  "sourceCommit": "937bed1c0e0ad961bb1f04262624430e4b7392db",
+  "sourceArtifact": "C:\\Users\\nekot\\Documents\\FlowDoc-recovery\\candidate-integration-060-20261105\\core2\\oracle\\build\\flowdoc-core-0.6.0.tgz",
   "runtime": "linux-x64 glibc, Node24, Python3.11, fontTools4.58.2",
-  "delivery": "Private model20-only development candidate; isolated Oracle/OCI lab acceptance only; no push/release/install",
+  "delivery": "Local development integration 0.6.0; model20-only R1/M1; no push/release/install",
   "capabilities": {
     "imageOmissions": "docx-image-omissions/1",
     "nodeModelVersions": [

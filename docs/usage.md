@@ -1,4 +1,4 @@
-# คู่มือใช้งาน FlowDoc Service 0.5.2
+# คู่มือใช้งาน FlowDoc Service 0.6.0
 
 ## Authority Boundary
 
@@ -7,11 +7,11 @@ experimental resource-profile configuration. This guide does not promote a
 release, installation, shared FlowDoc readiness or cross-repository status;
 Project Control governs those claims.
 
-## ชุดพัฒนา 0.5.2
+## ชุดพัฒนา 0.6.0
 
-รอบ model20-only นี้ใช้ Core source6f36c42 และ archive/hash ใน vendor/manifest.json.
+รอบ model20-only นี้ใช้ Core source937bed1 และ archive/hash ใน vendor/manifest.json.
 ต้องมี migration029 ก่อนเริ่มแอป; Service/plugin คนละ pin ไม่ถือว่าเข้ากันเพียงเพราะ
-เลขรุ่น0.5.2เท่ากัน. หลักฐานรับรองข้าม repo อยู่ใน Project Control แผนเปลี่ยนเป็น20เท่านั้น.
+เลขรุ่น0.6.0เท่ากัน. หลักฐานรับรองข้าม repo อยู่ใน Project Control แผนเปลี่ยนเป็น20เท่านั้น.
 ไม่มีการติดตั้งหรือ release จากการแก้คู่มือนี้.
 
 ### เครื่องมือกู้ยอด diagnostics ของงานเก่า (candidate)
@@ -113,7 +113,7 @@ validation ครบ การจำกัดคอลัมน์ไม่ใ�
 ถ้าต้องบังคับขอบเขตดังกล่าวที่ฐานข้อมูล ต้องทบทวนแบบ write gateway/policy แยก
 ก่อนให้สิทธิ์จริง รอบตรวจสิทธิ์นี้ไม่ได้เพิ่ม gateway หรือเปลี่ยน runtime
 
-Service0.5.2 ชุดนี้ตรึง Core `0.5.2` ผ่าน vendor/manifest.json ให้ตรวจ checksum ก่อน
+Service0.6.0 ชุดนี้ตรึง Core `0.6.0` ผ่าน vendor/manifest.json ให้ตรวจ checksum ก่อน
 build. รองรับ DOCX เซลล์รวม, border none, Area สุดท้ายชิดล่าง และการปรับ
 ขอบเซลล์ native โดยคง line height. ชุดทดสอบ Service รวมและคู่มือ/plugin ต้อง
 ผ่านก่อนเรียกพร้อม release; ไม่ใช่ผลติดตั้งจริง. ดูข้อจำกัด DOCX ด้านท้าย.
@@ -133,7 +133,7 @@ Prepared/default FlowDocMake0.3.1 ตรึง archive รุ่นก่อน 
 กรณีเกินขอบเขตจะแจ้งข้อผิดพลาด ต้องสร้างใหม่หลังแก้ข้อความหรือฟอนต์ใน Word
 เส้นปิดตารางระหว่างหน้าของ Word ยังไม่รับประกัน และยังไม่เปลี่ยน footer รอบนี้
 
-### ชื่อไฟล์ PDF/DOCX ในชุดพัฒนา0.5.2
+### ชื่อไฟล์ PDF/DOCX ในชุดพัฒนา0.6.0
 
 ตั้ง `defaultFileName` ในโครงเอกสารระดับเดียวกับ `docKey` ได้ ส่วนผู้เรียกส่ง
 `fileName` ที่ root ของ JSON ใน multipart part `payload` ระดับเดียวกับ
@@ -157,24 +157,24 @@ Prepared/default FlowDocMake0.3.1 ตรึง archive รุ่นก่อน 
 ชื่อไทยใช้ `filename*` พร้อม fallback ASCII `document` สำหรับตัวอ่านรุ่นเก่า
 ไม่ได้เปลี่ยนชื่อไฟล์จัดเก็บภายในหรือการวางเนื้อหาเอกสาร
 
-ต้องใช้ migration026 กับ candidate นี้ งานเก่าที่ seal แล้วคงชื่อ `document`
+ชื่อไฟล์เริ่มใช้ใน migration026; candidate ปัจจุบันต้องครบ029 งานเก่าที่ seal แล้วคงชื่อ `document`
 การบันทึก/อ่าน/clone โครงและการเก็บ immutable version รักษาค่าเริ่มต้นไว้
-ไม่มีการติดตั้งหรือเผยแพร่จริงในงานนี้ และยังไม่เปิด Service ให้รับ Model20
+ไม่มีการติดตั้งหรือเผยแพร่จริงในงานนี้; candidate ปัจจุบันรับเฉพาะ model20
 
-ก่อนติดตั้ง0.5.2 ต้องสำรอง DB และ staging/output เป็นชุดเดียวพร้อม hashes
+ก่อนติดตั้ง0.6.0 ต้องสำรอง DB และ staging/output เป็นชุดเดียวพร้อม hashes
 ตามขั้นตอน backup/recovery ด้านล่าง ทดสอบ restore ในฐานแยก แล้วใช้ CLI
 สำหรับ development candidate ปัจจุบัน ใช้ `migrate` ของ image ที่ตรงกับ
 vendor/source identity ของ candidate นี้ให้ครบถึง029; release v0.5.2 เดิมมีขอบเขตถึง026
-ต้องแยกสองชุดนี้ด้วย source/image/checksum ไม่ใช้เลข0.5.2เพียงอย่างเดียว
+ต้องแยกสองชุดนี้ด้วย source/image/checksum ไม่ใช้เลขรุ่นเพียงอย่างเดียว
 ห้ามแก้หรือ renumber migration ที่เคยใช้แล้ว ทดสอบอัปเกรดในฐานแยกก่อนเสมอ
 ตรวจ readiness, live Service/Core version/hash และลองออก PDF/DOCX พร้อมชื่อ
 ภาษาไทย/ค่าเริ่มต้น/งานเข้าคิวหลังติดตั้ง ต้องอ่านไฟล์จริงและ receipt จนครบ
 หากต้องย้อนกลับให้หยุด candidate แล้วคืน backup ทั้งชุดในฐาน/volumes แยก
 กับ image รุ่นเดิม ไม่ย้อน SQL และไม่เปิด binary เก่าทับฐานที่ migrate แล้ว
 รอบเตรียมนี้ตรวจเฉพาะ migration/API ในฐานทดสอบแยก ยังไม่ใช่ผล deploy
-หรือการซ้อม restore สำหรับการติดตั้ง0.5.2 จริง
+หรือผลการติดตั้งจริง
 
-รุ่นนี้มีทางประมวลผล task (migration024) ใช้ Core0.5.2 จาก
+รุ่นนี้มีทางประมวลผล task (migration024) ใช้ Core0.6.0 จาก
 vendor/manifest.json อ่านข้อมูลที่ normalize แล้วจากไฟล์ เตรียมภาพทีละรายการ
 และส่ง feedback กับ PDF แบบ multipart โดยไม่รวม PDF ทั้งก้อนใน RAM.
 มี `/documents` และ FlowDocMake manage_document_task เมื่อเปิด task credentials
@@ -225,12 +225,12 @@ adapter ใหม่ โดยไม่ลบไฟล์ของ process ท�
 API task ต้องเปิด credentials อย่างชัดเจน; การจอง scratch/PDF ใช้ budget ของ task.
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-ชุด Service0.5.0/Core0.5.0 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
+ชุดพัฒนาปัจจุบัน ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
 
-คู่มือนี้ตาม development Service0.5.2/Core0.5.2; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
+คู่มือนี้ตาม development Service0.6.0/Core0.6.0; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
 annotated tag หลังผ่านเกณฑ์ออกรุ่น ไม่อนุมานจากชื่อ image. candidate นี้รองรับ model20 ทั้ง font schemaVersion 1
 (Sarabun เดิม) และ 2 (คลังฟอนต์). เลข schema, รุ่นฟอนต์, รุ่นแม่แบบ และรุ่น Service
 เป็นคนละค่า. คำสั่ง publish ด้านล่างคือเผยแพร่เวอร์ชันแม่แบบ ไม่ใช่ Git release;
@@ -279,12 +279,12 @@ proxy; ไม่เพิ่ม CORS หรือ static route ให้ product
 sectionKey/instanceKey ตาม contract; อ่านค่าที่ประกาศจริง ห้ามเดา key จากชื่อหรือ UUID.
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด development Service0.5.2
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด development Service0.6.0
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
 Compose เดิมยัง default image0.5.0 จึงต้องตั้ง `FLOWDOC_REGISTRY_IMAGE`
-เป็น tag ที่ build จาก candidate0.5.2 อย่างชัดเจนตามตัวอย่าง ถ้าใช้ profile
+เป็น tag ที่ build จาก candidate0.6.0 อย่างชัดเจนตามตัวอย่าง ถ้าใช้ profile
 verification ให้ตั้ง `FLOWDOC_VERIFY_IMAGE` และ build target verification ที่ตรงกัน
 ด้วย ชื่อ tag ที่ตั้งเองไม่ใช่หลักฐานรุ่น ต้องตรวจ source/pin/image ID
 ไม่คัดลอกไฟล์ env ใหม่ทับการติดตั้งเดิม และไม่ใช้ขั้นตอนทดลองนี้อัปเกรดข้อมูลจริง
@@ -296,7 +296,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.5.2'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.6.0'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -676,7 +676,7 @@ job ตรึงฟอนต์/ไฟล์/license ที่รับไว้
 ส่วนนี้อธิบายโค้ดช่วง 1 ที่ยังไม่ออก tag/ติดตั้ง; ไม่ใช่คำสั่งของ release 0.4.0 เดิม.
 ข้อตกลงร่วมอยู่ Project Control
 `docs/domains/flowdoc-font-height-adjustment-design-plan-2026-10-16.md` ข้อ 7.
-ชุดพัฒนาปัจจุบันตรึง Core `0.5.2` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
+ชุดพัฒนาปัจจุบันตรึง Core `0.6.0` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
 Core export `calculateFontHeightAdjustment` เป็น pure API รับ pt และ metric ต้นทาง/ปลายทาง
 แล้วคืน pt ที่ปัด half-up หกตำแหน่ง หรือ error; ไม่เขียน draft และไม่เปลี่ยน renderer.
 เครื่องมือ propose/confirm ของช่วง 3 มีแล้วตามข้อ 8.2; ต้องยืนยันก่อนเปลี่ยน pt.
@@ -985,7 +985,7 @@ Control ไม่ใช่คำสั่งติดตั้ง release. ใ�
 DOCX มี pageCount:null และต้องอัปเดตฟิลด์/สารบัญใน Word; ห้ามอนุมานว่าตรวจ Word แล้ว
 จากการสร้างไฟล์สำเร็จ. ตัวเขียนเก็บข้อมูลระหว่างสร้างและจำกัดไฟล์32MiB.
 บางความสัมพันธ์ข้อความ/ภาพที่เกินกรอบยังเป็นข้อจำกัดชัดเจน. Candidate ที่ตรึง
-`flowdoc-core-0.5.2-model20-only-6f36c42.tgz` รองรับภาพใน body ที่ระบบตรวจว่า
+`flowdoc-core-0.6.0.tgz` รองรับภาพใน body ที่ระบบตรวจว่า
 ใช้ไม่ได้แล้ว: บันทึก diagnostics ก่อนส่งตำแหน่งภาพให้ Core ผ่านสัญญา
 `docx-image-omissions/1` แล้วสร้าง DOCX ที่ส่งสำเร็จแต่ completeness เป็น partial.
 คงกรอบภาพเดิม ข้อความและภาพตำแหน่งอื่น ไม่มีภาพสมมติหรือ PDF fallback.
