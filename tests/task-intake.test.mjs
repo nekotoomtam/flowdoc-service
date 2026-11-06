@@ -25,6 +25,24 @@ beforeEach(async()=>{await service?.stop();if(api.createTaskIntake)service=await
 afterAll(async()=>{await service?.stop();await db.close();});
 const clear=async()=>{await service.stop();for(const {id} of (await pool.query("SELECT id FROM tasks WHERE status NOT IN ('failed','expired','succeeded')")).rows)await service.fail(id,'WORKER_INTERRUPTED');for(const {id} of (await pool.query('SELECT id FROM tasks')).rows){await age(id);}await service.sweep();service=await api.createTaskIntake({pool,root,resolveCredential:identity,freeBytes:async()=>20_000_000_000});};
 
+it('bounds shutdown lookups to still-open tasks after repeated real-database terminal cycles',async()=>{
+ await clear();await service.stop();let capture=false,lookups=0;
+ const traced={query:(sql,...args)=>{if(capture&&typeof sql==='string'&&sql.startsWith('SELECT *,expires_at')&&sql.includes('WHERE id=$1'))lookups++;return pool.query(sql,...args);},connect:()=>pool.connect()};
+ service=await api.createTaskIntake({pool:traced,root,resolveCredential:identity,freeBytes:async()=>20_000_000_000});
+ for(let n=0;n<20;n++){const t=await open();await service.fail(t.taskId,'CONNECTION_LOST');}
+ capture=true;await service.stop();capture=false;expect(lookups).toBe(0);
+});
+it('preserves failed originals until expiry then removes the whole task directory without recreating it',async()=>{
+ await clear();const t=await open();await send(t.taskId,body(payload(),[]));await service.fail(t.taskId,'CONNECTION_LOST');
+ expect((await stat(join(root,t.taskId,'input'))).isDirectory()).toBe(true);
+ const before=(await pool.query('SELECT storage_used_bytes FROM task_resource_reservations WHERE task_id=$1',[t.taskId])).rows[0];expect(Number(before.storage_used_bytes)).toBeGreaterThan(0);
+ await age(t.taskId);await service.sweep();await expect(stat(join(root,t.taskId))).rejects.toMatchObject({code:'ENOENT'});
+ await service.processingContext.cleanup(t.taskId);await expect(stat(join(root,t.taskId))).rejects.toMatchObject({code:'ENOENT'});
+ expect((await service.inspect(auth,t.taskId)).cleanup.status).toBe('done');
+ const q=(await pool.query('SELECT storage_used_bytes,storage_held_bytes FROM task_resource_reservations WHERE task_id=$1',[t.taskId])).rows[0];expect(q).toMatchObject({storage_used_bytes:'0',storage_held_bytes:'0'});
+ expect((await pool.query('SELECT count(*) FROM task_usage WHERE task_id=$1',[t.taskId])).rows[0].count).toBe('1');
+});
+
 it('exposes a gated internal task intake boundary',()=>expect(api.createTaskIntake).toBeTypeOf('function'));
 it('does not enable the public documents endpoint prematurely',async()=>{const app=createServer({pool,outputs:{},isReady:()=>true});try{expect((await app.inject({method:'POST',url:'/documents',payload:{}})).statusCode).toBe(404);}finally{await app.close();}});
 it('authenticates before creation, rejects duplicate selection and hides other owners',async()=>{

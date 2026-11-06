@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "templateId": "tpl-section-ownership",
+  "templateId": "d7b3ccb2-499a-581b-8837-847309894fdd",
   "docKey": "section-ownership",
   "version": 1,
   "name": "Cover and reserved text trial",
@@ -69,7 +69,7 @@
       "lineHeightPt": 22
     }
   },
-  "nodeModelVersion": 18,
+  "nodeModelVersion": 20,
   "globalSchema": {
     "type": "object",
     "fields": {
@@ -81,8 +81,7 @@
   },
   "sections": [
     {
-      "id": "section-intro",
-      "key": "intro",
+      "id": "c4c15dea-16b9-5d95-833a-6b5d2656b921",
       "pageLayoutId": "portrait",
       "inputSchema": {
         "type": "object",
@@ -128,7 +127,6 @@
         },
         "repeats": []
       },
-      "formats": {},
       "header": {
         "inputSchema": {
           "type": "object",
@@ -165,11 +163,13 @@
             }
           }
         }
-      }
+      },
+      "sectionKey": "S0001",
+      "label": "intro",
+      "nameBase": "intro"
     },
     {
-      "id": "section-details",
-      "key": "details",
+      "id": "a4d884da-c5c8-5953-8e17-f02d7f4f573b",
       "pageLayoutId": "landscape",
       "inputSchema": {
         "type": "object",
@@ -215,7 +215,6 @@
         },
         "repeats": []
       },
-      "formats": {},
       "header": {
         "inputSchema": {
           "type": "object",
@@ -252,11 +251,13 @@
             }
           }
         }
-      }
+      },
+      "sectionKey": "S0002",
+      "label": "details",
+      "nameBase": "details"
     },
     {
-      "id": "section-closing",
-      "key": "closing",
+      "id": "3cadd7c0-1b76-5486-8bc2-430cef6adc14",
       "pageLayoutId": "portrait",
       "inputSchema": {
         "type": "object",
@@ -302,7 +303,6 @@
         },
         "repeats": []
       },
-      "formats": {},
       "header": {
         "inputSchema": {
           "type": "object",
@@ -339,7 +339,10 @@
             }
           }
         }
-      }
+      },
+      "sectionKey": "S0003",
+      "label": "closing",
+      "nameBase": "closing"
     }
   ],
   "examples": []

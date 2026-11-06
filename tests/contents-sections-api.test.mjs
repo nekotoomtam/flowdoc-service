@@ -24,10 +24,10 @@ afterAll(async()=>{await app?.close();await processor?.stop();await db.close();i
 it('exports selected excluded headings as title-only links after published snapshot reload',async()=>{
  const current=ok(await importCurrent(db.pool,JSON.stringify(template)));
  const version=ok(await publishCurrent(db.pool,{templateId:template.templateId,requestId:'contents-1'}));
- current.sections.find(s=>s.key==='closing').payload.numbering={mode:'continue'};
+ current.sections.find(s=>s.key==='S0003').payload.numbering={mode:'continue'};
  ok(await saveCurrent(db.pool,current,current.revision));
  const published=ok(await loadTemplate(db.pool,template.docKey,version.version)).template.definition;
- expect(published.sections.find(s=>s.key==='closing').numbering.mode).toBe('exclude');
+ expect(published.sections.find(s=>s.sectionKey==='S0003').numbering.mode).toBe('exclude');
  const payload=JSON.parse(readFileSync('examples/contents-sections-request.json','utf8'));payload.version=version.version;
  const response=await app.inject({method:'POST',url:'/jobs',payload});expect(response.statusCode,response.body).toBe(202);
  const id=ok(response.json()).jobId;let view;

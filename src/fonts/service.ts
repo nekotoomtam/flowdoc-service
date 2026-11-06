@@ -4,7 +4,7 @@ import {transaction} from '../db/connection.js';
 import {OperationError} from '../errors.js';
 import {FONT_LIMITS,type ImportInput,type FamilyInput,type Mutation,type ReleaseInput,type FontMetadata,type SourceEvidence} from './types.js';
 import {createFontFiles,UUID,SHA} from './files.js';
-import {inspectFont} from './inspection.js';
+import {inspectFont,type FontInspector} from './inspection.js';
 import {audit,receipt,fingerprint,fontError,lockHash,canonical} from './repository.js';
 import {validateSource,customKey} from './provenance.js';
 function object(v:unknown,allowed:string[]):asserts v is Record<string,unknown>{
@@ -37,7 +37,8 @@ function importInput(input:ImportInput){
 }
 interface InspectedFile {clientKey:string;assetId:string;sourceEvidenceId:string;sha256:string;metadata:FontMetadata}
 interface Inspection {id:string;revision:number;state:'inspected';files:InspectedFile[]}
-export async function createFontLibrary(options:{pool:Pool;root:string;principal:string;pythonExecutable?:string}){
+export async function createFontLibrary(options:{pool:Pool;root:string;principal:string;pythonExecutable?:string;inspect?:FontInspector}){
+ if(process.env.FLOWDOC_WORKER_ISOLATION==='required'&&!options.inspect)throw new OperationError('FONT_INSPECTION_UNAVAILABLE','font','Inspector injection required');
  const {pool,principal}=options;if(!text(principal))fontError('INVALID_FONT_INPUT');
  const files=await createFontFiles(options.root);
  async function owned(c:PoolClient,id:string,lock=false){
@@ -90,11 +91,11 @@ export async function createFontLibrary(options:{pool:Pool;root:string;principal
      revision(input.expectedRevision,r.revision);live(r);if(r.state==='inspected')return r.inspection as Inspection;
      const entries=(await c.query('SELECT * FROM font_import_files WHERE import_id=$1 ORDER BY client_key',[id])).rows;
      if(entries.some(e=>!e.received))fontError('FONT_UPLOAD_INCOMPLETE');
-     await c.query('SELECT pg_advisory_xact_lock(60430416)');
+     if((await c.query('SELECT pg_try_advisory_xact_lock(60430416) AS locked')).rows[0]?.locked!==true)throw new OperationError('UNAVAILABLE','font','Font parser busy');
      const manifest=r.manifest as ImportInput,parsed=new Map<string,FontMetadata|Record<string,never>>();
      for(const e of entries){
       if(e.kind==='ttf-static'){
-       const m=await inspectFont(files.entryPath(id,e.client_key),options.pythonExecutable?{pythonExecutable:options.pythonExecutable}:{});
+       const m=await(options.inspect??inspectFont)(files.entryPath(id,e.client_key),options.pythonExecutable?{pythonExecutable:options.pythonExecutable}:{});
        if(m.sha256!==e.sha256||m.byteLength!==e.byte_length)fontError('FONT_HASH_MISMATCH');
        parsed.set(e.client_key,m);
       }else{

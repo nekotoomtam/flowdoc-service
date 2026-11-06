@@ -9,6 +9,11 @@ import {validateMaxOutstanding} from './config.js';
 export async function reserveJobCapacity(client:PoolClient,maxOutstanding:number):Promise<void> {
  validateMaxOutstanding(maxOutstanding);
  await client.query('SELECT pg_advisory_xact_lock(60430405)');
+ await checkJobCapacity(client,maxOutstanding);
+}
+/** Early rejection only; the insertion transaction must still reserve capacity. */
+export async function checkJobCapacity(client:Pick<PoolClient,'query'>,maxOutstanding:number):Promise<void>{
+ validateMaxOutstanding(maxOutstanding);
  const result=await client.query<{count:string}>(`SELECT
  (SELECT count(*) FROM generation_jobs WHERE status IN ('queued','running')) +
  (SELECT count(*) FROM task_resource_reservations r WHERE r.queue_slot_held AND NOT EXISTS

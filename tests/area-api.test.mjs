@@ -8,10 +8,10 @@ import {createServer} from '../dist/http/server.js';
 import {startProcessor} from '../dist/jobs/processor.js';
 const db=isolatedDatabase(),ok=r=>{expect(r.ok,JSON.stringify(r)).toBe(true);return r.value;};let app;
 beforeAll(async()=>{await db.setup();ok(await migrate(db.pool));const t=JSON.parse(readFileSync('examples/area-template.json','utf8'));ok(await importCurrent(db.pool,JSON.stringify(t)));ok(await publishCurrent(db.pool,{templateId:t.templateId,requestId:'one'}));app=createServer({pool:db.pool,outputs:{available:async()=>false},isReady:()=>true,imagesEnabled:true});});afterAll(async()=>{await app?.close();await db.close();});
-const req=details=>({docKey:'area-demo',version:1,data:{},sections:{evidence:{data:{details}}}});
+const req=details=>({docKey:'area-demo',version:1,data:{},sections:[{sectionKey:"S0002",instanceKey:"I0002",...({data:{details}})}]});
 it('returns owned area input contract without node graph',async()=>{const r=ok((await app.inject('/templates/area-demo/contract?version=1')).json());expect(r.areaFormats['format-001']).toMatchObject({ownerAreaId:'area-001',key:'evidence'});expect(r.areaFormats['format-001'].fragment).toBeUndefined();expect(r.areaFormats['format-002'].inputSchema.fields).toEqual({});});
 it('rejects raw duplicate decoded keys before enqueue',async()=>{for(const raw of ['{"docKey":"wrong","docKey":"area-demo","content":[]}','{"docKey":"wrong","\\u0064ocKey":"area-demo","content":[]}']){const r=await app.inject({method:'POST',url:'/jobs',headers:{'content-type':'application/json'},payload:raw});expect(r.statusCode).toBe(400);}expect(Number((await db.pool.query('SELECT count(*) FROM generation_jobs')).rows[0].count)).toBe(0);});
-it('rejects unknown formats and missing fields before admission',async()=>{const input=req([{format:'missing',data:{}},{format:'evidence',data:{photo:'22222222-2222-4222-8222-222222222222'}}]);const r=await app.inject({method:'POST',url:'/jobs',payload:input});expect(r.statusCode,r.body).toBe(422);expect(r.json().issues.map(w=>w.path)).toEqual(['sections.evidence.data.details[0].format','sections.evidence.data.details[1].data.caption']);expect(Number((await db.pool.query('SELECT count(*) FROM generation_jobs')).rows[0].count)).toBe(0);});
+it('rejects unknown formats and missing fields before admission',async()=>{const input=req([{format:'missing',data:{}},{format:'evidence',data:{photo:'22222222-2222-4222-8222-222222222222'}}]);const r=await app.inject({method:'POST',url:'/jobs',payload:input});expect(r.statusCode,r.body).toBe(422);expect(r.json().issues.map(w=>w.path)).toEqual(['sections[0].data.details[0].format','sections[0].data.details[1].data.caption']);expect(Number((await db.pool.query('SELECT count(*) FROM generation_jobs')).rows[0].count)).toBe(0);});
 it('rejects outer wrong type and accepts static content without upload',async()=>{expect((await app.inject({method:'POST',url:'/jobs',payload:req('bad')})).statusCode).toBe(422);expect((await app.inject({method:'POST',url:'/jobs',payload:req([{format:'notice',data:{}}])})).statusCode).toBe(202);});
 
 it('rejects malformed, oversized and prototype JSON',async()=>{
@@ -25,10 +25,10 @@ it('rejects wrong-type Area entry data',async()=>{
 });
 
 it('rejects coordinated prepared changes against preserved admission input before rendering',async()=>{
- const validReceipt=ok((await app.inject({method:'POST',url:'/jobs',payload:req([{format:'notice',data:{zzz:1,a:2}}])})).json());
+ const validReceipt=ok((await app.inject({method:'POST',url:'/jobs',payload:req([{format:'notice',data:{}}])})).json());
  const receipt=ok((await app.inject({method:'POST',url:'/jobs',payload:req([{format:'notice',data:{}}])})).json());
  const stored=(await db.pool.query('SELECT prepared_input FROM generation_jobs WHERE id=$1',[receipt.jobId])).rows[0].prepared_input;
- stored.sections.evidence.data.details.entries=[{originalIndex:0,format:'notice',formatId:'format-002',data:{forged:'value'}}];stored.sections.evidence.data.details.skippedIndices=[];stored.warnings=[];
+ stored.sections[0].data.details.entries=[{originalIndex:0,format:'notice',formatId:'format-002',data:{forged:'value'}}];stored.sections[0].data.details.skippedIndices=[];stored.warnings=[];
  const forgedId=(await db.pool.query('INSERT INTO generation_jobs(id,template_version_id,original_input,prepared_input,warnings_json,skipped_indices) SELECT uuidv7(),template_version_id,original_input,$2,$3,skipped_indices FROM generation_jobs WHERE id=$1 RETURNING id',[receipt.jobId,JSON.stringify(stored),'[]'])).rows[0].id;
 
  const processor=await startProcessor({pool:db.pool,policy:{retain:false,ttlHours:24,tempHours:24},pollMs:5,files:{writePdf:async id=>({path:id+'.pdf',byteSize:4})},render:async()=>{return {ok:true,value:{bytes:Buffer.from('%PDF'),mediaType:'application/pdf'},warnings:[]};}});

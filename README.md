@@ -1,38 +1,69 @@
 # FlowDoc Service
 
-## 0.5.2 development candidate
+> **Candidate 0.5.5 — 2026-11-06:** Owner selected Core/Service 0.5.5 for the retained model20-only runtime. This is local Git/package preparation; no publication or installation. The withdrawn v0.6.0 history and the existing v0.5.2 release remain unchanged.
 
-This candidate pins Core `0.5.2` through `vendor/manifest.json`; verify its checksum
+Development version0.5.5 uses the exact Core0.5.5 archive in vendor/manifest.json.
+It accepts model20 only and requires migrations through029. Models18/19 need
+explicit offline conversion into a new namespace; no automatic rewrite or
+deletion is performed. M1 preserves Menu textboxes while correcting eligible
+merged Module label insets. Native DOCX continuation labels are still not
+repeated, and general Word pagination/font fallback is not certified. This
+local development integration does not update the existing0.5.2 release or
+any running installation. Back up DB/files together before any later migration.
+
+For the0.5.2→0.5.5 update, read [update preparation](docs/usage.md#อัปเดตจาก052-เป็น055-เตรียมก่อนติดตั้ง).
+Use a new model20 DB/storage namespace; migration029 refuses legacy graphs and
+is not an automatic converter. One transaction covers all pending migrations
+in each migrate invocation; a029 refusal rolls back changes in that invocation,
+not migrations committed by earlier runs. Restore a matched backup/image/config in an isolated
+namespace, never with old binaries against an upgraded DB. The Oracle-tested
+512MiB worker guarantee requires a separately prepared host broker/cgroup
+deployment and required isolation mode; existing Compose does not provision it.
+FlowDocMake remains a separately tested private candidate, not a released or
+installed client. Git snapshot/tag publication does not perform deployment.
+
+## 0.5.5 development integration
+
+This candidate pins Core `0.5.5` through `vendor/manifest.json`; verify its checksum
 before building. It includes native DOCX vertical merges, borderless tables,
 final-Area alignment and native cell-margin adaptation. Full Service acceptance
 is recorded separately in Project Control, not inferred from Core tests.
 PDF remains the default output. DOCX is opt-in; see the DOCX section below.
-This is release preparation, not an installed or published release.
+This is a local development/lab candidate, not an installed or published release.
 Sections explicitly describing0.5.0 below document the earlier delivery; the
 current candidate package/archive identity is always `vendor/manifest.json`.
 
-Build this candidate with `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.5.2`.
-Apply migrations through 026 before starting it.
+For a locally built private candidate use `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.5.5`.
+Set `FLOWDOC_REGISTRY_IMAGE` to the explicitly recorded integration image tag
+or digest. The generic `:0.5.5` tag alone does not identify this candidate.
+Apply migrations through 029 before starting this development candidate.
+Migration029 is candidate-only. It refuses legacy data without rewriting/deleting it; use a newly named model20 namespace for testing. Historical001–028 checksums remain unchanged.
 
 ### Manual/runtime boundaries before release
 
-| Surface |0.5.2 development contract |
+| Surface |0.5.5 development contract |
 | --- | --- |
-| Definitions | Service accepts18/19; Core20 is experimental direct use only |
+| Definitions | Model20 only; explicit ordered definition/instance-key calls |
 | Default download base name | definition root defaultFileName, versioned with template |
 | Per-call download base name | documents multipart payload root fileName; not a create-draft argument or business field |
 | Format | existing Output-Format header; omitted/PDF stays PDF, DOCX opts in |
 | Wire | multipart task events plus one binary part; verify bytes/hash and complete response |
 | Client save path | chosen by client independently; Content-Disposition is server attachment metadata |
-| Plugin | prepared0.3.1 pins this exact0.5.2 archive; installed0.3.0/profile0.5.0 remains unchanged |
+| Plugin | this lab pin does not update prepared or installed plugins; verify their archive identities separately |
 
-See the matching usage guide for explicit image selection, migration026,
+See the matching usage guide for explicit image selection, development migration029
+(the retained v0.5.2 release used026),
 consistent DB/files backup and separately verified restore/post-install checks.
-This candidate repacks final documented Core source0401b87 and records the exact
-archive in the manifest/lock. Check the Project Control prerelease evidence before
+This local0.5.5 integration pins Core sourceff0d18d with R1 prefix-fit measurement,
+M1 merged-label inset mapping, and native text-run coalescing within
+authored spans and unchanged XML limits; the exact archive is in manifest/lock.
+Use the matching private model20 FlowDocMake candidate profile for that archive;
+prepared/default0.3.1 and older candidate.2 have different frozen pins. Package
+version0.5.5 alone is not sufficient to identify a matching runtime/plugin pair.
+Check the Project Control candidate evidence before
 promotion. A docs commit changes neither the installed image nor its pin.
 
-Empty Area declarations: new18/19 records preserve the difference between an
+Empty Area declarations: new20 records preserve the difference between an
 omitted areaFormats field and an explicitly empty object, so Core fingerprints
 round-trip exactly. Actual definitions remain normalized row-owned data; only
 an empty presence marker may stay at root. This does not rewrite already-invalid
@@ -45,7 +76,7 @@ in both0.5.0 and0.5.2. It remains a PDF authoring example, not a DOCX capability
 promise. Supported simple and I6 fixtures are verified separately; no renderer
 guard or layout rule is relaxed for package acceptance.
 
-### Output base names (0.5.2 candidate; migration026)
+### Output base names (introduced in0.5.2; migration026)
 
 Templates may set `defaultFileName` beside `docKey`. The existing `/documents`
 multipart `payload` JSON may set a root `fileName` beside `data` and `sections`:
@@ -72,11 +103,10 @@ Attachment headers include the extension; Unicode names use `filename*` with an
 ASCII `document` fallback. Clients must support `filename*` to display Thai names.
 Internal UUID storage paths and Core business data/rendering stay unchanged.
 
-Apply forward-only migration026 before running this candidate. Historical sealed
-tasks keep the old `document` base name. Existing authoring save/read/clone and
+Naming was introduced in migration026; this candidate requires migrations through029. Historical sealed
+tasks keep the old `document` base name. Existing authoring save/read and
 immutable template registration retain the default. Authoring publication and
-installation remain separately authorized operations. This Core development pin
-does not enable Model20 Service admission; Service still accepts models18/19.
+installation remain separately authorized operations. This candidate accepts20 only;18/19 require explicit offline conversion into a new namespace.
 See the Project Control output-file-names plan dated2026-10-26 for current proof.
 
 The B table profile `thickThinWideGap` now renders directly through the pinned
@@ -86,34 +116,28 @@ fail instead of using a different border. Word edits may require regeneration;
 intermediate-page closing borders remain an accepted limitation. Footer changes
 are deferred. This source candidate does not update a running installation.
 
-Package `0.5.2` retains model19 Section instance authoring
-beside unchanged model18. `POST /authoring/drafts/:id/sections` creates an empty
-authored Section; `POST /authoring/drafts/:id/sections/import` copies saved source
-Sections into an owned target with new public/normalized IDs. Import accepts
-an empty revision0 target, checks both revisions/owners, remaps owned resources
-and references, and writes once atomically with an idempotent receipt.
-Whole model19 draft clones also return `sectionIdMap`; model18 clones retain
-legacy semantics. Generation input is an ID-addressed array for model19 only.
-Migration021 extends ownership checks without rewriting existing records.
-MCP tools expose the same operations. The contract reports Stage3 with
-`coverArea:true`, `scopedToc:true`. Packaged Core supports fixed-height text in
-top-level Area Formats via text-node props.heightMode:fixed / props.height, which fails on overflow.
-Area Format sizing.fixed instead displays its fitting prefix within the effective
-maximum; see Format sizing below. Section controls page/bands.
-Model19 TOCs require explicit section/document scope, with one per scope after
-expansion; cloned Sections retain owner-local scope under new IDs. Numbers and
-links resolve from pinned content after layout. Model18 remains unscoped.
-Cell/repeat frames and nested Areas remain prohibited. No automatic conversion,
-live draft edit, deployment or release is implied. Shared authority remains the
-Project Control Section–Area contract; this paragraph covers this repository.
+This model20-only candidate saves complete definitions through the existing
+create/get/save/validate/preview authoring flow. Calls supply
+`sections:[{sectionKey,instanceKey,data,header?,footer?}]` in caller order.
+Definitions may repeat with distinct instance keys; unused definitions do not
+render. A cover occurrence must be first and unique. Internal definition IDs
+are not caller selectors. Section create/import and whole-template clone routes
+and tools are retired; no unimplemented20 aliases are advertised. JSON does not
+grant retained font rights or permission to forge server-owned origin metadata.
+
+Fixed-height text is allowed at Section flow roots/top-level Area Formats and
+fails on overflow. Area Format sizing.fixed separately retains its fitting
+prefix. TOCs require explicit section/document scope, one per expanded scope;
+Section scope belongs to an occurrence. Cell/repeat frames and nested Areas
+remain prohibited. There is no automatic conversion, deployment or release.
 
 ## Authority Boundary
 
 Owner: flowdoc-service. Repository-owned commands, storage and local operation.
 Shared scope: ../flowdoc-project-control/docs/domains/flowdoc-export-mvp-r4-api-plan-2026-10-08.md.
-Package version:0.5.2. A release identity requires an annotated tag on the
+Package version:0.5.5. A release identity requires an annotated tag on the
 snapshot branch; a package version alone does not establish release acceptance.
-This package pins Core0.5.2 for streamed document tasks, group-label spans,
+This package pins Core0.5.5 for streamed document tasks, group-label spans,
 the bounded segmenter session, and opt-in font-height proposal/confirmation.
 The exact file/checksum/source commit are in vendor/manifest.json. Installation
 is separate from the Git release; this repository does not identify a running server.
@@ -210,7 +234,7 @@ create isolated schemas and temporarily alter constraints; never use shared data
 For a persistent local registry, copy .env.example to .env and choose a random
 URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.5.0` explicitly
 to identify the image built from this candidate; verify its image ID separately.
-Apply migrations through 025 before
+Apply migrations through 029 before
 starting this package. For fonts/authoring, add the environment override in the
 usage guide; base Compose does not pass those secrets to the API. Run:
 
@@ -237,7 +261,7 @@ decoded JSON keys in raw template, draft and HTTP request input.
 
 ## Font-aware draft and job candidate
 
-This candidate vendors Core 0.5.2 with its verified checksum in `vendor/manifest.json`.
+This candidate vendors Core 0.5.5 with its verified checksum in `vendor/manifest.json`.
 Schema 1 retains the four verified Sarabun hashes. Schema 2 uses exact library
 release/weight/style references. Save/get/validate return `fontReadiness` separately
 from the saved revision: `ready`, `blocked` or `incomplete`, with `checkedScope`
@@ -261,7 +285,7 @@ checks, queue persistence across DB restart and legacy rendering fixtures. Optio
 Results and local test credentials are separate under `artifacts/<run>`; share only
 the result/PDF files. Shared stage acceptance remains in Project Control.
 
-The administrator HTTP candidate requires migrations through 018 and both
+The administrator HTTP candidate requires migrations through 029 and both
 `FONT_ADMIN_TOKEN` (32–512 characters) and `FONT_ADMIN_PRINCIPAL`. Without them
 admin routes stay disabled; a partial configuration or a token equal to
 `AUTHORING_TOKEN` rejects startup. The authoring token receives 403 on admin
@@ -369,20 +393,23 @@ ordinary operations; admins disabling triggers are outside this guarantee.
 
 ## Package boundary
 
-Core is installed solely from `vendor/flowdoc-core-0.5.2.tgz`. Older0.5.0/0.5.1 archives are retained as history.
+This candidate vendors Core 0.5.5, installed solely from `vendor/flowdoc-core-0.5.5-candidate-ff0d18d.tgz`.
+This model20-only candidate uses `flowdoc-core-0.5.5-candidate-ff0d18d.tgz`;
+its exact SHA256 is `bdfd86aabf8f1806ee5b533ca2bc977ead80505b79b01f8266f2db96ca7317dc`.
+The old SDK is retained in offline evidence/Git, not as an active runtime archive.
 Exact SHA256 and Core source commit are recorded in `vendor/manifest.json` and
 the lockfile; earlier candidate archives remain immutable. Service0.5.0 uses
 FlowDocMake0.3.0 with its0.5.0 pin; prepared Service0.5.2 uses FlowDocMake0.3.1
-with the0.5.2 pin above. Installation is separately authorized.
+with its historical0.5.2 pin. The private model20 candidate targets0.5.5. Installation is separately authorized.
 `/authoring/contract` advertises optional `groupLabelSpans`
-v1 for model19/schema1,2. Stored definitions, clones/imports and queued jobs retain
+v1 for model20/font schema1,2. Stored definitions and queued jobs retain
 the declaration. Font snapshots pin this exact engine checksum; a different engine
 cannot resume those jobs. Auto readiness includes generated ` (ต่อ)` in the label
 face; fixed never continues. Job errors preserve bounded group context with
 `group-label-does-not-fit`; fixed omission cursors reach status and PDF-save callers.
 Its SHA256 and source commit are pinned in `vendor/manifest.json`;
-`node scripts/verifyVendor.mjs` verifies the checksum. The package supports Area model18 and Section model19; explicit Format sizing
-requires model19 and capability version2.
+`node scripts/verifyVendor.mjs` verifies the checksum. The package supports model20 only; explicit Format sizing
+requires capability version2.
 The lockfile pins dependencies. Linux runtime includes Node24, Python3.11/fontTools
 and the Core-owned resources. Do not copy or fork Core validation/rendering logic.
 
@@ -563,19 +590,19 @@ mount at `FLOWDOC_LIMIT_OUTPUT`, and `--entrypoint node` followed by the script 
 It records cgroup peak memory including fixture generation, not decoder-only RSS.
 This bounded serial probe is separate from the regular database suite.
 
-## Area 18 document contract
+## Model20 document contract
 
-Only `nodeModelVersion: 18` is accepted. Models 4–17 are unsupported; there is
-no automatic conversion. Existing SQL migration files remain immutable history.
-An upgrade does not rewrite older stored definitions into supported templates.
+Only `nodeModelVersion:20` is accepted. Font schemaVersion1/2 remains independent.
+Models4–19, Section maps, ID-addressed calls and legacy prepared/task contracts
+are unsupported; changing a version number is not conversion. Migration029
+refuses old graphs, snapshots or jobs. It never relabels or deletes them.
 
-Sections use an authored fragment (or a cover), an `inputSchema`, and `formats: {}`.
-Reusable content belongs to a named `area` variable with formats in `areaFormats`.
-Requests provide `data` and `sections.<key>.data`; Area values are ordered arrays
-of `{format,data}` entries. Top-level and per-section `content` are rejected.
-The graph supports static text, tables, images, links, contents, scoped bands,
-page numbering and two-level arrays with row groups. Core owns validation and
-rendering. Start with `examples/area-document-template.json` and its request.
+Definitions use UUID id, sectionKey, label/nameBase, an authored/blank source and
+inputSchema, without legacy key/formats. Calls provide ordered occurrences with
+sectionKey/instanceKey and data, optionally header/footer. Area values remain
+ordered `{format,data}` arrays bound to explicit areaFormats owners. Use the
+converted `examples/area-document-template.json` and matching request. Core owns
+validation/rendering; document, style and resource caps remain unchanged.
 
 ## 0.3.0: queue admission, API client and memory changes
 
@@ -602,15 +629,15 @@ for its one/two/six-request flow and failed-job handling.
 
 Prepared jobs send only the document and required image input to the child.
 Core validation and immutable snapshot integrity checks remain in place.
-Apply migrations through 025 using the matching CLI before starting the API.
+Apply migrations through 029 using the matching CLI before starting the API.
 
-## Candidate Area18 authoring tools
+## Candidate model20 authoring tools
 
 This local setup section describes the candidate implementation only. Shared
 scope and acceptance: ../flowdoc-project-control/docs/domains/flowdoc-template-authoring-tools-plan.md.
 It does not establish a connected AI host or release readiness.
 
-After building and applying migrations through 018 to the intended development
+After building and applying migrations through 029 to the intended development
 database, start the Service with its existing database/output configuration plus
 AUTHORING_TOKEN (a secret of at least 32 characters) and AUTHORING_PRINCIPAL
 (a stable owner name; default local-owner). Authoring stays disabled without a
@@ -666,11 +693,11 @@ for this input. Validation/composition is not a substitute for rendering preview
 
 ## Format sizing development candidate
 
-Core 0.5.0 accepts model19 Format `sizing` (auto/fixed), with independent
+This candidate accepts model20 Format `sizing` (auto/fixed), with independent
 fixed maximum heights per Area entry at Section flow roots. Each call reserves
 min(declared height, current body remainder), including short/empty content.
 Positive space shows fitting whole units; only zero space omits the frame.
-Fixed never moves/retries omitted content. Definitions, clones and saved
+Fixed never moves/retries omitted content. Definitions and saved
 job snapshots retain sizing. `GET /authoring/contract` advertises `formatSizing`
 v2 (diagnosticsVersion1); Area contract entries include explicitly selected sizing only. Partial PDFs
 remain succeeded with structured FORMAT_* warnings. Status and stored warnings
@@ -743,10 +770,10 @@ This development checkout is governed by Project Control's
 `flowdoc-docx-export-plan-2026-10-20.md`, I5/I6; it is not a release or an
 installation authorization. The original0.5.0 integration used Core SHA256
 `2bec67cf379d5913cd8d6881b7eeb973b7b4159b95231e07cd04db4faf1c43b1`;
-that is historical evidence, not the current0.5.2 pin. Current version/hash/source
+that is historical evidence, not the current0.5.5 pin. Current version/hash/source
 are in `vendor/manifest.json`. Retain old archives and run
-`node scripts/verifyVendor.mjs` before building. Current0.5.2 requires all
-migrations through026; the DOCX format addition itself was migration025.
+`node scripts/verifyVendor.mjs` before building. Current0.5.5 requires all
+migrations through029; the DOCX format addition itself was migration025.
 
 For `POST /documents`, `Output-Format: DOCX` selects DOCX in both normal and
 `Task-Mode: queue-v1` requests. Explicit `PDF` and an omitted header keep PDF.
@@ -755,8 +782,17 @@ separate Core writer. Its receipt has the DOCX MIME type, null page count,
 `wordVerified:false`, required field refresh and buffered generation. The writer
 is bounded to32MiB and transports bounded chunks; it is not constant-memory
 streaming. Do not use PDF-only FlowDocMake task parsing for DOCX responses.
-Unsupported required text/image relations or unavailable image placements return
-an explicit DOCX capability failure; no PDF fallback or invented placeholders.
+Unsupported required text/image relations still return an explicit DOCX capability
+failure. For supported body image placements already diagnosed as unavailable,
+Service passes a bounded placement selection through Core's
+`docx-image-omissions/1` contract after durable diagnostics acknowledgements.
+The resulting DOCX succeeds with partial completeness, retains the authored
+frame and unaffected images, and contains no invented picture or PDF fallback.
+Clients cannot select omissions through HTTP. Missing undeclared resources and
+unsupported containers remain errors; direct Core callers remain strict by default.
+Startup refuses a Core without the exact capability before acquiring a DB pool
+or listener. The new private archive identity is recorded in the manifest and
+lockfile; no published artifact is replaced and no migration is added here.
 The previous complete-suite blocker is closed in this0.5.0 preparation:
 581 tests pass,0 fail, with5 environment-specific optional font-height tests
 not run. The18 mandatory paired I6 cases pass in the same complete run under

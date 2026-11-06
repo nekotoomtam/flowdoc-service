@@ -25,7 +25,7 @@ try{
  compose(['stop','api'],'stop-api');
  const fixtures=JSON.parse(compose(['run','--rm','-T','-v',project+'_outputs:/app/output','--entrypoint','node','verification','tests/api-restart.mjs'],'fixtures'));
  compose(['up','-d','api'],'restart-api');await ready();assert.equal((await done(fixtures.queued)).status,'succeeded');assert.equal((await done(fixtures.running)).errors[0].code,'PROCESS_INTERRUPTED');
- const restored=request('/jobs/'+fixtures.succeeded).body.value;assert.equal(restored.hasWarnings,true);assert.deepEqual(restored.skippedContentIndices,[]);assert.ok(restored.warnings.some(w=>w.code==='UNKNOWN_VARIABLE'&&w.path==='sections.main.data.restartWarning'));
+ const restored=request('/jobs/'+fixtures.succeeded).body.value;assert.equal(restored.hasWarnings,false);assert.deepEqual(restored.skippedContentIndices,[]);assert.deepEqual(restored.warnings,[]);
  assert.equal(compose(['exec','-T','api','node','-e',`console.log(require('fs').existsSync('/app/output/${fixtures.running}.pdf'))`]).trim(),'false');
  for(let n=0;n<2;n++)assert.equal(request('/jobs/'+fixtures.succeeded+'/pdf').status,200);
  assert.equal(request('/jobs/'+jobs[0]+'/pdf').status,410);

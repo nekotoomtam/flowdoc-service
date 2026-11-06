@@ -1,3 +1,5 @@
+import {workerError} from '../workers/contracts.js';
+import {deliveryEvidence} from './delivery.js';
 import {artifactSpec,validateReceipt,DOCX_MAX_BYTES,docxDisclosure} from './artifact.js';
 import type { Pool, PoolClient } from 'pg';
 import {taskWire,type TaskWire} from './wire.js';
@@ -9,7 +11,7 @@ import type { createTaskIntake } from './intake.js';
 import { quotaLock, taskError } from './quota.js';
 import { processIdentity } from './workspace.js';
 import { terminal, safeTask, taskCompleteness } from './repository.js';
-import {QUEUE_POLICY_VERSION} from './policy.js';
+import {isQueuePolicyVersion} from './queue-profile.js';
 import { readReferences, verifyReferences } from '../fonts/retention.js';
 import { resolveFontReadiness } from '../fonts/readiness.js';
 import { makeFontSnapshot, persistJobFonts, validateFontSnapshot, rendererIdentity } from '../fonts/snapshot.js';
@@ -40,6 +42,7 @@ type Execution = {
 const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 const reason = (e: any) => typeof e?.code === 'string' && /^[A-Z_]+$/.test(e.code) ? e.code : 'RENDER_FAILED';
 export async function createTaskProcessing(deps: Dependencies) {
+    if(process.env.FLOWDOC_WORKER_ISOLATION==='required'&&!deps.intake.processingContext.workerLauncher)throw workerError('WORKER_TASK_LAUNCHER_REQUIRED');
     const { pool, intake } = deps, { repo, files, owned, active, cleanup, resources } = intake.processingContext;
     const executing = new Map<string, Execution>();
     let closing = false, dispatching = false, stopUnconfirmed = false;
@@ -51,21 +54,27 @@ export async function createTaskProcessing(deps: Dependencies) {
         if (!deps.workerReady() || closing)
             throw taskError('UNAVAILABLE');
         return transaction(pool, async (c) => {
+            await c.query("SET LOCAL lock_timeout='5s'");
+            // Immutable task/template pins let us acquire sorted font locks first.
+            // Never hold task/quota locks while waiting for a font release: legacy
+            // and authoring admission acquire fonts before their capacity lock.
+            const v = (await c.query('SELECT definition_json,fingerprint FROM template_versions WHERE id=$1', [r.template_version_id])).rows[0];
+            if (!v || v.fingerprint !== r.template_pin.fingerprint)
+                throw taskError('INVALID_DATA');
+            const refs = await readReferences(c, v.definition_json.templateId, 0, r.template_version_id);
+            verifyReferences(v.definition_json, v.fingerprint, refs);
+            const ids = [...new Set(Object.values(v.definition_json.styles).flatMap((s: any) => s.font?.kind === 'library' ? [s.font.releaseId] : []))].sort();
+            if (ids.length)
+                await c.query('SELECT id FROM font_releases WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE', [ids]);
             await quotaLock(c);
             const row = await repo.row(c, id);
+            if (row.template_version_id !== r.template_version_id || row.template_pin.fingerprint !== r.template_pin.fingerprint)
+                throw taskError('INPUT_INTEGRITY');
             repo.live(row);
             if (row.status !== 'validating' || !row.normalized_at || row.lease_token)
                 throw taskError('TASK_REQUEST_CONFLICT');
             if (row.normalization_summary.coreVersion !== rendererIdentity.version || row.normalization_summary.coreSha256 !== rendererIdentity.sha256)
                 throw taskError('RENDERER_PIN_MISMATCH');
-            const v = (await c.query('SELECT definition_json,fingerprint FROM template_versions WHERE id=$1', [row.template_version_id])).rows[0];
-            if (!v || v.fingerprint !== row.template_pin.fingerprint)
-                throw taskError('INVALID_DATA');
-            const refs = await readReferences(c, v.definition_json.templateId, 0, row.template_version_id);
-            verifyReferences(v.definition_json, v.fingerprint, refs);
-            const ids = [...new Set(Object.values(v.definition_json.styles).flatMap((s: any) => s.font?.kind === 'library' ? [s.font.releaseId] : []))].sort();
-            if (ids.length)
-                await c.query('SELECT id FROM font_releases WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE', [ids]);
             const fonts = await resolveFontReadiness(c, v.definition_json, v.fingerprint, refs, undefined, undefined, { deferFiles: true });
             if (!fonts.snapshot)
                 throw taskError(fonts.readiness.issues[0]?.code ?? 'FONT_CHECK_UNAVAILABLE');
@@ -95,7 +104,7 @@ export async function createTaskProcessing(deps: Dependencies) {
         const execution: Execution = { abort, done, leaseToken:row.lease_token, snapshot:admission.snapshot };
         executing.set(id, execution);
         active.set(id, { abort, done });
-        const queueMode=p.version===QUEUE_POLICY_VERSION;
+        const queueMode=isQueuePolicyVersion(p.version);
         let generation = 'not_started', delivery = 'not_started', pdf: TaskRenderReceipt | undefined, renewing = false;
         const disconnect = () => abort.abort(taskError('CONNECTION_LOST'));
         request.signal?.addEventListener('abort', disconnect, { once: true });
@@ -179,6 +188,9 @@ export async function createTaskProcessing(deps: Dependencies) {
             if(snapshot.task.counts.findingCount||pdf.warningCount){const detail={findings:[...snapshot.findings],...snapshot.task.counts,detailsTruncated:snapshot.task.detailsTruncated||snapshot.nextCursor!==null};while(Buffer.byteLength(JSON.stringify(detail))>30000&&detail.findings.length){detail.findings.pop();detail.detailsTruncated=true;}await wire.event('warning','sending',detail);}
             delivery = 'interrupted';
             await wire.artifact(await files.path(pdf.output),{outputFormat:row.output_format,fileName:row.file_name??'document',...(row.output_format==='docx'?docxDisclosure:{}),bytes:Number(output.byte_size),sha256:output.sha256,pageCount:pdf.receipt.pageCount,completeness:snapshot.task.completeness,...snapshot.task.counts},abort.signal);
+            // The response has finished before any final database write. Keep
+            // that observation even if finalization rolls back or its reply is lost.
+            delivery = 'succeeded';
             const n = await transaction(pool, async (c) => {
                 await quotaLock(c);
                 const r = await repo.row(c, id);
@@ -199,27 +211,44 @@ export async function createTaskProcessing(deps: Dependencies) {
         catch (e) {
             const cause=abort.signal.aborted?abort.signal.reason:e;
             abort.abort(cause);
-            await pool.query('UPDATE tasks SET stop_requested_at=coalesce(stop_requested_at,clock_timestamp()) WHERE id=$1 AND terminal_at IS NULL', [id]);
+            await pool.query('UPDATE tasks SET stop_requested_at=coalesce(stop_requested_at,clock_timestamp()) WHERE id=$1 AND terminal_at IS NULL', [id]).catch(()=>{});
             await execution.renderDone;
             pdf = execution.receipt ?? pdf;
-            if (pdf)
-                generation = 'succeeded';
-            await repo.finish(id, reason(cause), undefined, facts(await repo.get(id), generation, delivery, pdf));
-            if (started) {
+            if (pdf)generation = 'succeeded';
+            let current:any;
+            try{current=await repo.get(id);}catch{throw taskError(delivery==='succeeded'?'FINALIZATION_UNCONFIRMED':reason(cause));}
+            // A lost COMMIT reply is not proof of rollback. Preserve the already
+            // committed terminal outcome and immutable usage on reconciliation.
+            if(current.status==='succeeded')return safeTask(current);
+            const code=delivery==='succeeded'?'FINALIZATION_FAILED':reason(cause);
+            let finished:any;
+            try{finished=await repo.finish(id,code,undefined,facts(current,generation,delivery,pdf));}
+            catch{
+                // The fallback terminal transaction can also lose its COMMIT
+                // reply. Only a fresh durable terminal record settles it.
+                let reconciled:any;try{reconciled=await repo.get(id);}catch{}
+                if(!reconciled||!terminal(reconciled.status))throw taskError(delivery==='succeeded'?'FINALIZATION_UNCONFIRMED':reason(cause));
+                if(reconciled.status==='succeeded')return safeTask(reconciled);
+                finished=reconciled;
+            }
+            if (started&&!wire.ended) {
                 terminalFeedback=true;
-                if(!abort.signal.aborted||!request.signal?.aborted)await wire.error(publicCode(reason(cause),row.output_format),generation==='succeeded'?'sending':'composing',(await repo.get(id)).status).catch(()=>request.response.abort());
+                if(!request.signal?.aborted)await wire.error(publicCode(code,row.output_format),generation==='succeeded'?'sending':'composing',finished.status).catch(()=>request.response.abort());
                 else await request.response.abort();
             }
-            throw taskError((await repo.get(id)).terminal_reason ?? reason(cause));
+            throw taskError(finished.terminal_reason ?? code);
         }
         finally {
             clearInterval(poll);
             request.signal?.removeEventListener('abort', disconnect);
-            await pool.query("UPDATE tasks SET writer_pid=NULL,writer_host=NULL,writer_start_identity=NULL,lease_expires_at=clock_timestamp() WHERE id=$1 AND terminal_at IS NULL AND stop_requested_at IS NOT NULL", [id]);
-            executing.delete(id);
-            active.delete(id);
             try {
-                await cleanup(id);
+                if(started&&!wire.ended)await request.response.abort().catch(()=>{});
+                await pool.query("UPDATE tasks SET writer_pid=NULL,writer_host=NULL,writer_start_identity=NULL,lease_expires_at=clock_timestamp() WHERE id=$1 AND terminal_at IS NULL AND stop_requested_at IS NOT NULL", [id]).catch(()=>{});
+                executing.delete(id);
+                active.delete(id);
+                // Failed DB/cleanup access retains durable reservations and files
+                // for recovery; it must not strand local shutdown ownership.
+                await cleanup(id).catch(()=>{});
             }
             finally {
                 execution.senderGrant?.release();
@@ -238,10 +267,10 @@ export async function createTaskProcessing(deps: Dependencies) {
         let grant:{release():void}|undefined;
         try{
             const job=(await pool.query("SELECT id,task_id FROM generation_jobs WHERE status='queued' ORDER BY created_at,id LIMIT 1")).rows[0];
-            if(!job?.task_id){if(job)for(const[id,e]of executing)if(!workers.has(id)&&!e.receipt)e.waitReason='legacy_turn';return false;}
-            const execution=executing.get(job.task_id);if(!execution||execution.abort.signal.aborted)return false;
+            if(!job?.task_id){resources.setProcessingDemand(false);if(job)for(const[id,e]of executing)if(!workers.has(id)&&!e.receipt)e.waitReason='legacy_turn';return false;}
+            const execution=executing.get(job.task_id);if(!execution||execution.abort.signal.aborted){resources.setProcessingDemand(false);return false;}resources.setProcessingDemand(true);
             const abort=execution.abort,shared=resources.enabled();
-            if(workers.size>=(shared?2:1)){execution.waitReason='processing_slot';return false;}
+            if(workers.size>=(shared?resources.processingLimit():1)){execution.waitReason='processing_slot';return false;}
             try{
                 if(shared){grant=resources.tryAcquire('worker:'+job.task_id,{kind:'worker',order:Date.now(),expiresAt:Number.MAX_SAFE_INTEGER,signal:abort.signal,onStop:code=>abort.abort(taskError(code))})??undefined;if(!grant){execution.waitReason=resources.waitReason('worker');return false;}}
                 const row=await transaction(pool,async c=>{
@@ -320,4 +349,4 @@ export async function createTaskProcessing(deps: Dependencies) {
 
 
 }
-function facts(r: any, generation: string, delivery: string, pdf?: TaskRenderReceipt) { return { ownerKey: r.owner_key, principalId: r.created_by_principal, clientActorRef: r.client_actor_ref, billingSubjectKey: r.billing_subject_key, requestKind: r.request_kind, createdAt: r.created_at, expiresAt: r.expires_at, template: r.template_pin, policyVersion: r.resource_policy.version, status: r.status, reason: r.terminal_reason, core: { version: r.normalization_summary?.coreVersion ?? null, sha256: r.normalization_summary?.coreSha256 ?? null }, normalization: r.normalization_summary, processingStartedAt: r.processing_started_at, sendStartedAt: r.send_started_at, terminalAt: r.terminal_at, requestBytes: r.request_bytes === null ? null : Number(r.request_bytes), requestBytesMeasurement: r.request_bytes === null ? 'unknown_after_interruption' : 'observed', generation, delivery, outputFormat:r.output_format,output:pdf?{outputFormat:pdf.outputFormat,mediaType:pdf.mediaType,bytes:pdf.receipt.byteLength,sha256:pdf.receipt.sha256,pageCount:pdf.receipt.pageCount,...(pdf.outputFormat==='docx'?docxDisclosure:{})}:null,pdfBytes:r.output_format==='pdf'?pdf?.receipt.byteLength??null:null,pageCount:pdf?.receipt.pageCount??null,pdfSha256:r.output_format==='pdf'?pdf?.receipt.sha256??null:null, generationWarningCount: pdf?.warningCount ?? null, generationSummary: pdf?.summary ?? r.generation_summary ?? null, completeness: taskCompleteness(r, pdf?.summary ?? r.generation_summary) }; }
+function facts(r: any, generation: string, delivery: string, pdf?: TaskRenderReceipt) { return { ownerKey: r.owner_key, principalId: r.created_by_principal, clientActorRef: r.client_actor_ref, billingSubjectKey: r.billing_subject_key, requestKind: r.request_kind, createdAt: r.created_at, expiresAt: r.expires_at, template: r.template_pin, policyVersion: r.resource_policy.version, status: r.status, reason: r.terminal_reason, core: { version: r.normalization_summary?.coreVersion ?? null, sha256: r.normalization_summary?.coreSha256 ?? null }, normalization: r.normalization_summary, processingStartedAt: r.processing_started_at, sendStartedAt: r.send_started_at, terminalAt: r.terminal_at, requestBytes: r.request_bytes === null ? null : Number(r.request_bytes), requestBytesMeasurement: r.request_bytes === null ? 'unknown_after_interruption' : 'observed', generation, delivery, deliveryEvidence:deliveryEvidence(delivery), outputFormat:r.output_format,output:pdf?{outputFormat:pdf.outputFormat,mediaType:pdf.mediaType,bytes:pdf.receipt.byteLength,sha256:pdf.receipt.sha256,pageCount:pdf.receipt.pageCount,...(pdf.outputFormat==='docx'?docxDisclosure:{})}:null,pdfBytes:r.output_format==='pdf'?pdf?.receipt.byteLength??null:null,pageCount:pdf?.receipt.pageCount??null,pdfSha256:r.output_format==='pdf'?pdf?.receipt.sha256??null:null, generationWarningCount: pdf?.warningCount ?? null, generationSummary: pdf?.summary ?? r.generation_summary ?? null, completeness: taskCompleteness(r, pdf?.summary ?? r.generation_summary) }; }

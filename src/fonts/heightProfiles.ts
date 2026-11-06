@@ -1,9 +1,10 @@
+import {OperationError} from '../errors.js';
 import {randomUUID} from 'node:crypto';
 import {FONT_HEIGHT_METHOD} from '@flowdoc/core';
 import type {Pool,PoolClient} from 'pg';
 import {transaction} from '../db/connection.js';
 import {createFontFiles,UUID,SHA} from './files.js';
-import {inspectFont} from './inspection.js';
+import {inspectFont,type FontInspector} from './inspection.js';
 import {audit,receipt,fingerprint,fontError} from './repository.js';
 import type {FontHeightMetric,Mutation} from './types.js';
 export const HEIGHT_METHOD=FONT_HEIGHT_METHOD;
@@ -28,7 +29,8 @@ async function profile(c:PoolClient,id:string){
  if(!row)fontError('FONT_HEIGHT_PROFILE_NOT_FOUND');return row;
 }
 async function status(c:PoolClient,id:string){return (await c.query('SELECT decision FROM font_height_profile_reviews WHERE profile_id=$1 ORDER BY sequence DESC LIMIT 1',[id])).rows[0]?.decision??'unreviewed';}
-export function createFontHeightProfiles(options:{pool:Pool;root:string;principal:string;pythonExecutable?:string}){
+export function createFontHeightProfiles(options:{pool:Pool;root:string;principal:string;pythonExecutable?:string;inspect?:FontInspector}){
+ if(process.env.FLOWDOC_WORKER_ISOLATION==='required'&&!options.inspect)throw new OperationError('FONT_INSPECTION_UNAVAILABLE','font','Inspector injection required');
  const {pool,root,principal}=options;
  async function verify(c:PoolClient,p:any,r:any){
   if(p.release_id!==r.id)fontError('FONT_BINDING_CONFLICT');
@@ -60,7 +62,7 @@ export function createFontHeightProfiles(options:{pool:Pool;root:string;principa
     const face=(await c.query("SELECT f.id,f.asset_id,a.sha256,a.storage_key,a.byte_length FROM font_faces f JOIN font_assets a ON a.id=f.asset_id WHERE f.release_id=$1 AND f.approved_weight=400 AND f.style='normal'",[id])).rows[0];
     let metric:FontHeightMetric|undefined;
     if(face){const files=await createFontFiles(root);if(!await files.verify(face.storage_key,face.sha256,face.byte_length))fontError('FONT_ASSET_UNAVAILABLE');
-     const inspected=await inspectFont(files.assetPath(face.storage_key),{includeHeightMetric:true,...(options.pythonExecutable?{pythonExecutable:options.pythonExecutable}:{})});
+     const inspected=await(options.inspect??inspectFont)(files.assetPath(face.storage_key),{includeHeightMetric:true,...(options.pythonExecutable?{pythonExecutable:options.pythonExecutable}:{})});
      if(inspected.sha256!==face.sha256)fontError('FONT_HASH_MISMATCH');metric=inspected.heightMetric;
      if(!metric)fontError('FONT_HEIGHT_PROFILE_UNAVAILABLE');
     }

@@ -28,7 +28,7 @@ beforeAll(async()=>{
  app=createServer({pool:db.pool,uploads,outputs:createOutputs(db.pool,files,24),isReady:processor.isReady,imagesEnabled:true});
 });
 afterAll(async()=>{await app?.close();await processor?.stop();await uploads?.stop();await db.close();});
-const request=items=>({docKey:'area-demo',version,data:{},sections:{evidence:{data:{details:items.map(data=>({format:'evidence',data}))}}}});
+const request=items=>({docKey:'area-demo',version,data:{},sections:[{sectionKey:"S0002",instanceKey:"I0002",...({data:{details:items.map(data=>({format:'evidence',data}))}})}]});
 async function upload(bytes){
  const u=ok((await app.inject({method:'POST',url:'/uploads',payload:{requestKey:randomUUID(),items:bytes.map((b,i)=>({key:'p'+i,source:'upload',mediaType:'image/jpeg',byteSize:b.length}))}})).json());
  for(let i=0;i<bytes.length;i++)expect((await app.inject({method:'PUT',url:`/uploads/${u.uploadId}/items/${u.items[i].resourceId}/content`,headers:{'content-type':'application/octet-stream'},payload:bytes[i]})).statusCode).toBe(200);
@@ -45,6 +45,6 @@ it('renders actual area images and retains image warnings',async()=>{
  expect((await db.pool.query('SELECT original_input FROM generation_jobs WHERE id=$1',[result.job.jobId])).rows[0].original_input).toEqual(r);
 });
 it('renders empty Area values without upload, rejects accepted foreign resource',async()=>{
- for(const details of [[]]){const r=request([]);r.sections.evidence.data.details=details;expect((await finish(r)).pdf.statusCode).toBe(200);}
+ for(const details of [[]]){const r=request([]);r.sections[0].data.details=details;expect((await finish(r)).pdf.statusCode).toBe(200);}
  const bytes=await sharp({create:{width:2,height:2,channels:3,background:'#fff'}}).jpeg().toBuffer(),a=await upload([bytes]),b=await upload([bytes]);const r={...request([{photo:a.items[0].resourceId,caption:'foreign'}]),uploadId:b.uploadId};expect((await app.inject({method:'POST',url:'/jobs',payload:r})).statusCode).toBe(422);
 });

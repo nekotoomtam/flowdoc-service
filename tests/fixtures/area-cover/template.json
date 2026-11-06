@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "nodeModelVersion": 19,
-  "templateId": "area-cover-stage2",
+  "nodeModelVersion": 20,
+  "templateId": "2fb7620f-b8f2-57cf-882a-4cf07cc0f7e4",
   "docKey": "area-cover-stage2",
   "version": 1,
   "name": "Section with native Area components",
@@ -570,7 +570,7 @@
   },
   "sections": [
     {
-      "id": "10000000-0000-4000-8000-000000000001",
+      "id": "4152a1ae-d46c-5226-845a-69072f25249b",
       "label": "Document1",
       "nameBase": "Document",
       "inputSchema": {
@@ -720,7 +720,8 @@
             }
           }
         }
-      }
+      },
+      "sectionKey": "S0001"
     }
   ]
 }

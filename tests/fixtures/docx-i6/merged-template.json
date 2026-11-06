@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "nodeModelVersion": 18,
-  "templateId": "merged-trial",
+  "nodeModelVersion": 20,
+  "templateId": "d062fdc4-bf43-5a05-8d25-ef0721d56142",
   "docKey": "merged-trial",
   "version": 1,
   "name": "Merged trial",
@@ -58,8 +58,7 @@
   },
   "sections": [
     {
-      "id": "main",
-      "key": "main",
+      "id": "475a00a9-db29-5c73-8084-45838bac14dc",
       "source": {
         "kind": "authored",
         "fragment": {
@@ -87,7 +86,9 @@
           }
         }
       },
-      "formats": {}
+      "sectionKey": "S0001",
+      "label": "main",
+      "nameBase": "main"
     }
   ],
   "areaFormats": {

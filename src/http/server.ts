@@ -1,3 +1,8 @@
+import type {WorkerLauncher} from '../workers/contracts.js';
+import type {FontInspector} from '../fonts/inspection.js';
+import type {FontPreflightGate} from '../fonts/preflight-gate.js';
+import {withRequestSignal} from './request-signal.js';
+import {createFontPreflightGate} from '../fonts/preflight-gate.js';
 import {rendererIdentity} from '../fonts/snapshot.js';
 import {readFileSync} from 'node:fs';
 import {registerDocuments,type Documents} from './documents.js';
@@ -17,13 +22,15 @@ import {failure,OperationError} from '../errors.js';
 import type {Uploads} from '../uploads/service.js';
 import {registerUploads} from './uploads.js';
 import {registerAuthoring,checkAuthoringAccess,type AuthoringAccess} from './authoring.js';
-const status=(code:string)=>({QUEUE_FULL:503,UNKNOWN_SECTION:422,UNKNOWN_FORMAT:422,INVALID_JOB_ID:400,INVALID_DATA:422,TYPE_MISMATCH:422,MISSING_REQUIRED:422,EMPTY_CONTENT:422,EXPANSION_LIMIT:422,IMAGE_JOBS_UNAVAILABLE:422,INVALID_UPLOAD:422,INVALID_RESOURCE:422,UPLOAD_NOT_FOUND:404,UPLOAD_GONE:410,UPLOAD_CONFLICT:409,UPLOAD_INCOMPLETE:409,TEMPLATE_NOT_FOUND:404,VERSION_NOT_FOUND:404,JOB_NOT_FOUND:404,OUTPUT_GONE:410}[code]??503);
-export function createServer(deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean;bodyLimit?:number;uploads?:Uploads;imagesEnabled?:boolean;maxOutstanding?:number;authoring?:AuthoringAccess;fontAdmin?:FontAdminAccess;fontStorageRoot?:string;tasks?:Documents}){
+const status=(code:string)=>({QUEUE_FULL:503,UNKNOWN_SECTION:422,UNKNOWN_FORMAT:422,SECTION_INPUT_SHAPE:422,SECTION_ASSEMBLY_EMPTY:422,SECTION_INSTANCE_DUPLICATE:422,SECTION_KEY_UNKNOWN:422,INVALID_JOB_ID:400,INVALID_DATA:422,TYPE_MISMATCH:422,MISSING_REQUIRED:422,EMPTY_CONTENT:422,EXPANSION_LIMIT:422,IMAGE_JOBS_UNAVAILABLE:422,INVALID_UPLOAD:422,INVALID_RESOURCE:422,UPLOAD_NOT_FOUND:404,UPLOAD_GONE:410,UPLOAD_CONFLICT:409,UPLOAD_INCOMPLETE:409,TEMPLATE_NOT_FOUND:404,VERSION_NOT_FOUND:404,JOB_NOT_FOUND:404,OUTPUT_GONE:410}[code]??503);
+export function createServer(deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean;bodyLimit?:number;uploads?:Uploads;imagesEnabled?:boolean;maxOutstanding?:number;authoring?:AuthoringAccess;fontAdmin?:FontAdminAccess;fontStorageRoot?:string;tasks?:Documents;workerLauncher?:WorkerLauncher;fontInspector?:FontInspector;preflight?:FontPreflightGate}){
+ if(process.env.FLOWDOC_WORKER_ISOLATION==='required'&&(!deps.workerLauncher||!deps.fontInspector||!deps.preflight?.render))throw new OperationError('UNAVAILABLE','service','Worker dependencies unavailable');
  if(deps.authoring)checkAuthoringAccess(deps.authoring);
  if(deps.fontAdmin)checkFontAdminAccess(deps.fontAdmin,deps.authoring?.token);
  const maxOutstanding=validateMaxOutstanding(deps.maxOutstanding??DEFAULT_MAX_OUTSTANDING);
+ const preflight=deps.preflight??createFontPreflightGate(deps.tasks?.intake.processingContext.resources),ready=()=>deps.isReady()&&preflight.isReady()&&(!deps.workerLauncher||deps.workerLauncher.isReady())&&(!deps.fontInspector||deps.fontInspector.isReady());
  const app=Fastify({logger:false,forceCloseConnections:true,bodyLimit:deps.bodyLimit??2097152});
- if(deps.authoring)app.register(async routes=>registerAuthoring(routes,{pool:deps.pool,outputs:deps.outputs,isReady:deps.isReady,maxOutstanding,imagesEnabled:deps.imagesEnabled??false,access:deps.authoring!,documents:deps.tasks?{version:1,route:'/documents',input:'section-assets-multipart-v1',response:'task-v1',lookup:'exact-record-only',queue:deps.tasks.intake.queueCapability(),serviceVersion:JSON.parse(readFileSync(new URL('../../package.json',import.meta.url),'utf8')).version,coreVersion:rendererIdentity.version,coreSha256:rendererIdentity.sha256}:null,...(deps.uploads?{uploads:deps.uploads}:{})}));
+ if(deps.authoring)app.register(async routes=>registerAuthoring(routes,{pool:deps.pool,outputs:deps.outputs,isReady:ready,preflight,maxOutstanding,imagesEnabled:deps.imagesEnabled??false,access:deps.authoring!,documents:deps.tasks?{version:1,route:'/documents',input:'section-assets-multipart-v1',response:'task-v1',lookup:'exact-record-only',queue:deps.tasks.intake.queueCapability(),serviceVersion:JSON.parse(readFileSync(new URL('../../package.json',import.meta.url),'utf8')).version,coreVersion:rendererIdentity.version,coreSha256:rendererIdentity.sha256}:null,...(deps.uploads?{uploads:deps.uploads}:{})}));
  app.addContentTypeParser('application/json',{parseAs:'string'},(_req,body,done)=>{
   const r=readGenerationJson(body as string);if(!r.ok){done(Object.assign(new Error('Invalid JSON'),{statusCode:400}));return;}
   const pending:unknown[]=[r.value];while(pending.length){const v=pending.pop();if(v&&typeof v==='object'){
@@ -31,16 +38,17 @@ export function createServer(deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean
    pending.push(...Object.values(v));
   }}done(null,r.value);
  });
- if(deps.fontAdmin)app.register(async routes=>registerFontsAdmin(routes,{pool:deps.pool,root:deps.fontStorageRoot??fontRoot(),access:deps.fontAdmin!,isReady:deps.isReady,...(deps.authoring?{authoringToken:deps.authoring.token}:{})}));
+ if(deps.fontAdmin)app.register(async routes=>registerFontsAdmin(routes,{pool:deps.pool,root:deps.fontStorageRoot??fontRoot(),access:deps.fontAdmin!,isReady:ready,preflight,...(deps.fontInspector?{inspect:deps.fontInspector}:{}),...(deps.authoring?{authoringToken:deps.authoring.token}:{})}));
  if(deps.uploads)app.register(async routes=>{
   routes.addHook('onRequest',async(req,reply)=>{const id=(req.params as any)?.id;if(typeof id==='string'&&validJobId(id)&&(await deps.pool.query('SELECT 1 FROM upload_sessions WHERE id=$1 AND authoring_principal IS NOT NULL',[id])).rowCount)return reply.code(404).send(failure(new OperationError('UPLOAD_NOT_FOUND','uploadId','Upload not found')));});
-  routes.addHook('onRequest',async(_req,reply)=>{if(!deps.isReady())return reply.code(503).send(failure(new OperationError('UNAVAILABLE','service','Service unavailable')));});
+  routes.addHook('onRequest',async(_req,reply)=>{if(!ready())return reply.code(503).send(failure(new OperationError('UNAVAILABLE','service','Service unavailable')));});
   await registerUploads(routes,deps.uploads!);
  });
- if(deps.tasks)app.register(async routes=>registerDocuments(routes,deps.pool,deps.tasks!,deps.isReady));
+ if(deps.tasks)app.register(async routes=>registerDocuments(routes,deps.pool,deps.tasks!,ready));
+ app.addHook('onClose',()=>preflight.stop());
  const pending=new Set<Promise<void>>();app.addHook('onClose',async()=>{await Promise.allSettled([...pending]);});
  app.setErrorHandler((error,request,reply)=>{const e=error as {statusCode?:number};const code=e.statusCode===413?413:e.statusCode&&e.statusCode>=400&&e.statusCode<500?400:503;reply.code(code).send(failure(new OperationError(code===413?'BODY_TOO_LARGE':code===400?'INVALID_REQUEST':'UNAVAILABLE','request',code===413?'Request exceeds size limit':code===400?'Invalid request':'Service unavailable')));});
- app.get('/health',async(_req,reply)=>{try{if(!deps.isReady())throw Error();await deps.pool.query('SELECT 1');return {ok:true,value:{ready:true},warnings:[]};}catch{reply.code(503);return failure(new OperationError('UNAVAILABLE','service','Service unavailable'));}});
+ app.get('/health',async(_req,reply)=>{try{if(!ready()||deps.tasks&&!await deps.tasks.intake.storageReady())throw Error();await deps.pool.query('SELECT 1');return {ok:true,value:{ready:true},warnings:[]};}catch{reply.code(503);return failure(new OperationError('UNAVAILABLE','service','Service unavailable'));}});
  app.get<{Params:{docKey:string};Querystring:{version?:string}}>('/templates/:docKey/contract',async(req,reply)=>{
   const raw=req.query.version;let version:number|undefined;
   if(raw!==undefined){if(typeof raw!=='string'||!/^\d+$/.test(raw)||!Number.isSafeInteger(Number(raw))||Number(raw)<1||Number(raw)>2147483647){reply.code(400);return failure(new OperationError('INVALID_VERSION','version','Invalid version'));}version=Number(raw);}
@@ -48,9 +56,9 @@ export function createServer(deps:{pool:Pool;outputs:Outputs;isReady:()=>boolean
   const t=r.value.template.definition;return {ok:true,value:templateContract(t),warnings:[]};
  });
  app.post('/jobs',async(req,reply)=>{
-  if(!deps.isReady()){reply.code(503);return failure(new OperationError('UNAVAILABLE','service','Service unavailable'));}
+  if(!ready()){reply.code(503);return failure(new OperationError('UNAVAILABLE','service','Service unavailable'));}
   if(!req.body||typeof req.body!=='object'||Array.isArray(req.body)||typeof (req.body as Record<string,unknown>).docKey!=='string'){reply.code(400);return failure(new OperationError('INVALID_REQUEST','request','Invalid request'));}
-  const r=await submitJob(deps.pool,req.body,deps.imagesEnabled===true,maxOutstanding);reply.code(r.ok?202:status(r.issues[0]!.code));return r;
+  const r=await withRequestSignal(req,reply,signal=>submitJob(deps.pool,req.body,deps.imagesEnabled===true,maxOutstanding,{preflight,signal}));reply.code(r.ok?202:status(r.issues[0]!.code));return r;
  });
  app.get<{Params:{jobId:string}}>('/jobs/:jobId',async(req,reply)=>{
   const r=await getJob(deps.pool,req.params.jobId);if(!r.ok){reply.code(status(r.issues[0]!.code));return r;}

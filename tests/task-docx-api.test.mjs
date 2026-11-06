@@ -1,3 +1,4 @@
+import {unitQueueResources} from './helpers/unit-queue-headroom.mjs';
 import {beforeAll,afterAll,it,expect} from 'vitest';
 import {readFile,writeFile,mkdtemp,readdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -34,15 +35,15 @@ beforeAll(async()=>{
  t.areaFormats.item.inputSchema.fields.anchor={type:'string',required:true};
  const frag=t.areaFormats.item.fragment;frag.rootIds=frag.rootIds.filter(id=>id!=='text');delete frag.nodes.text;
  for(const [i,[weight,style]] of faces.entries()){t.styles['face'+i]={font:{kind:'library',releaseId:font.id,weight,style},fontSize:{value:12,unit:'pt'},lineHeightPt:18};const id='face'+i;frag.nodes[id]={id,type:'text-block',role:{role:'paragraph'},props:{textStyleId:id,...(i===0?{toc:{level:1},anchorId:{scope:'local',key:'anchor'}}:{})},children:[{id:id+'-leaf',type:'field-ref',scope:'local',key:'text'}]};frag.rootIds.splice(i,0,id);}
- cases.typography={template:t,input:{data:{},sections:[{id:sid,data:{parts:[{format:'item',data:{text:'ไทย EN\nกุ้ง two',photo:{image:{upload:true}}}},{format:'item',data:{text:'ปี่ ABC\nน้ำ three',photo:{image:{upload:true}}}}]}}]},images:[]};
+ cases.typography={template:t,input:{data:{},sections:[{sectionKey:'task-section',instanceKey:'first',data:{parts:[{format:'item',data:{text:'ไทย EN\nกุ้ง two',photo:{image:{upload:true}}}},{format:'item',data:{text:'ปี่ ABC\nน้ำ three',photo:{image:{upload:true}}}}]}}]},images:[]};
  cases.typography.input.sections[0].data.parts.forEach((part,i)=>{part.data.anchor='i6-heading-'+i;});
  for(let i=0;i<2;i++){const type=i?'image/png':'image/jpeg',bytes=await sharp({create:{width:32,height:16,channels:4,background:{r:40,g:120,b:190,alpha:i?0.4:1}}})[i?'png':'jpeg']().toBuffer();cases.typography.images.push({pointer:'/sections/0/data/parts/'+i+'/data/photo/image',type,bytes});}
  const merged=JSON.parse(await readFile('tests/fixtures/docx-i6/merged-template.json','utf8'));merged.templateId=merged.docKey='i6-merged';
- cases.merged={template:merged,input:{data:{text:'ไทย EN\nบรรทัด two'},sections:{main:{data:{details:[{format:'merged',data:{}}]}}}},images:[]};
+ cases.merged={template:merged,input:{data:{text:'ไทย EN\nบรรทัด two'},sections:[{sectionKey:merged.sections[0].sectionKey,instanceKey:'merged-case',data:{details:[{format:'merged',data:{}}]}}]},images:[]};
  const navigationInput=JSON.parse(await readFile('tests/fixtures/docx-i6/navigation-request.json','utf8'));
  cases.navigation={template:JSON.parse(await readFile('tests/fixtures/docx-i6/navigation-template.json','utf8')),input:{data:navigationInput.data,sections:navigationInput.sections},images:[]};
  for(const [key,c] of Object.entries(cases)){ok(await registerTemplate(pool,JSON.stringify(c.template)));c.multipart=Buffer.concat([part('payload',JSON.stringify(c.input),'application/json'),...c.images.map(i=>part(i.pointer,i.bytes,i.type)),Buffer.from('--i6-pair--\r\n')]);await writeFile(join(proof,key+'-template.json'),JSON.stringify(c.template,null,2));await writeFile(join(proof,key+'-request.json'),JSON.stringify(c.input,null,2));}
- intake=await createTaskIntake({pool,root:join(root,'tasks'),resolveCredential:h=>h===auth?{ownerKey:'i6',principalId:'tester',taskRead:true,docKeys:Object.values(cases).map(c=>c.template.docKey)}:null,freeBytes:async()=>20_000_000_000});
+ intake=await createTaskIntake({pool,root:join(root,'tasks'),queueResources:unitQueueResources,resolveCredential:h=>h===auth?{ownerKey:'i6',principalId:'tester',taskRead:true,docKeys:Object.values(cases).map(c=>c.template.docKey)}:null,freeBytes:async()=>20_000_000_000});
  manager=await createTaskProcessing({pool,intake,workerReady:()=>processor?.isReady()??false});processor=await startProcessor({pool,tasks:manager,files:{writePdf:async()=>{throw Error('Unexpected legacy route');}},policy:{retain:false,ttlHours:1,tempHours:1},pollMs:5});
  app=createServer({pool,outputs:{},isReady:()=>processor.isReady(),tasks:{intake,processing:manager}});url=await app.listen({host:'127.0.0.1',port:0});timer=setInterval(()=>void memory(),rss.sampleMs);
  await writeFile(join(proof,'font-inputs.json'),JSON.stringify(await Promise.all(files.map(async p=>({name:p.split('/').at(-1),sha256:sha(await readFile(p))}))),null,2));

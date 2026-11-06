@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "nodeModelVersion": 19,
-  "templateId": "scoped-contents-trial",
+  "nodeModelVersion": 20,
+  "templateId": "11439fed-feb0-5fc2-82ce-79cdd51867b5",
   "docKey": "scoped-contents-trial",
   "version": 1,
   "name": "Two Sections with scoped and whole-document contents",
@@ -484,7 +484,7 @@
   },
   "sections": [
     {
-      "id": "10000000-0000-4000-8000-000000000001",
+      "id": "94189a57-2d4c-58af-8be8-e9835479b2e0",
       "label": "Document1",
       "nameBase": "Document",
       "inputSchema": {
@@ -600,10 +600,11 @@
             }
           }
         }
-      }
+      },
+      "sectionKey": "S0001"
     },
     {
-      "id": "10000000-0000-4000-8000-000000000002",
+      "id": "f5dea417-8784-500a-84b2-38461e8d05f6",
       "label": "Document2",
       "nameBase": "Document",
       "inputSchema": {
@@ -720,7 +721,8 @@
             }
           }
         }
-      }
+      },
+      "sectionKey": "S0002"
     }
   ]
 }

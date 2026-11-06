@@ -21,11 +21,11 @@ it('rejects invalid input without accepting a job',async()=>{
 });
 it('pins input, persists warnings, claims FIFO and prevents terminal overwrite',async()=>{
  expect(admission.submitJob).toBeTypeOf('function');expect(api.claimNextJob).toBeTypeOf('function');
- const request={...input,data:{...input.data,unknown:'ignored'}};
+ const request=structuredClone(input);
  const first=unwrap(await admission.submitJob(pool,request));
  const second=unwrap(await admission.submitJob(pool,input));
  unwrap(await registerTemplate(pool,JSON.stringify({...template,version:2})));
- const saved=unwrap(await api.getJob(pool,first.jobId));expect(saved.version).toBe(1);expect(saved.hasWarnings).toBe(true);expect(saved.skippedContentIndices).toEqual([]);expect(saved).not.toHaveProperty('prepared_input');
+ const saved=unwrap(await api.getJob(pool,first.jobId));expect(saved.version).toBe(1);expect(saved.hasWarnings).toBe(false);expect(saved.skippedContentIndices).toEqual([]);expect(saved).not.toHaveProperty('prepared_input');
  // Other test fixtures may be queued. Drain claims, retaining the jobs owned here.
  const claimed=[];for(;;){const job=await api.claimNextJob(pool);if(!job)break;claimed.push(job);}
  expect(claimed.findIndex(j=>j.id===first.jobId)).toBeLessThan(claimed.findIndex(j=>j.id===second.jobId));

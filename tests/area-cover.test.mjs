@@ -16,7 +16,7 @@ afterAll(async()=>{await processor?.stop();await app?.close();await db.close();i
 const call=(method,url,payload)=>app.inject({method,url,headers,...(payload?{payload}:{})});
 it('advertises only implemented Area cover capabilities and protects discovery',async()=>{
  expect((await app.inject('/authoring/contract')).statusCode).toBe(401);
- expect((await call('GET','/authoring/contract')).json().value.sectionInstances).toEqual({model:19,input:'array-by-id',assembly:'saved-definition',stage:3,coverArea:true,scopedToc:true});
+ expect((await call('GET','/authoring/contract')).json().value.sectionDefinitions).toMatchObject({model:20,input:'array-by-section-key',authoring:'whole-definition'});
 });
 it('saves and processes a pinned single-Section Area cover through the actual packaged Core',async()=>{
  const t=JSON.parse(readFileSync('tests/fixtures/area-cover/template.json')),r=JSON.parse(readFileSync('tests/fixtures/area-cover/request.json'));
@@ -27,7 +27,7 @@ it('saves and processes a pinned single-Section Area cover through the actual pa
  const id=t.templateId;expect((await call('PUT',`/authoring/drafts/${id}`,{expectedRevision:0,definition:t,idempotencyKey:'save'})).statusCode).toBe(200);
  const ready=await call('POST','/authoring/validate',{definition:t,sampleRequest:r});expect(ready.statusCode,ready.body).toBe(200);
  const queued=await call('POST',`/authoring/drafts/${id}/previews`,{expectedRevision:1,sampleRequest:r,idempotencyKey:'preview'});expect(queued.statusCode,queued.body).toBe(202);const jobId=queued.json().value.jobId;
- const pinned=(await pool.query('SELECT prepared_input,preview_definition FROM generation_jobs WHERE id=$1',[jobId])).rows[0];expect(pinned.prepared_input.schemaVersion).toBe(2);expect(Array.isArray(pinned.prepared_input.sections)).toBe(true);expect(pinned.preview_definition).toEqual(t);
+ const pinned=(await pool.query('SELECT prepared_input,preview_definition FROM generation_jobs WHERE id=$1',[jobId])).rows[0];expect(pinned.prepared_input.schemaVersion).toBe(3);expect(Array.isArray(pinned.prepared_input.sections)).toBe(true);expect(pinned.preview_definition).toEqual(t);
  let status;for(let n=0;n<500;n++){status=(await call('GET','/authoring/previews/'+jobId)).json().value;if(['succeeded','failed'].includes(status.status))break;await new Promise(r=>setTimeout(r,20));}
  expect(status,JSON.stringify(status)).toMatchObject({status:'succeeded',revision:1,outputAvailable:true});
  const pdf=await call('GET','/authoring/previews/'+jobId+'/pdf');expect(pdf.statusCode).toBe(200);expect(pdf.rawPayload.subarray(0,5).toString()).toBe('%PDF-');

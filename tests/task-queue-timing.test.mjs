@@ -25,5 +25,5 @@ it('does not hide a missed freshness deadline by accepting a later successful re
 });
 it('bounds underlying hung reads to one and stops active work at the original freshness deadline',async()=>{
  let calls=0;const stops=[];const r=await createQueueResources({sampleMs:10,readMemory:async()=>{if(++calls>1)return new Promise(()=>{});return{current:100*MiB,max:1024*MiB};}});
- try{const g=await r.acquire('w',{kind:'worker',order:0,expiresAt:Date.now()+5000,onStop:c=>stops.push(c)});await wait(1250);expect(stops).toEqual(['UNAVAILABLE']);expect(calls).toBe(2);expect(r.snapshot().timing.lastFailure).toBe('read_timeout');g.release();}finally{await r.stop();}
+ try{const g=await r.acquire('w',{kind:'worker',order:0,expiresAt:Date.now()+5000,onStop:c=>stops.push(c)});await wait(1250);expect(stops).toEqual(['UNAVAILABLE']);expect(calls).toBe(2);expect(r.snapshot().timing.readTimeouts).toBeGreaterThanOrEqual(1);expect(r.ready()).toBe(false);g.release();}finally{await r.stop();}
 });

@@ -1,16 +1,204 @@
-# คู่มือใช้งาน FlowDoc Service 0.5.2
+# คู่มือใช้งาน FlowDoc Service 0.5.5
 
-## ชุดพัฒนา 0.5.2
+> **Candidate 0.5.5 — 2026-11-06:** Owner selected Core/Service 0.5.5 for the retained model20-only runtime. This is local Git/package preparation; no publication or installation. The withdrawn v0.6.0 history and the existing v0.5.2 release remain unchanged.
 
-Service0.5.2 ชุดนี้ตรึง Core `0.5.2` ผ่าน vendor/manifest.json ให้ตรวจ checksum ก่อน
+## Authority Boundary
+
+Owner: flowdoc-service. Scope: repository-owned runtime setup, API usage and
+experimental resource-profile configuration. This guide does not promote a
+release, installation, shared FlowDoc readiness or cross-repository status;
+Project Control governs those claims.
+
+## ชุดพัฒนา 0.5.5
+
+รอบ model20-only นี้ใช้ Core sourceff0d18d และ archive/hash ใน vendor/manifest.json.
+ต้องมี migration029 ก่อนเริ่มแอป; Service/plugin คนละ pin ไม่ถือว่าเข้ากันเพียงเพราะ
+เลขรุ่น0.5.5เท่ากัน. หลักฐานรับรองข้าม repo อยู่ใน Project Control แผนเปลี่ยนเป็น20เท่านั้น.
+ไม่มีการติดตั้งหรือ release จากการแก้คู่มือนี้.
+
+## อัปเดตจาก0.5.2 เป็น0.5.5: เตรียมก่อนติดตั้ง
+
+ส่วนนี้เป็นขั้นตอนเตรียมของรุ่น0.5.5 ไม่ใช่ผลว่าระบบที่ติดตั้งอยู่ถูกอัปเดตแล้ว.
+การออก Git release ไม่เปิด API, ไม่รัน migration และไม่เปลี่ยนฐานหรือไฟล์เดิม.
+Core/Service0.5.5 รับเฉพาะ model20; FlowDocMake0.3.1 ที่ตรึง0.5.2 ใช้แทน client
+model20 ไม่ได้. FlowDocMake รุ่นใหม่ยังเป็น candidate ที่ต้องตั้งค่าแยกอย่างชัดเจน.
+
+### เส้นทางแนะนำสำหรับระบบที่ยังอยู่ระหว่างเตรียมใช้งาน
+
+1. ตรวจ snapshot/tag `v0.5.5`, Service package/lock และ `vendor/manifest.json`
+   ให้ตรงกัน. รัน `node scripts/verifyVendor.mjs` กับ source ที่ตรึงไว้ก่อน build.
+   เก็บ release0.5.2, image digest, config และ archive เดิมไว้ ไม่เขียนทับ tag.
+2. เมื่อได้รับอนุญาตติดตั้ง จึงเก็บ backup DB และพื้นที่ staging/output/task/fonts
+   ให้เป็นจุดเดียวกัน พร้อมรายการไฟล์/checksum และซ้อม restore บนสำเนาแยก.
+   เก็บ credentials แยกจากรายงาน ไม่ใส่ connection string หรือ token ในหลักฐาน.
+3. เตรียมฐานและ storage root ชื่อใหม่สำหรับ0.5.5. อย่าชี้ binary0.5.5 ไปที่ฐาน
+   model18/19 เดิม หรือคัดลอกไฟล์ runtime/storage identity ของ task root เก่ามา
+   เพื่อทำให้ระบบใหม่รับงาน. เก็บระบบเก่าและข้อมูลเก่าไว้สำหรับตรวจย้อนหลัง/ย้อนกลับ.
+4. แปลงเฉพาะ template และข้อมูลตัวอย่างบนสำเนาด้วยตัวแปลง offline ที่ Project
+   Control จัดไว้ (`tools/model20/convert-legacy-cli.mjs`); ระบุ SDK เก่า/ใหม่และ
+   hash ที่ตรวจแล้ว. เริ่ม `--dry-run`, ตรวจผลและ mapping ก่อนเขียน output directory
+   ใหม่. การเปลี่ยน `nodeModelVersion` เป็น20เฉยๆ ไม่ใช่การแปลง. ถ้าตัวแปลงปฏิเสธ
+   TOC หรือโครงที่พิสูจน์ความเท่ากันไม่ได้ ให้หยุดและจัดทำแม่แบบนั้นใหม่โดยชัดแจ้ง.
+5. รัน `migrate` ของ image0.5.5 เฉพาะฐานใหม่; ต้องครบ001–029. รันซ้ำแล้วไม่ควร
+   มีรายการ applied ใหม่. นำเข้า/ตรวจ/เผยแพร่เฉพาะ template20ที่รับรองแล้ว; เริ่ม
+   generation jobs/tasks ใหม่ ไม่ย้ายประวัติงานค้างหรือ diagnostics ให้ดูเหมือนงานใหม่.
+6. เตรียม host isolation ตามหัวข้อด้านล่างก่อนเปิดงานที่ต้องรับประกัน512MiB/worker.
+   ตรวจ `/health`, `/authoring/contract`, รุ่น Service/Core, archive/tree identity,
+   PDF และ DOCX/receipt จริง รวมทั้งยอด diagnostics และ queue reservations.
+   ทดสอบ cancel/retry กับงานจำลองก่อนเปิดรับผู้ใช้จริง. Word field refresh และ
+   การตรวจรูปแบบ DOCX ยังเป็นอีกขั้น; MCP task ของ FlowDocMake ยังเป็น PDF-only.
+
+### ขอบเขต migration และการย้อนกลับ
+
+Migration029 ตรวจ current/version/snapshot/preview/prepared jobs ว่าเป็น20 และ
+กำหนด ownership ของ formats. ถ้ายังพบ legacy จะปฏิเสธด้วย SQLSTATE `FD020`;
+ไม่แปลง ไม่ลบ และไม่ relabel graph เดิม. Migration runner ใช้ transaction เดียว
+ครอบ pending migrations ทั้งหมดของการเรียกครั้งนั้น: ถ้า029ล้มเหลว027/028ที่ทำ
+ในการเรียกเดียวกันจะ rollback ด้วย. ส่วน migrationที่ commit ไว้ก่อนเริ่มคำสั่ง
+ครั้งนี้ไม่ถูกย้อนกลับ. ห้ามแก้ checksum ของ001–028 หรือใช้ SQL down ที่ไม่มีสัญญารองรับ.
+
+ถ้าตรวจหลังติดตั้งไม่ผ่าน ให้แยก/หยุดเฉพาะระบบใหม่ตามแผนที่ได้รับอนุญาต และคืน
+image/config/DB/files จาก backup ชุดเดียวลง namespace แยกก่อนสลับกลับ.
+ห้ามเปิด binary0.5.2 ทับฐานที่ migrate แล้ว หรือแก้ metadata migration เพื่อหลอกว่า
+ย้อนแล้ว. ห้ามส่งเอกสารซ้ำอัตโนมัติเพียงเพราะ task failed: ตรวจ delivery evidence
+และไฟล์ที่ client ได้รับก่อน. การสลับระบบ/หยุดบริการต้องมีคำอนุญาตติดตั้งแยก.
+
+### Host worker prerequisites ของชุดที่ทดสอบใน Oracle lab
+
+ผล512MiB/worker ใช้ `FLOWDOC_WORKER_ISOLATION=required`, profile `1g-2cpu`,
+Linux cgroup v2 และ broker/anchor ที่ host จัดให้ภายใต้สิทธิ์/ownership ที่ Core
+และ Service ตรวจจริง. กำหนด `FLOWDOC_WORKER_BROKER_SOCKET`,
+`FLOWDOC_WORKER_ANCHOR` และ `FLOWDOC_WORKER_BOOTSTRAP_PYTHON` ให้ตรง host.
+Worker leaf ต้อง memory.max536870912, swap.max0; Service aggregate budgetเดิม
+คือ1GiB. ขาด broker, anchor, counters หรือสิทธิ์ที่ต้องใช้ให้ถือว่ายังไม่พร้อมรับงาน.
+
+Compose เดิมไม่ได้สร้าง host broker/cgroup delegation เหล่านี้อัตโนมัติ. ค่า
+worker isolation เริ่มต้นเป็น `disabled`; การเปิดแอปในโหมดนั้นไม่ใช่หลักฐานว่า
+บังคับ512MiBต่อworkerแล้ว. ห้ามปิด guard หรือใช้สิทธิ์กว้างขึ้นเพื่อข้ามขั้นเตรียม.
+ก่อนติดตั้งแบบ required ต้องตรวจ host-specific launcher/broker lifecycle และ
+shutdown/recovery บนสำเนาในสภาพแวดล้อมปลายทาง; ผล lab ไม่แทนผลติดตั้งจริง.
+อย่าคัดลอก path, anchor, PID หรือ cgroup ของ lab ไปใช้กับบริการเดิม.
+
+### ข้อจำกัดที่ยังคงอยู่ใน0.5.5
+
+DOCX ยังไม่รับรอง Word fidelity ทุกชนิด, font fallback ราย glyph, การทำนาย
+ความสูงแถว/พื้นที่หน้าทั่วไป หรือ Module labelซ้ำพร้อม“ต่อ”ในหน้าใหม่.
+ค่า XML เริ่มต้นยัง50000 nodes; UATเต็มชุดใน lab ที่ใช้ explicit override300000
+ไม่ใช่ผลว่าผ่านค่าเริ่มต้น. เก็บข้อยกเว้นของเทสต์และ historical operator cases
+ตามหลักฐาน Project Control. เริ่มเปิดใช้งานด้วยแม่แบบที่ตรวจรับแล้วและ PDFเป็นหลัก.
+
+### เครื่องมือกู้ยอด diagnostics ของงานเก่า (candidate)
+
+ใช้ `diagnostics-plan <taskId> <writer-evidence.json>` เพื่อสร้างแผนแบบอ่านอย่างเดียว
+และ `diagnostics-apply <plan.json> <writer-evidence.json>` เพื่อใช้แผนหนึ่งงานโดยชัดแจ้ง
+เครื่องมือไม่ migrate, render, ส่งเอกสารซ้ำ, เปิด Service หรือ cleanup ไฟล์
+ผลลัพธ์ใช้รูปแบบ JSON Result เดียวกับ CLI เดิม
+
+ขอบเขตรุ่นแรกคือประวัติ model20 จาก writer `flowdoc-service/f82d7c6` ที่ตรงกับ
+byte identities ด้านล่าง หลักฐาน writer เป็น **คำรับรองของผู้ปฏิบัติงาน** ที่ต้อง
+ตรวจจากประวัติการรัน/แพ็กเกจจริงก่อน ไม่ใช่ลายเซ็น runtime และไฟล์นี้เพียงอย่างเดียว
+ไม่ได้พิสูจน์ว่า executable ใดเขียนงานนั้น รุ่น writer อื่นยังไม่รองรับ
+เอกสารนี้ไม่อนุญาตให้รันกับข้อมูลจริงหรือถือว่า candidate พร้อมติดตั้ง
+
+ตัวอย่างโครงไฟล์ writer-evidence.json (แทน taskId, SHA หลักฐาน, operator และ basis
+ด้วยค่าที่ทบทวนแล้ว; ใช้ UTF-8):
+
+```json
+{
+  "version": 1,
+  "kind": "legacy-diagnostics-writer-attestation",
+  "taskId": "REPLACE_WITH_EXACT_TASK_UUID",
+  "writer": "flowdoc-service/f82d7c6",
+  "sourceHashes": {
+    "src/tasks/render.ts": "538523243585683b4e6e17f7cebebcb2720fa23ee8adf37f6e926627097fd6c5",
+    "src/tasks/normalize.ts": "8ecea1faf3eadd826b1795ad73f4fe2396dd82683a0d40919b94f1f523b5072d",
+    "src/tasks/public.ts": "98bb6e52654ce61e8a61da88eabee1365e38d084c46abdec521cd215abdd033a"
+  },
+  "sourceEvidenceSha256": "REPLACE_WITH_64_HEX_SHA256_OF_REVIEWED_SOURCE_EVIDENCE",
+  "operator": "reviewed-operator",
+  "basis": "Describe the independently reviewed execution/package evidence"
+}
+```
+
+แผนผูกกับ system identifier ของ PostgreSQL, database OID, schema, taskId,
+หลักฐาน writer และ snapshot digest การ apply ตรวจซ้ำภายใต้ task-row lock
+โปรไฟล์สิทธิ์ที่พิสูจน์กับ candidate/schema028 บน PostgreSQL18 ในสำเนา lab คือ:
+
+| สิทธิ์ | บัญชีวางแผน | บัญชีใช้แผน |
+| --- | --- | --- |
+| CONNECT ฐานเป้าหมาย และ USAGE schema public | ต้องมี | ต้องมี |
+| SELECT schema_migrations เฉพาะ name, checksum | ต้องมี | ต้องมี |
+| SELECT tasks, task_findings, task_events, task_resource_reservations | ต้องมี | ต้องมี |
+| EXECUTE pg_catalog.pg_control_system() | ต้องมี | ต้องมี |
+| UPDATE เฉพาะ tasks.id สำหรับ SELECT FOR UPDATE | ไม่มี | ต้องมี |
+| INSERT เฉพาะ task_events: task_id, sequence, event_key, event_type, previous_state, new_state, actor, reason, detail | ไม่มี | ต้องมี |
+| EXECUTE pg_catalog.uuidv7() สำหรับ default event id | ไม่มี | ต้องมี |
+
+PostgreSQL ต้องการ UPDATE อย่างน้อยหนึ่งคอลัมน์เพื่อใช้ row lock แม้คำสั่งกู้
+ไม่ UPDATE task เลย จึงจำกัดไว้ที่ id ซึ่ง identity guard เดิมปฏิเสธการเปลี่ยนค่า
+ไม่ใช่สิทธิ์ UPDATE ทั้งตาราง การอ่าน snapshot ผ่าน to_jsonb ต้องอ่านทุกคอลัมน์
+ในสี่ตารางนั้น โปรไฟล์นี้ไม่ให้ SELECT generation_jobs หรือ document_outputs
+และไม่ให้ INSERT id/created_at ของ task_events โดยตรง
+
+ผลทดสอบไม่ต้องใช้ uuidv7(interval), TEMP, CREATE, DELETE, ALTER, owner,
+superuser, pg_monitor หรือ role membership อื่น และปฏิเสธการ SET ROLE เป็น owner
+นี่คือโปรไฟล์ที่จำเป็นกับ implementation/schema และ catalog ACL ที่ทดสอบ
+ไม่ใช่การรับรองสิทธิ์ขั้นต่ำสำหรับ PostgreSQL/schema รุ่นอื่น
+หากอ่านตัวตนฐานข้อมูลไม่ได้ เครื่องมือจะปฏิเสธ ไม่มีการลดระดับการตรวจหรือขอสิทธิ์เอง
+ไม่เพิ่มสิทธิ์ให้ผู้เรียกผ่าน HTTP และไม่ควรเผยแพร่คำสั่งนี้เป็น public API
+
+ใช้กับเป้าหมายที่ได้รับอนุญาตและมีการควบคุม writer ของงานนั้นแล้วเท่านั้น
+task-row lock ป้องกัน writer ที่ทำตามสัญญา Service เดิม ไม่ได้ fence DBA หรือ writer
+ภายนอกที่ไม่ใช้ lock เดียวกัน การทบทวนสิทธิ์และการควบคุมงานจริงยังเป็นงานแยก
+
+แผนที่ `decision=RECOVERABLE_EXACT` เท่านั้นจะมี `value.plan` ให้ใช้ต่อ ตัวอย่าง
+PowerShell สำหรับสำเนาที่อนุญาตแล้ว โดย DATABASE_URL ต้องชี้สำเนานั้น:
+
+```powershell
+$result = node dist/cli.js diagnostics-plan $taskId .\writer-evidence.json | ConvertFrom-Json
+if (-not $result.ok -or $result.value.decision -ne 'RECOVERABLE_EXACT') {
+  throw 'No exact recovery plan; review the decision before proceeding'
+}
+$json = $result.value.plan | ConvertTo-Json -Depth 20
+[IO.File]::WriteAllText((Join-Path $PWD 'diagnostics-plan.json'), $json, [Text.UTF8Encoding]::new($false))
+# Review the plan and authorization before this separate write command.
+node dist/cli.js diagnostics-apply .\diagnostics-plan.json .\writer-evidence.json
+```
+
+งานต้อง failed/expired, ไม่มี child/writer/lease ที่ถืออยู่, คืน queue slot แล้ว,
+มี normalization และ finding ที่สอดคล้องกัน และจำนวนรายละเอียดต่ำกว่าเพดาน
+เต็มเพดาน/ข้อมูลไม่ครบ/หลักฐานผิดรูปจะไม่มีแผนให้ใช้ ไม่เดายอดที่หายไป
+มี ledger/summary อยู่แล้วหรือ preparation เป็นศูนย์จะไม่เขียนเพิ่ม
+ไฟล์แผน/หลักฐานจำกัด64KiB และ evidence read budget8MiB เพื่อคงงบหน่วยความจำ
+
+apply เพิ่มเฉพาะ immutable `preparation-finding` event ที่ระบุ
+`legacy-reconstruction/1` และ proof/evidence digests ไม่เปลี่ยน task outcome,
+findings, usage, jobs, outputs หรือ reservations การรันซ้ำตรวจ receipt เดิมทั้งชุด
+แผนผิดฐาน/ข้อมูลเปลี่ยน/ยอดไม่ตรง/receipt ขัดกันจะปฏิเสธ และธุรกรรมล้มเหลว rollback
+แผนและหลักฐานไม่ใช่กลไก authentication; ผู้ถือสิทธิ์ฐานข้อมูลยังต้องอยู่ในขอบเขต
+ที่ได้รับอนุญาต ผลทดสอบบนสำเนาไม่ได้รับรอง eligibility ของข้อมูลจริง
+
+การทบทวนสิทธิ์ยืนยันข้อจำกัดสองจุด: sourceEvidenceSha256/operator/basis เป็น
+คำรับรองที่เครื่องมือไม่ตรวจย้อนถึง executable เอง และบัญชีที่มี INSERT คอลัมน์
+ข้างต้นยังเขียน event/actor/detail ที่ทำให้เข้าใจผิดได้ด้วย SQL ตรง แม้ CLI จะมี
+validation ครบ การจำกัดคอลัมน์ไม่ใช่การบังคับ task scope หรือ semantics ในฐานข้อมูล
+จึงต้องใช้กับ operator ที่เชื่อถือได้ ไม่ใช้เป็นบัญชีแอปทั่วไปหรือมอบให้ผู้ใช้ที่ไม่ trusted
+ถ้าต้องบังคับขอบเขตดังกล่าวที่ฐานข้อมูล ต้องทบทวนแบบ write gateway/policy แยก
+ก่อนให้สิทธิ์จริง รอบตรวจสิทธิ์นี้ไม่ได้เพิ่ม gateway หรือเปลี่ยน runtime
+
+Service0.5.5 ชุดนี้ตรึง Core `0.5.5` ผ่าน vendor/manifest.json ให้ตรวจ checksum ก่อน
 build. รองรับ DOCX เซลล์รวม, border none, Area สุดท้ายชิดล่าง และการปรับ
 ขอบเซลล์ native โดยคง line height. ชุดทดสอบ Service รวมและคู่มือ/plugin ต้อง
 ผ่านก่อนเรียกพร้อม release; ไม่ใช่ผลติดตั้งจริง. ดูข้อจำกัด DOCX ด้านท้าย.
 หัวข้อที่ระบุ0.5.0 ด้านล่างอธิบายชุดส่งมอบก่อนหน้า ตัวตนแพ็กเกจ candidate
 ปัจจุบันให้อ้าง `vendor/manifest.json` เป็นหลัก
 
-ชุดเตรียมนี้ใช้ FlowDocMake0.3.1 ที่ตรึง Core0.5.2 ตาม manifest/lock;
-ชุดติดตั้ง FlowDocMake0.3.0/Service-Core0.5.0 ยังคงเดิม ต้องติดตั้งแยกเมื่ออนุญาต
+ชุด development นี้ต้องใช้ FlowDocMake integration candidate ที่ผ่านการตรวจ
+และตรึง Core archive SHA เดียวกับ vendor/manifest.json และ lock เท่านั้น
+Prepared/default FlowDocMake0.3.1 ตรึง archive รุ่นก่อน แม้เลข Core จะเป็น0.5.2
+เหมือนกัน จึงไม่ใช่คู่ที่ใช้แทนกันได้ ระบุ candidate version/source commit/hash
+จาก generated inventory ทุกครั้ง ไม่แก้ profile เก่าหรือ installed cache ให้ผ่าน
+ข้อมูลชุดติดตั้งในหัวข้อประวัติไม่ใช่หลักฐานสถานะเครื่องจริงในปัจจุบัน
 
 ตารางเลือก `borderStyle:"thickThinWideGap"` และ `borderWidth:{value:0.35,unit:"pt"}`
 เพื่อใช้เส้น B จาก Core โดยตรงทั้ง PDF/DOCX ได้แล้ว DOCX จำกัดเซลล์ข้อความ ASCII
@@ -18,7 +206,7 @@ build. รองรับ DOCX เซลล์รวม, border none, Area ส�
 กรณีเกินขอบเขตจะแจ้งข้อผิดพลาด ต้องสร้างใหม่หลังแก้ข้อความหรือฟอนต์ใน Word
 เส้นปิดตารางระหว่างหน้าของ Word ยังไม่รับประกัน และยังไม่เปลี่ยน footer รอบนี้
 
-### ชื่อไฟล์ PDF/DOCX ในชุดพัฒนา0.5.2
+### ชื่อไฟล์ PDF/DOCX ในชุดพัฒนา0.5.5
 
 ตั้ง `defaultFileName` ในโครงเอกสารระดับเดียวกับ `docKey` ได้ ส่วนผู้เรียกส่ง
 `fileName` ที่ root ของ JSON ใน multipart part `payload` ระดับเดียวกับ
@@ -42,21 +230,24 @@ build. รองรับ DOCX เซลล์รวม, border none, Area ส�
 ชื่อไทยใช้ `filename*` พร้อม fallback ASCII `document` สำหรับตัวอ่านรุ่นเก่า
 ไม่ได้เปลี่ยนชื่อไฟล์จัดเก็บภายในหรือการวางเนื้อหาเอกสาร
 
-ต้องใช้ migration026 กับ candidate นี้ งานเก่าที่ seal แล้วคงชื่อ `document`
+ชื่อไฟล์เริ่มใช้ใน migration026; candidate ปัจจุบันต้องครบ029 งานเก่าที่ seal แล้วคงชื่อ `document`
 การบันทึก/อ่าน/clone โครงและการเก็บ immutable version รักษาค่าเริ่มต้นไว้
-ไม่มีการติดตั้งหรือเผยแพร่จริงในงานนี้ และยังไม่เปิด Service ให้รับ Model20
+ไม่มีการติดตั้งหรือเผยแพร่จริงในงานนี้; candidate ปัจจุบันรับเฉพาะ model20
 
-ก่อนติดตั้ง0.5.2 ต้องสำรอง DB และ staging/output เป็นชุดเดียวพร้อม hashes
+ก่อนติดตั้ง0.5.5 ต้องสำรอง DB และ staging/output เป็นชุดเดียวพร้อม hashes
 ตามขั้นตอน backup/recovery ด้านล่าง ทดสอบ restore ในฐานแยก แล้วใช้ CLI
-`migrate` ของ image0.5.2 ให้ครบถึง026 ไม่หยุดที่023/024 ซึ่งเป็นขั้นตอนรุ่นเก่า
+สำหรับ development candidate ปัจจุบัน ใช้ `migrate` ของ image ที่ตรงกับ
+vendor/source identity ของ candidate นี้ให้ครบถึง029; release v0.5.2 เดิมมีขอบเขตถึง026
+ต้องแยกสองชุดนี้ด้วย source/image/checksum ไม่ใช้เลขรุ่นเพียงอย่างเดียว
+ห้ามแก้หรือ renumber migration ที่เคยใช้แล้ว ทดสอบอัปเกรดในฐานแยกก่อนเสมอ
 ตรวจ readiness, live Service/Core version/hash และลองออก PDF/DOCX พร้อมชื่อ
 ภาษาไทย/ค่าเริ่มต้น/งานเข้าคิวหลังติดตั้ง ต้องอ่านไฟล์จริงและ receipt จนครบ
 หากต้องย้อนกลับให้หยุด candidate แล้วคืน backup ทั้งชุดในฐาน/volumes แยก
 กับ image รุ่นเดิม ไม่ย้อน SQL และไม่เปิด binary เก่าทับฐานที่ migrate แล้ว
 รอบเตรียมนี้ตรวจเฉพาะ migration/API ในฐานทดสอบแยก ยังไม่ใช่ผล deploy
-หรือการซ้อม restore สำหรับการติดตั้ง0.5.2 จริง
+หรือผลการติดตั้งจริง
 
-รุ่นนี้มีทางประมวลผล task (migration024) ใช้ Core0.5.2 จาก
+รุ่นนี้มีทางประมวลผล task (migration024) ใช้ Core0.5.5 จาก
 vendor/manifest.json อ่านข้อมูลที่ normalize แล้วจากไฟล์ เตรียมภาพทีละรายการ
 และส่ง feedback กับ PDF แบบ multipart โดยไม่รวม PDF ทั้งก้อนใน RAM.
 มี `/documents` และ FlowDocMake manage_document_task เมื่อเปิด task credentials
@@ -71,30 +262,25 @@ PID1 สำหรับงาน task เพราะเมื่อ worker ถ�
 หลักการเก็บ/หยุด/ล้างไฟล์และข้อจำกัดอยู่ในหัวข้อ Internal task processing ของ README.
 
 Candidate เซลล์ชื่อกลุ่ม: ตรวจ `groupLabelSpans.version:1` ใน authoring contract
-ก่อนส่ง rowGroups.groupLabel (model19/schema1,2). Core package/checksum อยู่ใน
+ก่อนส่ง rowGroups.groupLabel (model20/font schema1,2). Core package/checksum อยู่ใน
 vendor/manifest.json; ชุดส่งมอบ Service0.5.0/Core0.5.0 ยังไม่ใช่คำอนุญาตติดตั้ง.
-save/read/clone/import คง declaration; job ตรึง revision/ข้อมูล/engine/font เดิม.
+save/read และ snapshot ที่ตรึงแล้วคง declaration; job ตรึง revision/ข้อมูล/engine/font เดิม.
 auto ตรวจฟอนต์รวม ` (ต่อ)`; fixed ไม่มีหน้าต่อและส่ง FORMAT_CONTENT_OMITTED
 พร้อม groupId/groupIndex/itemIndex ของส่วนค้าง. ถ้าชื่อเต็มใส่ auto ไม่ได้
 ให้ LAYOUT_FAILED reason group-label-does-not-fit; ไม่มี PDF บางส่วนให้ดาวน์โหลด.
 
-Section19 ช่วง1: candidate นี้เพิ่ม `create_draft_section` และ
-`import_draft_sections` ตาม `/authoring/drafts/:id/sections[/import]`.
-ต่อ/แยกสำเนาลง draft ก่อนส่งข้อมูล `sections:[{id,data,header?,footer?}]`;
-ลำดับพิมพ์ตาม definition และ clone/import จัด ID ใหม่พร้อม sectionIdMap.
-ต้องตรวจสิทธิ์ทั้งต้นทาง/ปลายทางและ revision; retry ใช้ key/body เดิม.
-Migration021 เพิ่มประวัติ ID กันใช้ ID ที่ลบกลับมาใหม่ และขยาย job pin/ownership
-สำหรับ19 โดยไม่ rewrite ข้อมูล18. Model18 ยังใช้ object input และ clone เดิม.
-ช่วง2 เปิด fixed-height text ใน Area ที่วางตรง flow หลักของ Section19;
-ข้อความที่กำหนด props.heightMode:fixed / props.height ต้องพอดีกรอบและ body มิฉะนั้น preview ล้มเหลว.
-คนละสัญญากับ Format sizing.fixed ด้านท้ายคู่มือ ซึ่งแสดงส่วนที่พอในเพดานความสูง
-min(ความสูงที่กำหนด, พื้นที่หน้าที่เหลือ) แล้วแจ้งส่วนที่ไม่แสดง โดยไม่ย่อ/ตัดกลางบรรทัด.
-Section ยังคุมหน้าและหัว–ท้าย; fixed ใน cell/repeat และ Area ซ้อนยังห้าม.
-ช่วง3 เปิด TOC ของ19ด้วย props.scope kind section/document ชัดเจน หนึ่งต่อขอบเขต;
-clone คง scope ตาม Section เจ้าของที่ได้ ID ใหม่. เลขและลิงก์คำนวณจากหน้าเป้าหมาย
-ของ pinned preview;18ยังใช้ TOC เดิมโดยไม่ใส่ scope. ยังไม่แปลง18→19อัตโนมัติ. ใช้ package/hash จาก
-README และ vendor/manifest.json ปัจจุบัน; ส่วนคู่มือคลังฟอนต์ด้านล่างเก็บบริบท
-คำอธิบายความสามารถเดิมไว้และไม่ใช่คำอนุญาตติดตั้งอัตโนมัติ.
+Candidate model20 ใช้การ create/get/save/validate/preview definition ทั้งฉบับ.
+ส่ง sections เป็นรายการ `{sectionKey,instanceKey,data,header?,footer?}` ตามลำดับ
+ที่ต้องการพิมพ์ ใช้ definition ซ้ำได้เมื่อ instanceKey ต่างกัน; ไม่ส่งส่วนใดก็ไม่พิมพ์ส่วนนั้น.
+หน้าปกต้องเป็น occurrence แรกและมีเพียงครั้งเดียว. Internal UUID ไม่ใช่ selector.
+เลิก route/tool สร้าง Section, import Section และ clone template ของ19แล้ว;
+ไม่มี alias20 ที่ทำงานไม่ครบ และ JSON ไม่ให้สิทธิ์ฟอนต์หรือ origin เพิ่มเอง.
+fixed-height text ใช้ที่ flow root/top-level Area; overflow ล้มเหลว ไม่ตัด/ย่อข้อความ.
+Format sizing.fixed แยกจากกรอบข้อความ และคงพฤติกรรมรายงานส่วนที่ไม่แสดง.
+TOC ระบุ scope kind section/document ชัดเจน; scope section เป็นของ occurrence.
+ยังไม่อนุญาต fixed ใน cell/repeat หรือ Area ซ้อน. ไม่มีการแปลง18/19ระหว่างรับงาน.
+ใช้ migration029 กับ namespace ใหม่;001–028คง checksum เดิม. หลักฐานสิทธิ์ schema028
+ที่เก็บด้านบนเป็นประวัติ ไม่ใช่การรับรองสิทธิ์ขั้นต่ำ029 ซึ่งต้องตรวจใน lab ปัจจุบัน.
 
 ## Authority Boundary
 
@@ -112,13 +298,13 @@ adapter ใหม่ โดยไม่ลบไฟล์ของ process ท�
 API task ต้องเปิด credentials อย่างชัดเจน; การจอง scratch/PDF ใช้ budget ของ task.
 
 Owner: flowdoc-service. คู่มือนี้อธิบาย CLI, HTTP API และการทำงาน local ของโค้ด
-ชุด Service0.5.0/Core0.5.0 ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
+ชุดพัฒนาปัจจุบัน ไม่ใช่การรับรอง production capacity; สถานะ release อยู่ใน Project Control
 ขอบเขตและสถานะร่วมอยู่ใน flowdoc-project-control ที่
 `docs/domains/flowdoc-page-system-roadmap-2026-10-10.md`
 รูปแบบแม่แบบเป็นอำนาจของ Core ดู [คู่มือสร้างแม่แบบ](../../flowdoc-core/docs/template-guide.md)
 
-คู่มือนี้ตาม development Service0.5.2/Core0.5.2; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
-annotated tag หลังผ่านเกณฑ์ออกรุ่น ไม่อนุมานจากชื่อ image. รองรับ Area18 ทั้ง schemaVersion 1
+คู่มือนี้ตาม development Service0.5.5/Core0.5.5; ตัวตนรุ่นที่ออกใช้อ้าง snapshot และ
+annotated tag หลังผ่านเกณฑ์ออกรุ่น ไม่อนุมานจากชื่อ image. candidate นี้รองรับ model20 ทั้ง font schemaVersion 1
 (Sarabun เดิม) และ 2 (คลังฟอนต์). เลข schema, รุ่นฟอนต์, รุ่นแม่แบบ และรุ่น Service
 เป็นคนละค่า. คำสั่ง publish ด้านล่างคือเผยแพร่เวอร์ชันแม่แบบ ไม่ใช่ Git release;
 ผู้ดูแลต้องมีคำอนุญาตเผยแพร่แม่แบบนั้นก่อนใช้.
@@ -162,16 +348,16 @@ proxy; ไม่เพิ่ม CORS หรือ static route ให้ product
 
 ## 1. เริ่มต้นและออก PDF แรก
 
-ตัวอย่าง area-document และ sections.main ในข้อ 1–5 ใช้ model18 เพื่อให้เอกสารเดิมยังใช้ได้.
-สำหรับ model19 ใช้ sections เป็น array ระบุ ID ตาม contract; ห้ามแปลงชื่อเป็น ID เอง.
+ตัวอย่าง area-document ในข้อ1–5 แปลงเป็น model20แล้ว. sections เป็นรายการ
+sectionKey/instanceKey ตาม contract; อ่านค่าที่ประกาศจริง ห้ามเดา key จากชื่อหรือ UUID.
 
 ใช้ Docker Desktop แบบ Linux containers บนเครื่อง x64 และ PowerShell 7
-เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด development Service0.5.2
+เปิด terminal ในโฟลเดอร์ flowdoc-service ที่มีโค้ด development Service0.5.5
 ไม่ต้องติดตั้งฐานข้อมูล Python หรือ Core แยกบนเครื่อง เพราะ image รวมไว้แล้ว
 การ build ครั้งแรกต้องเชื่อมต่ออินเทอร์เน็ต
 
 Compose เดิมยัง default image0.5.0 จึงต้องตั้ง `FLOWDOC_REGISTRY_IMAGE`
-เป็น tag ที่ build จาก candidate0.5.2 อย่างชัดเจนตามตัวอย่าง ถ้าใช้ profile
+เป็น tag ที่ build จาก candidate0.5.5 อย่างชัดเจนตามตัวอย่าง ถ้าใช้ profile
 verification ให้ตั้ง `FLOWDOC_VERIFY_IMAGE` และ build target verification ที่ตรงกัน
 ด้วย ชื่อ tag ที่ตั้งเองไม่ใช่หลักฐานรุ่น ต้องตรวจ source/pin/image ID
 ไม่คัดลอกไฟล์ env ใหม่ทับการติดตั้งเดิม และไม่ใช้ขั้นตอนทดลองนี้อัปเกรดข้อมูลจริง
@@ -183,7 +369,7 @@ if (Test-Path .env.manual) { throw '.env.manual มีอยู่แล้ว �
 $manualPassword = [guid]::NewGuid().ToString('N')
 @(
   "FLOWDOC_DB_PASSWORD=$manualPassword"
-  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.5.2'
+  'FLOWDOC_REGISTRY_IMAGE=flowdoc-service:manual-0.5.5'
   'FLOWDOC_API_PORT=4318'
   'EXPORT_RETAIN_FILES=false'
 ) | Set-Content -Encoding utf8 .env.manual
@@ -201,7 +387,8 @@ docker @dc up -d api
 ของ project `flowdoc-manual` หาก port 4318 ใช้อยู่ ให้เปลี่ยนค่าก่อนเริ่ม API
 เปิด terminal ใหม่ให้กำหนด `$dc` อีกครั้ง ไม่ต้องสร้างรหัสผ่านหรือ import ซ้ำ
 `CURRENT_EXISTS` หมายถึงมีฉบับแก้ไขอยู่แล้ว ไม่ใช่คำสั่งแทนที่ข้อมูลเดิม
-`migrate` ของ0.5.2 ต้องครบ001–026; อัปเกรดจาก0.5.0/0.5.1 ที่มี025แล้วจะเพิ่ม026
+`migrate` ของ candidate นี้ต้องครบ001–029;029ปฏิเสธข้อมูลเก่าโดยไม่เปลี่ยนแปลงข้อมูล
+ใช้ namespace ใหม่หลังแปลง template อย่างชัดเจน และอย่าอัปเกรดระบบที่ติดตั้งอยู่จากคู่มือนี้
 และการรันซ้ำที่ครบแล้วไม่ควรมีรายการ applied ใหม่. ห้ามแก้ SQL migration ที่ใช้แล้ว.
 ตัวอย่างแรกใช้ Sarabun เดิม จึงยังไม่ต้องนำเข้าคลังหรือเปิดสิทธิ์ admin.
 
@@ -253,7 +440,7 @@ Invoke-WebRequest "$base/jobs/$jobId/pdf" -OutFile artifacts/manual/first.pdf
 }
 ```
 
-`data` เป็นค่ากลาง ส่วน `sections.main.data.details` เป็นค่าของ Area ที่ประกาศไว้
+`data` เป็นค่ากลาง ส่วน `sections[0].data.details` เป็นค่าของ Area ที่ประกาศไว้
 ระบุ version เพื่อให้ได้แม่แบบเดิมเสมอ หากไม่ส่ง ระบบเลือกเวอร์ชันล่าสุดครั้งเดียว
 ตอนรับงานและล็อกไว้กับ job การ publish ใหม่ไม่เปลี่ยน job ที่รับไปแล้ว
 
@@ -383,23 +570,19 @@ authoring/admin ใช้ token และ principal แยกตามส่ว�
 ไม่ได้เพิ่มระบบบัญชีผู้ใช้หรือหน้า admin.
 หลัง restart งาน queued ทำต่อ แต่งาน running ที่ถูกตัดจบเป็น PROCESS_INTERRUPTED
 รายละเอียด configuration และการทดสอบอยู่ใน [README](../README.md)
-ชุด0.5.0 เพิ่ม DOCX แบบ opt-in แต่ไม่รวมหน้าแก้ไขเอกสารหรือ SLA งานพร้อมกันจำนวนมาก; รองรับ Area18 และ Section19 ตาม contract
+ชุด0.5.0 เพิ่ม DOCX แบบ opt-in แต่ไม่รวมหน้าแก้ไขเอกสารหรือ SLA งานพร้อมกันจำนวนมาก; รองรับ model20 ตาม contract
 
 
-## รูปแบบแม่แบบ Area 18
+## รูปแบบแม่แบบ model20
 
-ตั้งแต่รุ่น 0.3.0 และในชุด 0.4.0 รับเฉพาะ `nodeModelVersion: 18` ไม่แปลง model4–17 อัตโนมัติ
-SQL migrations เดิมยังเก็บตาม checksum แต่ข้อมูลแม่แบบรุ่นเก่าไม่สามารถนำมาสร้างงานได้
-สำรองฐานข้อมูลก่อนอัปเกรดและตรวจแม่แบบที่ต้องใช้ก่อนเปลี่ยนบริการ
+candidate นี้รับเฉพาะ `nodeModelVersion:20`; font schemaVersion1/2 เป็นคนละค่า.
+ใช้ migration029; ข้อมูลเก่าต้องแปลงอย่างชัดเจนลง namespace ใหม่ ไม่เปลี่ยนเลขรุ่น
+หรือลบ/เขียนทับ template/job เก่าระหว่างอัปเกรด. ข้อมูลไม่ตรงสัญญาจะถูกปฏิเสธ.
 
-ดู `examples/area-document-template.json` และ `examples/area-document-request.json`
-Section มี authored fragment หรือหน้าปก, inputSchema และ `formats: {}`
-เนื้อหาที่ผู้เรียกเลือกเรียงต้องประกาศตัวแปร `area` และรูปแบบใน `areaFormats`
-ส่งข้อมูลผ่าน `sections.<key>.data` โดยค่าของ Area เป็นรายการ `{format,data}`
-ไม่ส่ง `content` ที่ระดับบนหรือใน Section ตัวอย่าง static/cover ไม่จำเป็นต้องมี Area
-
-แม่แบบรองรับหัวท้ายแยก schema, เลขหน้า, สารบัญ, ภาพ, ลิงก์ และ array สองระดับ
-ผู้สร้างกำหนด rowGroups และกติกาจัดหน้า ผู้เรียกส่งเพียงข้อมูลตาม contract
+ดูคู่ template/request ใน examples/area-document. definition มี UUID id,
+sectionKey, label/nameBase, authored/blank source และ inputSchema โดยไม่มี key/formats.
+ส่ง sections เป็น `{sectionKey,instanceKey,data,header?,footer?}` ตามลำดับที่ต้องการ.
+Area ยังเป็นรายการ `{format,data}`; graph/ฟอนต์/ภาพและงบเดิมไม่เพิ่มเพดาน.
 
 ## 0.3.0: คิวเต็มและงานล้มเหลว
 
@@ -566,7 +749,7 @@ job ตรึงฟอนต์/ไฟล์/license ที่รับไว้
 ส่วนนี้อธิบายโค้ดช่วง 1 ที่ยังไม่ออก tag/ติดตั้ง; ไม่ใช่คำสั่งของ release 0.4.0 เดิม.
 ข้อตกลงร่วมอยู่ Project Control
 `docs/domains/flowdoc-font-height-adjustment-design-plan-2026-10-16.md` ข้อ 7.
-ชุดพัฒนาปัจจุบันตรึง Core `0.5.2` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
+ชุดพัฒนาปัจจุบันตรึง Core `0.5.5` และใช้ constant วิธีวัดจากแพ็กเกจจริง.
 Core export `calculateFontHeightAdjustment` เป็น pure API รับ pt และ metric ต้นทาง/ปลายทาง
 แล้วคืน pt ที่ปัด half-up หกตำแหน่ง หรือ error; ไม่เขียน draft และไม่เปลี่ยน renderer.
 เครื่องมือ propose/confirm ของช่วง 3 มีแล้วตามข้อ 8.2; ต้องยืนยันก่อนเปลี่ยน pt.
@@ -703,7 +886,7 @@ Profile/assignment/review และ proposals/receipts ต้องอยู่�
 
 ## Format sizing development candidate
 
-Core 0.5.0 accepts model19 Format `sizing` (auto/fixed), with independent
+This candidate accepts model20 Format `sizing` (auto/fixed), with independent
 fixed maximum heights per Area entry at Section flow roots. Each call reserves
 min(declared height, current body remainder), including short/empty content.
 Positive space shows fitting whole units; only zero space omits the frame.
@@ -729,7 +912,7 @@ until their original expiry. A minimal credential entry has token (at least32
 characters), ownerKey, principalId, docKeys array and taskRead boolean; supply
 trusted server identities, never caller-claimed identities. Do not commit secrets.
 Use the same override file for migration/start/stop. Check actual Init=true,
-Service/Core versions and archive SHA, migrations through025, authenticated
+Service/Core versions and archive SHA, migrations through029, authenticated
 feedback/PDF/hash/closing boundary, denied-owner lookup and interruption cleanup
 in an isolated instance before enabling real requests. Backup task storage and
 credentials consistently with the DB. Roll back using a matching DB/files/image
@@ -750,16 +933,95 @@ Keep the credential and task-storage settings above in the same override. The
 queue requires readable Linux cgroup v2 counters and exactly 1 GiB `memory.max`;
 without that checked profile, do not assume queue capability is available.
 The trial pool remains 1.5 GB with a 256-MiB free-disk floor; 10 GB is deferred.
+
+### Opt-in experimental 6-GiB / 2-CPU profile
+
+The default above remains the 1-GiB profile. A derived experimental candidate
+can explicitly select `TASK_QUEUE_PROFILE=6g-2cpu` and
+`TASK_QUEUE_MAX_OUTSTANDING=20` and `TASK_QUEUE_MAX_PROCESSING=3` (the initial adaptive comparison).
+Set both `mem_limit` and `memswap_limit` to `6g`, and `cpus` to `2.0` in an
+isolated operator override. The explicit profile requires exactly 6 GiB of
+Linux cgroup v2 `memory.max` and a finite two-CPU `cpu.max` quota; it fails
+startup if those checks or the initial memory reading fail. An unknown profile
+or a queue size above the selected profile's ceiling is rejected.
+Queue capacity is adjustable: a positive integer is accepted up to the ceiling derived from the existing disk pool divided by its initial reservation (currently 178). This is a configuration guard, not a capacity certification. Actual disk/workspace reservation checks still apply. The 1-GiB default retains its previous ceiling.
+It requires task credentials. Its selected ceiling also governs legacy and
+authoring job admission into the shared queue; leave `JOB_MAX_OUTSTANDING`
+unset or set it to the same value. Conflicting explicit ceilings fail startup.
+
+Use `Task-Mode: queue-v1` for this comparison. The shared governor still grants
+at most two intake pipelines and two senders, with an adaptive render ceiling. Outstanding
+capacity includes both running and waiting tasks, and is transactionally
+shared with legacy generation jobs. The new policy is recorded as
+`task-v1-queue-6g-2cpu-trial-3`; authenticated queue capability advertises `maxProcessing` as a ceiling, includes `adaptiveProcessing`, and adds a
+`resourceProfile` object with the actual configured memory thresholds.
+
+The adaptive render target starts at one. With queued demand, five low-CPU
+samples (below 75% of the configured two-CPU quota) and low parent-loop lag
+permit one additional worker, with at least two seconds between adjustments.
+The initial ceiling is three. Sustained CPU use at or above 90% reduces a target
+above the quota baseline to two; expected saturation with two workers does not
+by itself force it down to one. Sustained parent-loop lag of 150 ms or memory
+pressure reduces future dispatch to one. A lower target never cancels already
+running work; existing emergency-memory and unavailable/stale-metric stops still
+apply. CPU telemetry is required and shares the existing bounded freshness check.
+
+`TASK_QUEUE_MAX_PROCESSING` is an adjustable ceiling, not a promise to keep that
+many workers running. Its upper configuration guard is derived from the existing
+memory credits after intake/sender/base reservations (currently 13 on this
+profile); higher settings still require new workload verification. Read-cache,
+field-index and record-reuse pools keep their existing fixed bounds and fallback.
+The adaptive target, CPU fraction and reason appear on the existing internal
+queue diagnostics channel. This changes concurrency within the existing VM;
+it does not create VMs, resize CPU/RAM or add a new scaling service.
+
+A separate bounded comparison may select `TASK_QUEUE_PROFILE=4g-2cpu` with
+`mem_limit` and `memswap_limit` both `4g` and `cpus: 2.0`. It retains queue20,
+adaptive1..3 processing, two intakes/senders, the same CPU feedback and timers.
+It requires exactly4GiB of cgroup memory and records
+`task-v1-queue-4g-2cpu-trial-1`. Admission/pressure/resume/emergency thresholds
+are3072/3328/2816/3584MiB; its resource-derived processing configuration guard
+is8. This is an experimental setting requiring its own workload verification,
+not certification for8workers. The6GiB and default1GiB profiles are unchanged.
+
+For new `queue-v1` tasks in this explicit profile, input silence is 180 seconds.
+The silence clock runs only while awaiting upstream data; owned storage writes,
+quota transactions, payload inspection and downstream backpressure do not consume
+that inactivity budget. The complete receive phase still has its separate
+30-minute ceiling. Waiting for an intake or render slot does not spend the render
+budget. Absolute three-hour task expiry, disconnect cancellation, resource-pressure
+stops, per-document bounds and send deadlines are unchanged.
+
+Rendering has a five-minute budget starting when the worker claims the queued
+job. An operator may explicitly select `TASK_QUEUE_PROCESS_TIMEOUT_MS=600000`
+for a ten-minute heavy-document trial, or `300000` for the default five minutes.
+Other values, or this setting outside the explicit 6-GiB profile, fail startup.
+Existing persisted `trial-1`/`trial-2` tasks retain their saved budgets and remain readable;
+the default 1-GiB profile and legacy non-queue tasks keep their prior behavior.
+The revised budgets alone do not establish that queue 20 is safe: repeat the real
+SRS/UAT input comparison and retain any receiving failures before selecting it.
+
+The container governor admits new work below 4608 MiB, pauses new grants at
+4992 MiB, resumes after ten readings at or below 4224 MiB, and requests a
+worker stop after three readings at or above 5376 MiB. Existing metric
+freshness and process-group reaping requirements remain in force. Queue-v1
+tasks record the matching global memory guard bounds; legacy non-queue tasks
+keep their previous per-task bounds. Payload, image, output-size and disk-pool
+limits are unchanged. The profile alone does not promise a higher throughput.
+
+These are candidate configuration and verification instructions, not a claim
+that a new version was released or installed over the primary runtime. Compare
+queue 10 and 20 with measured small, medium, large and image-bearing workloads
+in separate databases/containers/volumes before selecting a production ceiling.
 No migration after 024 is added by this queue update. Before enabling real traffic,
-check the authenticated queue capability, nine accepted requests versus at most
-two active workers, cancellation and cleanup in an isolated instance. This is an
+check the authenticated queue capability, nine accepted requests versus the configured adaptive worker ceiling, cancellation and cleanup in an isolated instance. This is an
 operator checklist for a future authorized installation, not a claim it ran here.
 
 Send `Authorization: Bearer <configured-task-token>`, `Doc-Key: <authorized-key>`,
 `Content-Type: multipart/form-data; boundary=<request-boundary>` and optionally
 `Accept: multipart/mixed`. The first part is `payload` with application/json:
-`{"data":{},"sections":[{"id":"<saved-section-id>","data":{...}}]}` for model19;
-model18 retains its Section map. Root docKey/taskId are not generation selectors.
+`{"data":{},"sections":[{"sectionKey":"<saved-key>","instanceKey":"first","data":{...}}]}` for model20.
+Repeated definitions need distinct instanceKey; an empty assembly is refused. Root docKey/taskId are not generation selectors.
 
 An image value is `{"image":{"upload":true}}`, optionally with assetKey. A matching
 binary part name is the original JSON Pointer ending at that image object. A keyed
@@ -789,13 +1051,21 @@ See README's queue addition for scope; deploy still requires separate approval.
 
 ส่วนนี้เป็นคู่มือเฉพาะ Service development candidate ภายใต้แผน DOCX ใน Project
 Control ไม่ใช่คำสั่งติดตั้ง release. ใช้ Core archive/hash ใน vendor/manifest.json
-และ migration025 ที่ตรงกัน; สำรองฐานข้อมูลและไฟล์ทรัพยากรแยกก่อนการทดลอง.
+และ migration029 ของ candidate ที่ตรงกัน; สำรองฐานข้อมูลและไฟล์ทรัพยากรแยกก่อนการทดลอง.
 `POST /documents` รับ `Output-Format: DOCX` ทั้งโหมดปกติและ `Task-Mode: queue-v1`.
 ถ้าไม่ส่ง Output-Format หรือส่ง PDF จะสร้าง PDF ตามเดิม. ข้อมูลธุรกิจและ template
 เหมือนกัน; ระบบตรึง format กับงานและส่ง MIME/นามสกุลตรงชนิดจริง ไม่มี PDF fallback.
 DOCX มี pageCount:null และต้องอัปเดตฟิลด์/สารบัญใน Word; ห้ามอนุมานว่าตรวจ Word แล้ว
 จากการสร้างไฟล์สำเร็จ. ตัวเขียนเก็บข้อมูลระหว่างสร้างและจำกัดไฟล์32MiB.
-บางความสัมพันธ์ข้อความ/ภาพที่เกินกรอบและภาพที่เตรียมใช้ไม่ได้ยังเป็นข้อจำกัดชัดเจน.
+บางความสัมพันธ์ข้อความ/ภาพที่เกินกรอบยังเป็นข้อจำกัดชัดเจน. Candidate ที่ตรึง
+`flowdoc-core-0.5.5-candidate-ff0d18d.tgz` รองรับภาพใน body ที่ระบบตรวจว่า
+ใช้ไม่ได้แล้ว: บันทึก diagnostics ก่อนส่งตำแหน่งภาพให้ Core ผ่านสัญญา
+`docx-image-omissions/1` แล้วสร้าง DOCX ที่ส่งสำเร็จแต่ completeness เป็น partial.
+คงกรอบภาพเดิม ข้อความและภาพตำแหน่งอื่น ไม่มีภาพสมมติหรือ PDF fallback.
+ไม่มี HTTP field ให้ client เลือกละภาพเอง; ตำแหน่งที่ไม่รองรับยังปฏิเสธตามเดิม.
+การเรียก Core โดยไม่ระบุสัญญานี้ยังเข้มงวดเหมือนเดิม. Startup ปฏิเสธ Core
+ที่ไม่มี capability ตรงรุ่นก่อนเปิด DB pool/listener. ตรวจชื่อ archive/hash ใน
+manifest และ lockfile ให้ตรงกัน; ชุดนี้ไม่เพิ่ม migration หรือเปลี่ยนเพดาน.
 เครื่องมือ FlowDocMake task เดิมอ่านผล PDF; ยังไม่เพิ่ม DOCX UX ให้เครื่องมือนั้น.
 หลังเริ่ม candidate ให้ตรวจ health, authoring contract, Core archive checksum
 และส่งเอกสารเล็กทั้งสองชนิดก่อนใช้งานเพิ่มเติม. ตรวจ Word ของเอกสารเล็กสี่ไฟล์แล้ว;
@@ -811,3 +1081,155 @@ Isolated I6 test prerequisites ของ README. ชุดทดสอบ18ก�
 mount client0.2.7 เดิมที่ /legacy-plugin สำหรับกรณี compatibility; API ทดลองอื่น
 ต้องใช้ฐานข้อมูลแยก เพราะ schema ไม่แยก advisory lock. Snapshot/tag และ deploy
 ยังเป็นขั้นตอนแยกจาก candidate ที่ตรวจผ่าน.
+
+### Candidate task recovery after container replacement
+
+Runtime ownership was introduced in migration027; this model20-only candidate
+requires migration029 before task credentials can be enabled. It pins each new task to an immutable runtime UUID and persistent
+storage UUID. Keep the entire task root, including its hidden identity/lock
+files, on the same local Linux filesystem across container recreation. The
+runtime requires working POSIX flock semantics; remote/distributed filesystem
+ownership is not certified. Never delete or replace the lock/identity files to
+force startup. Only one API may own a task root at a time.
+
+Startup recovers guarded tasks only after acquiring PostgreSQL processor
+leadership and exclusive proof that the previous runtime's task writers have
+stopped. The Node parent, detached renderer and native Python helpers retain
+writer locks; an independent guardian drains registered process groups after
+parent loss. A delayed Python spawn must match the current storage runtime
+before it executes. Interrupted tasks become failed (WORKER_INTERRUPTED), with
+one terminal event and one usage revision; interrupted jobs are not rerendered.
+Queue slots and unused storage reservations are returned. Sealed original
+payloads/images remain charged until their original expiry, then cleanup
+returns their remaining storage reservation.
+
+Historical tasks without runtime/storage identity are not silently adopted.
+Unproven foreign workers and mismatched storage identities keep their
+reservations and quarantine intake. Health returns503 while intake cannot
+accept work, including ownership loss or resource-governor unavailability.
+Resolve historical ambiguous ownership with separately authorized operator
+verification; this candidate supplies no forced takeover or live-data repair.
+These are candidate-local behavior and prerequisites, not release or installation
+acceptance.
+
+### Candidate bounded native font preflight (F2)
+
+The F2 candidate keeps actual-input font diagnostics before job acceptance.
+Public `/jobs` and authoring preview/validate/font-readiness share one bounded
+admission gate per server. Waiting requests do not acquire PostgreSQL connections
+or start native helpers; the wait list is bounded by maxOutstanding and waiting
+expires after120seconds. Disconnect removes a waiter or cancels its active native
+check. Overload/resource unavailability returns503 (QUEUE_FULL or UNAVAILABLE);
+retry the identical request after capacity returns.
+
+Admission checks the shared outstanding count before native preflight; final
+insertion still uses the existing transactional capacity reservation. Upload/job
+and authoring receipt replays retain their original identities and do not create
+new jobs when the durable queue is full. The early count is a rejection hint,
+not a new reservation or a replacement for the final capacity check.
+
+Only one actual-input native preflight starts at a time per server. A nonblocking
+PostgreSQL transaction advisory permit60430407 also serializes these checks
+across processes using that database. A preflight acquires a320-MiB worker credit
+from the same governor as task and legacy rendering when that governor is
+enabled. It releases the credit only after the native process group is confirmed
+stopped. Without a supported shared governor, standalone callers still have the
+bounded admission/DB permit but no shared memory-profile certification. Direct
+callers joining a running task runtime must pass its shared FontPreflightGate;
+actual-input gate.run requires a checked-out transaction client.
+
+An unconfirmed stop retains the credit, refuses new admission, makes health503,
+and rejects clean shutdown. Existing jobs may drain within remaining governor
+credits; this is admission quarantine, not a whole-runtime kill. The F4 candidate described below separately aligns task font/quota lock order.
+No release, installation, distributed-filesystem or4/6-GiB capacity claim follows
+from these candidate-local controls.
+
+### Candidate font/quota lock ordering (F4)
+
+Task admission now follows the same sorted font-release → capacity/quota order
+as public job and authoring preview admission. It reads the immutable task/version
+pin to select font locks, then acquires quota and the task row and rechecks the
+pin, current state, expiry, lease, normalization and renderer identity before
+inserting any job. Font readiness is resolved after holding the font rows.
+The existing five-second lock wait limit is set before waiting for fonts.
+
+A task waiting for a font holds neither quota nor the task row, so expiry cleanup
+can proceed. If expiry/state changes during that wait, the locked recheck rejects
+admission; it does not create a job from the earlier state. Interrupted/expired
+cleanup, retained originals, immutable snapshots and terminal usage rules remain
+in force. No migration, automatic deadlock retry or queue-capacity expansion is
+introduced. The controlled PostgreSQL tests exercise both first-lock orders for
+public jobs and authoring previews; this fixes the demonstrated F4 cycle and is
+not a claim that every possible database deadlock is impossible.
+
+### Candidate delivery evidence and finalization (F3)
+
+Task status values stay unchanged. Task success requires both transport finish
+and durable terminal finalization. Generation, delivery and finalization are
+separate observations: a task may be failed with FINALIZATION_FAILED even though
+its complete artifact response finished. The client must not automatically
+resubmit or resend based only on aggregate task status.
+
+Authenticated lookup now reports delivery as pending, succeeded, failed or
+unknown, plus deliveryEvidence:
+
+| deliveryEvidence | Meaning |
+| --- | --- |
+| pending | No durable terminal outcome yet |
+| transport_finished | Server observed the complete artifact response finish |
+| transport_interrupted | Server observed interruption before finish |
+| not_started | No artifact send was started |
+| unknown_after_interruption | Recovery/history has no durable finish observation |
+
+These observations do not prove that the client saved the file. Usage facts keep
+the observed delivery/evidence separately from aggregate status. A failed final
+success write preserves transport_finished when the fallback terminal record can
+be saved. A lost COMMIT reply is reconciled against durable state before reporting
+a failure, including the fallback transaction; immutable terminal facts are not
+rewritten. If terminal persistence cannot be confirmed, execution reports
+FINALIZATION_UNCONFIRMED, retains durable files/reservations for recovery, and
+settles local ownership so shutdown cannot wait forever on a forgotten execution.
+
+After process/container loss, a sending task without durable completion evidence
+is unknown rather than guessed interrupted. Existing failed sending history with
+no explicit evidence is also reported conservatively as unknown without rewriting
+its usage. Existing succeeded rows remain succeeded. This adds lookup evidence
+and error codes, not task statuses or a migration. Exact task lookup still cannot
+rerender or redownload a consumed task artifact.
+
+Legacy tasks without ownership identity remain fail-closed. A future operator
+recovery needs separately authorized, consistent DB/storage backups, proof that
+all old writers are stopped, and a restore/rehearsal in a disposable lab before
+any repair of live rows. Do not backfill invented runtime IDs, clear foreign PIDs,
+or force-release reservations merely to remove quarantine. This candidate does
+not perform that live-data recovery, installation or release step.
+
+### ห้องทดสอบแยกสำหรับ task lifecycle
+
+`node scripts/auditLab.mjs prepare` เตรียม Compose และ credentials ใหม่ใต้
+`artifacts/flowdoc-audit-<id>/` ของ checkout นี้ แล้วแสดง directory ที่ต้องใช้ต่อ.
+เป็นเครื่องมือทดสอบเฉพาะ Service; ไม่ใช่การติดตั้งหรือรับรอง release.
+ใช้คำสั่งต่อไปนี้โดยแทน `<lab-directory>` ด้วย directory ที่ prepare แสดง:
+
+```text
+node scripts/auditLab.mjs doctor <lab-directory>
+node scripts/auditLab.mjs build <lab-directory>
+node scripts/auditLab.mjs test <lab-directory>
+node scripts/auditLab.mjs start <lab-directory> 1g
+node scripts/auditLab.mjs status <lab-directory>
+node scripts/auditLab.mjs stop <lab-directory>
+```
+
+เครื่องมือตรึง Docker context เป็น `desktop-linux` และบังคับ project, image,
+database, volumes และ network ที่สร้างใหม่เฉพาะ lab. ไม่ publish host ports,
+ไม่ mount source/data เดิม และไม่อ่าน `.env` ของระบบจริง. Credentials และ
+connection strings ใน lab เป็นข้อมูลส่วนตัว ห้ามนำ artifacts ทั้ง directory
+ไปเผยแพร่. `test` รันเฉพาะ lifecycle regression ที่ระบุใน script และหยุด
+containers ของ lab หลังจบ; ไม่ใช่ผลผ่านของ Service suite รวม.
+`start` เลือก `1g`, `4g` หรือ `6g` ได้ ครั้งละหนึ่ง API บน network ภายใน;
+โปรไฟล์4/6GiB ต้องมี RAM เพียงพอและยังต้องพิสูจน์ workload จริง.
+การสร้าง config หรือเริ่ม API ไม่ได้ยืนยัน recovery, resource accounting หรือ
+lock-order scenarios. หาก source เปลี่ยนต้อง build ใหม่ก่อน test/start.
+Network ใช้ subnet `10.253.254.0/28` ชัดเจน; ก่อนใช้ให้ตรวจ host routes ด้วย.
+เครื่องมือปฏิเสธ Docker network ที่ทับกัน ไม่เลือก subnet อื่นหรือ prune อัตโนมัติ.
+`stop` เก็บ volumes และผลตรวจไว้ ไม่ลบข้อมูลหรือหยุด containers นอก lab.

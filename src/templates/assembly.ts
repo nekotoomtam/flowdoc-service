@@ -11,7 +11,7 @@ const codes:Record<number,string>={110001:'string',110002:'object',110003:'array
 const typeIds:Record<string,number>={string:110001,array:110003,image:110004,link:110005,area:110006};
 const invalid=(path:string):never=>{throw new OperationError('INVALID_DATA',path,'Invalid current record structure');};
 export function decompose(input:TemplateDefinition,id:()=>string):CurrentRecord {
- if(![18,19].includes(input.nodeModelVersion))invalid('nodeModelVersion');
+ if(input.nodeModelVersion!==20)invalid('nodeModelVersion');
  const t:Json=structuredClone(input),{globalSchema,version,areaFormats,...payload}=t;
  const record:CurrentRecord={templateId:t.templateId,revision:0,payload,formats:[],schemas:[],variables:[]};
  // An explicitly empty optional map still participates in the Core fingerprint.
@@ -21,22 +21,28 @@ export function decompose(input:TemplateDefinition,id:()=>string):CurrentRecord 
   const fieldsChild=(f:Json,p:string)=>fields(f,p);fields(s.fields,null);
  }
  schema(globalSchema,null);
- const addFormats=(formats:Json,sectionId:string|null=null)=>Object.entries(formats).forEach(([key,f],position)=>{const fid=id(),{inputSchema,...rest}=f;record.formats.push({id:fid,key,position,payload:rest,sectionId});schema(inputSchema,fid,'format',sectionId);});
- delete record.payload.sections;record.sections=[];t.sections.forEach((s:Json,position:number)=>{const sid=id(),{id:sourceDefinitionId,key,label,inputSchema,formats,...rest}=s;record.sections!.push({id:sid,sourceDefinitionId,key:input.nodeModelVersion===19?sourceDefinitionId:key,...(label===undefined?{}:{label}),position,payload:rest});schema(inputSchema,null,'section',sid);addFormats(formats??{},sid);for(const k of ['header','footer'] as const)if(rest[k]){schema(rest[k].inputSchema,null,k,sid);delete rest[k].inputSchema;}});
+ delete record.payload.sections;record.sections=[];t.sections.forEach((s:Json,position:number)=>{
+  const sid=id(),{id:sourceDefinitionId,label,inputSchema,...rest}=s;
+  const recordKey=rest.sectionKey;
+  delete rest.sectionKey;
+  record.sections!.push({id:sid,sourceDefinitionId,key:recordKey,...(label===undefined?{}:{label}),position,payload:rest});
+  schema(inputSchema,null,'section',sid);
+  for(const k of ['header','footer'] as const)if(rest[k]){schema(rest[k].inputSchema,null,k,sid);delete rest[k].inputSchema;}
+ });
  const owners=new Map(record.variables.filter(v=>v.typeId===110006).map(v=>[v.payload.areaId,v.id]));
  Object.entries(areaFormats??{}).forEach(([sourceDefinitionId,f]:[string,any],position)=>{const fid=id(),{key,ownerAreaId,inputSchema,...rest}=f,owner=owners.get(ownerAreaId);if(!owner)invalid('ownerAreaId');record.formats.push({id:fid,key,position,payload:rest,ownerAreaVariableId:owner!,sourceDefinitionId,sectionId:record.schemas.find(s=>s.id===record.variables.find(v=>v.id===owner)!.schemaId)!.sectionId??null});schema(inputSchema,fid,'format',record.formats.at(-1)!.sectionId??null);});return record;
 }
 export function checkRecord(r:CurrentRecord):void {
  if(!r||typeof r.templateId!=='string'||!r.payload||r.payload.templateId!==r.templateId||!Array.isArray(r.formats)||!Array.isArray(r.schemas)||!Array.isArray(r.variables))invalid('record');
- if(![18,19].includes(r.payload.nodeModelVersion))invalid('nodeModelVersion');
+ if(r.payload.nodeModelVersion!==20)invalid('nodeModelVersion');
  if(Object.hasOwn(r.payload,'areaFormats')&&(!r.payload.areaFormats||typeof r.payload.areaFormats!=='object'||Array.isArray(r.payload.areaFormats)||Object.keys(r.payload.areaFormats).length))invalid('areaFormats');
  const ids=new Set<string>();for(const row of [...(r.sections??[]),...r.formats,...r.schemas,...r.variables]){if(typeof row.id!=='string'||!row.id||ids.has(row.id))invalid('id');ids.add(row.id);}
  const fmt=new Map(r.formats.map(f=>[f.id,f])),schemas=new Map(r.schemas.map(s=>[s.id,s])),vars=new Map(r.variables.map(v=>[v.id,v]));
  const sections=new Map((r.sections??[]).map(s=>[s.id,s]));
  const sectionKeys=new Set<string>(),sectionSources=new Set<string>(),positions=new Set<number>();
  if(!Array.isArray(r.sections)||!r.sections.length||Object.hasOwn(r.payload,'sections'))invalid('sections');
- for(const s of r.sections??[]){if(!s.key||sectionKeys.has(s.key)||!s.sourceDefinitionId||sectionSources.has(s.sourceDefinitionId)||!Number.isInteger(s.position)||s.position<0||positions.has(s.position)||!s.payload||['id','key','label','inputSchema','formats'].some(k=>Object.hasOwn(s.payload,k)))invalid('sections');sectionKeys.add(s.key);sectionSources.add(s.sourceDefinitionId);positions.add(s.position);}
- const formatKeys=new Set<string>();for(const f of r.formats){const scope=JSON.stringify([f.sectionId??null,f.ownerAreaVariableId??null,f.key]);if(!f.key||formatKeys.has(scope)||!Number.isInteger(f.position)||f.position<0||!f.payload)invalid('formats');formatKeys.add(scope);if(f.sectionId!=null&&!sections.has(f.sectionId))invalid('format.sectionId');if(f.ownerAreaVariableId==null&&f.sectionId==null)invalid('format.sectionId');}
+ for(const s of r.sections??[]){if(!s.key||sectionKeys.has(s.key)||!s.sourceDefinitionId||sectionSources.has(s.sourceDefinitionId)||!Number.isInteger(s.position)||s.position<0||positions.has(s.position)||!s.payload||['id','key','label','inputSchema','formats','sectionKey'].some(k=>Object.hasOwn(s.payload,k)))invalid('sections');sectionKeys.add(s.key);sectionSources.add(s.sourceDefinitionId);positions.add(s.position);}
+ const formatKeys=new Set<string>();for(const f of r.formats){const scope=JSON.stringify([f.sectionId??null,f.ownerAreaVariableId??null,f.key]);if(!f.key||formatKeys.has(scope)||!Number.isInteger(f.position)||f.position<0||!f.payload)invalid('formats');formatKeys.add(scope);if(f.sectionId!=null&&!sections.has(f.sectionId))invalid('format.sectionId');if(f.ownerAreaVariableId==null||f.sourceDefinitionId==null)invalid('formatOwner');}
  const owners=new Set<string>(),ownerKey=(scope:string,sectionId:string|null|undefined,formatId:string|null)=>JSON.stringify([scope,sectionId??null,formatId]);
  for(const s of r.schemas){const scope=schemaScope(s);if(!['global','section','format','header','footer'].includes(scope)||(scope==='format'?(s.formatId===null||!fmt.has(s.formatId)):s.formatId!==null))invalid('schemas');if(s.sectionId!=null&&!sections.has(s.sectionId))invalid('schemas.sectionId');if(scope==='global'&&s.sectionId!=null||scope==='section'&&s.sectionId==null||['header','footer'].includes(scope)&&s.sectionId==null)invalid('schemas.sectionId');if(s.formatId&&(s.sectionId??null)!==(fmt.get(s.formatId)!.sectionId??null))invalid('schemas.owner');const key=ownerKey(scope,s.sectionId,s.formatId);if(owners.has(key))invalid('schemas');owners.add(key);if(['header','footer'].includes(scope)&&!sections.get(s.sectionId!)?.payload[scope])invalid('schemas');}
  if(!owners.has(ownerKey('global',null,null))||r.formats.some(f=>!owners.has(ownerKey('format',f.sectionId,f.id))))invalid('schemas');
@@ -66,12 +72,12 @@ export function assemble(r:CurrentRecord,version:number):TemplateDefinition {
  const schemasByFormat=new Map(r.schemas.filter(s=>s.formatId!==null).map(s=>[s.formatId,s])),varsById=new Map(r.variables.map(v=>[v.id,v]));
  const groups=new Map<string,VariableRow[]>();for(const v of r.variables){const k=JSON.stringify([v.schemaId,v.parentId]),g=groups.get(k)??[];g.push(v);groups.set(k,g);}for(const g of groups.values())g.sort((a,b)=>a.position-b.position);
  function schema(s:SchemaRow){function fields(parentId:string|null):Json {const out:Json=Object.create(null);for(const v of groups.get(JSON.stringify([s.id,parentId]))??[]){out[v.key]={...structuredClone(v.payload),type:codes[v.typeId]};if(v.typeId===110003)out[v.key].items={type:'object',fields:fields(v.id)};}return out;}return {type:'object',fields:fields(null)};}
- const areaFormats:Json=Object.create(null),bySection=new Map<string,Json>();for(const f of [...r.formats].sort((a,b)=>a.position-b.position)){const value={...structuredClone(f.payload),inputSchema:schema(schemasByFormat.get(f.id)!)};if(f.ownerAreaVariableId!=null)areaFormats[f.sourceDefinitionId!]={...value,key:f.key,ownerAreaId:varsById.get(f.ownerAreaVariableId)!.payload.areaId};else if(f.sectionId!=null){const group=bySection.get(f.sectionId)??Object.create(null);group[f.key]=value;bySection.set(f.sectionId,group);}}
+ const areaFormats:Json=Object.create(null);for(const f of [...r.formats].sort((a,b)=>a.position-b.position)){const value={...structuredClone(f.payload),inputSchema:schema(schemasByFormat.get(f.id)!)};if(f.ownerAreaVariableId!=null)areaFormats[f.sourceDefinitionId!]={...value,key:f.key,ownerAreaId:varsById.get(f.ownerAreaVariableId)!.payload.areaId};}
 
  const payload=structuredClone(r.payload);
  // Examples belong to the published envelope, not to an earlier draft import.
  if(Array.isArray(payload.examples))for(const e of payload.examples)if(e?.request&&typeof e.request==='object')e.request.version=version;
- payload.sections=[...(r.sections??[])].sort((a,b)=>a.position-b.position).map(s=>{const p=structuredClone(s.payload);for(const k of ['header','footer'])if(p[k])p[k].inputSchema=schema(r.schemas.find(v=>v.sectionId===s.id&&schemaScope(v)===k)!);return {...p,id:s.sourceDefinitionId,...(r.payload.nodeModelVersion===18?{key:s.key}:{}),...(s.label===undefined?{}:{label:s.label}),inputSchema:schema(r.schemas.find(v=>v.sectionId===s.id&&schemaScope(v)==='section')!),...(r.payload.nodeModelVersion===18?{formats:bySection.get(s.id)??{}}:{})};});
+ payload.sections=[...(r.sections??[])].sort((a,b)=>a.position-b.position).map(s=>{const p=structuredClone(s.payload);for(const k of ['header','footer'])if(p[k])p[k].inputSchema=schema(r.schemas.find(v=>v.sectionId===s.id&&schemaScope(v)===k)!);return {...p,id:s.sourceDefinitionId,sectionKey:s.key,...(s.label===undefined?{}:{label:s.label}),inputSchema:schema(r.schemas.find(v=>v.sectionId===s.id&&schemaScope(v)==='section')!)};});
  return {...payload,templateId:r.templateId,version,globalSchema:schema(r.schemas.find(s=>schemaScope(s)==='global')!),...(Object.keys(areaFormats).length?{areaFormats}:{})} as TemplateDefinition;
 }
 

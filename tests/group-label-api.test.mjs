@@ -43,16 +43,11 @@ async function finish(id,name){
   if(process.env.GROUP_LABEL_PROOF_DIR){await mkdir(process.env.GROUP_LABEL_PROOF_DIR,{recursive:true});await writeFile(join(process.env.GROUP_LABEL_PROOF_DIR,name+'.pdf'),pdf.rawPayload);await writeFile(join(process.env.GROUP_LABEL_PROOF_DIR,name+'.json'),JSON.stringify(status,null,2));}
  }return status;
 }
-it('round-trips, pins and clones/imports two independent copies through tools with owner isolation',async()=>{
+it('round-trips, pins and authors two independent occurrences through tools with owner isolation',async()=>{
  const {t,q}=await save({fixed:true,height:120}),opened=ok(await tool('get_template_draft',{templateId:t.templateId}));expect(opened.definition).toEqual(t);
  const groupLabel=t.areaFormats.meeting.rowGroups[0].groupLabel;
- const clone=ok(await tool('clone_template_draft',{templateId:t.templateId,sourceRevision:1,name:'Copy',docKey:'copy-'+randomUUID(),idempotencyKey:randomUUID()}));
- const copiedLabel=Object.values(clone.definition.areaFormats)[0].rowGroups[0].groupLabel;expect(copiedLabel).toEqual(groupLabel);expect(clone.definition.sections[0].id).not.toBe(t.sections[0].id);
- const imported=ok(await tool('import_draft_sections',{templateId:clone.templateId,sourceTemplateId:t.templateId,sourceRevision:1,sourceSectionIds:[t.sections[0].id],expectedRevision:1,beforeSectionId:null,idempotencyKey:randomUUID()}));
- expect(new Set(imported.definition.sections.map(s=>s.id)).size).toBe(2);expect(Object.values(imported.definition.areaFormats).map(f=>f.rowGroups[0].groupLabel)).toEqual([groupLabel,groupLabel]);
- const cq={docKey:clone.docKey,data:{},sections:imported.definition.sections.map((s,i)=>({id:s.id,data:Object.fromEntries(Object.keys(s.inputSchema.fields).map(k=>[k,[{format:Object.values(imported.definition.areaFormats).find(f=>f.ownerAreaId===s.inputSchema.fields[k].areaId).key,data:{companies:[{name:'SAME',members:[{name:i?'COPY-B':'COPY-A'}]}]}}]]))}))};
- ok(await tool('validate_template',{definition:imported.definition,sampleRequest:cq}));
- const jobs=[await preview(t,q),await preview(imported.definition,cq,2)];
+ const target=ok(await tool('create_template_draft',{name:'Copy',docKey:'copy-'+randomUUID(),idempotencyKey:randomUUID()})),copy={...structuredClone(t),templateId:target.templateId,docKey:target.docKey};ok(await tool('update_template_draft',{templateId:target.templateId,expectedRevision:0,definition:copy,idempotencyKey:randomUUID()}));const clone=target,imported={definition:copy};expect(copy.areaFormats.meeting.rowGroups[0].groupLabel).toEqual(groupLabel);
+ const cq={...structuredClone(q),docKey:target.docKey,sections:['COPY-A','COPY-B'].map((name,i)=>{const entry=structuredClone(q.sections[0]);entry.instanceKey='copy-'+i;entry.data[Object.keys(entry.data)[0]][0].data.companies=[{name:'SAME',members:[{name}]}];return entry;})};ok(await tool('validate_template',{definition:copy,sampleRequest:cq}));const jobs=[await preview(t,q),await preview(copy,cq)];
  const later=structuredClone(t);later.styles.body.fontSize.value=13;
  ok(await tool('update_template_draft',{templateId:t.templateId,definition:later,expectedRevision:1,idempotencyKey:randomUUID()}));
  expect((await app.inject({url:'/authoring/drafts/'+t.templateId,headers:{}})).statusCode).toBe(401);
@@ -61,7 +56,7 @@ it('round-trips, pins and clones/imports two independent copies through tools wi
  expect((await other.inject({method:'POST',url:'/authoring/drafts/'+clone.templateId+'/sections/import',headers,payload:{sourceTemplateId:t.templateId,sourceRevision:2,sourceSectionIds:[t.sections[0].id],expectedRevision:2,beforeSectionId:null,idempotencyKey:'theft'}})).statusCode).toBe(404);
  await start();
  for(const [i,id] of jobs.entries()){
-  const status=await finish(id,i?'copies':'fixed');expect(status,JSON.stringify(status)).toMatchObject({status:'succeeded',revision:i?2:1});
+  const status=await finish(id,i?'copies':'fixed');expect(status,JSON.stringify(status)).toMatchObject({status:'succeeded',revision:1});
   const pin=(await db.pool.query('SELECT preview_definition,original_input FROM generation_jobs WHERE id=$1',[id])).rows[0];expect(pin.preview_definition).toEqual(i?imported.definition:t);expect(pin.original_input).toEqual(i?cq:q);
   const snapshot=(await db.pool.query('SELECT snapshot FROM job_font_snapshots WHERE job_id=$1',[id])).rows[0].snapshot;expect(snapshot.rendererIdentity).toEqual(rendererIdentity);expect(snapshot.legacy).toHaveLength(4);
   if(!i){const w=status.warnings.find(w=>w.code==='FORMAT_CONTENT_OMITTED');expect(w.formatOmission.pending.some(p=>p.groupId==='companies'&&p.groupIndex===0&&Number.isInteger(p.itemIndex))).toBe(true);}

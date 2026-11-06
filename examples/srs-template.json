@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "nodeModelVersion": 18,
-  "templateId": "tpl-srs-table-trial",
+  "nodeModelVersion": 20,
+  "templateId": "8a37d387-ef3f-5b3d-8ab7-123bea76eef9",
   "docKey": "srs-table-trial",
   "version": 1,
   "name": "SRS table export trial",
@@ -60,8 +60,7 @@
   },
   "sections": [
     {
-      "id": "main",
-      "key": "main",
+      "id": "98a8113e-d1e5-5b31-84df-3703cb77c8c1",
       "source": {
         "kind": "authored",
         "repeats": [],
@@ -89,7 +88,9 @@
           }
         }
       },
-      "formats": {}
+      "sectionKey": "S0001",
+      "label": "main",
+      "nameBase": "main"
     }
   ],
   "areaFormats": {

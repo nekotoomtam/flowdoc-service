@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "nodeModelVersion": 18,
-  "templateId": "tpl-page-sections",
+  "nodeModelVersion": 20,
+  "templateId": "27889eed-0f52-57be-8c7a-be9b4ad0144b",
   "docKey": "page-sections",
   "version": 1,
   "name": "Page sections trial",
@@ -280,7 +280,7 @@
   },
   "sections": [
     {
-      "id": "introduction",
+      "id": "95244ad7-d4aa-5e42-8bcb-4ffda4955bcb",
       "source": {
         "kind": "authored",
         "repeats": [],
@@ -314,15 +314,16 @@
           }
         }
       },
-      "key": "introduction",
       "inputSchema": {
         "type": "object",
         "fields": {}
       },
-      "formats": {}
+      "sectionKey": "S0001",
+      "label": "introduction",
+      "nameBase": "introduction"
     },
     {
-      "id": "contents",
+      "id": "70118f18-5cca-58a6-80ee-47e9e6f0e4b3",
       "pageLayoutId": "landscape",
       "source": {
         "kind": "authored",
@@ -335,22 +336,26 @@
               "id": "toc",
               "type": "table-of-contents",
               "props": {
-                "textStyleId": "body"
+                "textStyleId": "body",
+                "scope": {
+                  "kind": "document"
+                }
               }
             }
           }
         },
         "repeats": []
       },
-      "key": "contents",
       "inputSchema": {
         "type": "object",
         "fields": {}
       },
-      "formats": {}
+      "sectionKey": "S0002",
+      "label": "contents",
+      "nameBase": "contents"
     },
     {
-      "id": "evidence",
+      "id": "7450bf48-2682-524b-86ac-24606136dfdf",
       "pageLayoutId": "landscape",
       "source": {
         "kind": "authored",
@@ -486,7 +491,6 @@
         },
         "repeats": []
       },
-      "key": "evidence",
       "inputSchema": {
         "type": "object",
         "fields": {
@@ -496,10 +500,12 @@
           }
         }
       },
-      "formats": {}
+      "sectionKey": "S0003",
+      "label": "evidence",
+      "nameBase": "evidence"
     },
     {
-      "id": "merged",
+      "id": "2699eeba-9c84-5af2-85e5-e7c1d3d3dca8",
       "pageLayoutId": "landscape",
       "source": {
         "kind": "authored",
@@ -712,7 +718,6 @@
         },
         "repeats": []
       },
-      "key": "merged",
       "inputSchema": {
         "type": "object",
         "fields": {
@@ -722,10 +727,12 @@
           }
         }
       },
-      "formats": {}
+      "sectionKey": "S0004",
+      "label": "merged",
+      "nameBase": "merged"
     },
     {
-      "id": "summary",
+      "id": "5bc1bcba-27dd-5ad9-8cc9-c3a3dba40073",
       "pageLayoutId": "landscape",
       "source": {
         "kind": "authored",
@@ -765,15 +772,16 @@
         },
         "repeats": []
       },
-      "key": "summary",
       "inputSchema": {
         "type": "object",
         "fields": {}
       },
-      "formats": {}
+      "sectionKey": "S0005",
+      "label": "summary",
+      "nameBase": "summary"
     },
     {
-      "id": "closing",
+      "id": "48b8d1f4-7595-5ddc-84f3-d6514e16fc5d",
       "source": {
         "kind": "authored",
         "repeats": [],
@@ -826,12 +834,13 @@
           }
         }
       },
-      "key": "closing",
       "inputSchema": {
         "type": "object",
         "fields": {}
       },
-      "formats": {}
+      "sectionKey": "S0006",
+      "label": "closing",
+      "nameBase": "closing"
     }
   ]
 }

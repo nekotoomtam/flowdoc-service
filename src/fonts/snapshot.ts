@@ -5,6 +5,7 @@ import {readFileSync} from 'node:fs';
 import {join,resolve} from 'node:path';
 import {fingerprint,fontError} from './repository.js';
 import {SHA} from './files.js';
+import {OperationError} from '../errors.js';
 import type {FontTuple} from './retention.js';
 const vendor=JSON.parse(readFileSync(new URL('../../vendor/manifest.json',import.meta.url),'utf8'));
 export const rendererIdentity={package:'@flowdoc/core',version:vendor.version,sha256:vendor.sha256};
@@ -19,7 +20,10 @@ export function validateFontSnapshot(raw:FontSnapshot|undefined,definitionFinger
  const {manifestDigest,...body}=raw;if(fingerprint(body)!==manifestDigest)return fontError('FONT_CHECK_UNAVAILABLE');return raw;
 }
 export async function snapshotResources(snapshot:FontSnapshot,tempRoot:string,root=fontRoot()){
- const base=await loadBundledResources({pythonExecutable:process.env.PYTHON_EXECUTABLE??'python',tempRoot});if(!base.ok)return fontError('FONT_CHECK_UNAVAILABLE');
+ const base=await loadBundledResources({pythonExecutable:process.env.PYTHON_EXECUTABLE??'python',tempRoot});if(!base.ok){
+  const issue=base.issues[0];if(issue?.code==='RESOURCE_UNAVAILABLE'&&issue.path==='tempRoot')throw new OperationError('STORAGE_IO','tempRoot','Temporary storage is not writable');
+  return fontError('FONT_CHECK_UNAVAILABLE');
+ }
  for(const f of snapshot.legacy)if(!base.value.fonts.some(b=>b.id===f.id&&b.sha256===f.sha256))fontError('FONT_ASSET_HASH_MISMATCH');
  const path=(key:string,hash:string)=>{if(!SHA.test(hash)||key!==hash+'.bin')fontError('FONT_ASSET_UNAVAILABLE');return join(root,'assets',key);};
  const inputs=new Map<string,LibraryFontInput>();

@@ -22,10 +22,10 @@ export function fontProbeDocument(document:ResolvedDocument):ResolvedDocument{
   for(const text of chunks){
    const id='font-probe-'+rootIds.length,inline=id+'-text';rootIds.push(id);
    nodes[id]={id,type:'text-block',role:{role:'paragraph'},props:{textStyleId:b.style},children:text?[{id:inline,type:'text',text}]:[]};
-   for(const key of text?[id,inline]:[id])sourceMap[key]={origin:'authored',sectionId:'font-probe',sourceId:key};
+   for(const key of text?[id,inline]:[id])sourceMap[key]={origin:'authored',sectionId:'instance-font-probe',sourceId:key};
   }
  }
  const margin={value:20,unit:'mm' as const};
  const page={size:'A4' as const,orientation:'portrait' as const,margin:{top:margin,right:margin,bottom:margin,left:margin}};
- return {schemaVersion:document.schemaVersion,nodeModelVersion:18,template:document.template,book:{contentSlot:'body',page},styles:Object.fromEntries(Object.entries(document.styles).map(([k,s])=>[k,{...s,fontSize:{value:12,unit:'pt'},lineHeightPt:20}])),nodes,sourceMap,rootIds,sections:[{sectionId:'font-probe',sourceKind:'authored',role:'body',pageLayoutId:'font-probe',page,rootIds,headerMode:'none',footerMode:'none'}]};
+ return {schemaVersion:document.schemaVersion,nodeModelVersion:20,template:document.template,book:{contentSlot:'body',page},styles:Object.fromEntries(Object.entries(document.styles).map(([k,s])=>[k,{...s,fontSize:{value:12,unit:'pt'},lineHeightPt:20}])),nodes,sourceMap,rootIds,sections:[{definitionId:'00000000-0000-4000-8000-000000000020',sectionKey:'font-probe',instanceKey:'font-probe',sectionId:'instance-font-probe',sourceKind:'authored',role:'body',pageLayoutId:'font-probe',page,rootIds,headerMode:'none',footerMode:'none'}]};
 }

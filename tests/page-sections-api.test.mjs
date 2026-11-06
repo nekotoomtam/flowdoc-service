@@ -34,14 +34,14 @@ async function upload(){
  ok((await app.inject({method:'POST',url:`/uploads/${u.uploadId}/finalize`})).json());return u;
 }
 it('exposes schemas without layout graph and preserves version after current label change',async()=>{
- const before=ok(await loadTemplate(db.pool,'page-sections',1));let c=ok(await loadCurrent(db.pool,'tpl-page-sections'));c.payload.pageLayouts.portrait.label='Renamed';c=ok(await saveCurrent(db.pool,c,c.revision));
+ const before=ok(await loadTemplate(db.pool,'page-sections',1));let c=ok(await loadCurrent(db.pool,'27889eed-0f52-57be-8c7a-be9b4ad0144b'));c.payload.pageLayouts.portrait.label='Renamed';c=ok(await saveCurrent(db.pool,c,c.revision));
  expect(ok(await publishCurrent(db.pool,{templateId:c.templateId,requestId:'v2'})).version).toBe(2);
  expect(ok(await loadTemplate(db.pool,'page-sections',1)).template).toEqual(before.template);
  const contract=ok((await app.inject('/templates/page-sections/contract?version=1')).json());expect(contract.globalSchema.fields.photo.type).toBe('image');expect(contract).toHaveProperty('sections');expect(contract).not.toHaveProperty('pageLayouts');expect(JSON.stringify(contract)).not.toContain('rootIds');
 });
 it('rejects invalid data before creating a job',async()=>{
  const before=(await db.pool.query('SELECT count(*) FROM generation_jobs')).rows[0].count;
- expect((await app.inject({method:'POST',url:'/jobs',payload:{docKey:'page-sections',data:{},sections:{main:{data:{content:[]}}}}})).statusCode).toBe(422);
+ expect((await app.inject({method:'POST',url:'/jobs',payload:{docKey:'page-sections',data:{},sections:[{sectionKey:"main",instanceKey:"unknown-main",...({data:{content:[]}})}]}})).statusCode).toBe(422);
  expect((await db.pool.query('SELECT count(*) FROM generation_jobs')).rows[0].count).toBe(before);
 });
 it('deletes authored Area and owned DB rows while published snapshot remains identical',async()=>{
@@ -60,7 +60,7 @@ it('deletes authored Area and owned DB rows while published snapshot remains ide
 it('claims static images and exports both empty content and multi-section request through HTTP',async()=>{
  for(const mode of ['static','long']){
   const u=await upload(),r=JSON.parse(readFileSync('examples/page-sections-request.json','utf8'));r.version=1;r.uploadId=u.uploadId;r.data.photo=u.items[0].resourceId;
-  if(mode==='static')r.sections.merged={data:{details:[]}};else r.sections.merged.data.details[1].data.photo=u.items[0].resourceId;
+  if(mode==='static')r.sections[3].data.details=[];else r.sections[3].data.details[1].data.photo=u.items[0].resourceId;
   const receipt=await app.inject({method:'POST',url:'/jobs',payload:r});expect(receipt.statusCode,receipt.body).toBe(202);const job=ok(receipt.json());let view;
   for(let i=0;i<400;i++){view=ok((await app.inject('/jobs/'+job.jobId)).json());if(['succeeded','failed'].includes(view.status))break;await new Promise(r=>setTimeout(r,25));}
   expect(view.status,JSON.stringify(view)).toBe('succeeded');const pdf=await app.inject('/jobs/'+job.jobId+'/pdf');expect(pdf.statusCode).toBe(200);expect(pdf.rawPayload.subarray(0,5).toString()).toBe('%PDF-');expect(pdf.rawPayload.toString('latin1')).toContain('/Subtype /Image');

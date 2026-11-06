@@ -11,16 +11,17 @@ import {createTaskIntake} from '../dist/tasks/intake.js';
 import {createTaskProcessing} from '../dist/tasks/processing.js';
 import {startProcessor} from '../dist/jobs/processor.js';
 import {createServer} from '../dist/http/server.js';
+import {unitQueueResources} from './helpers/unit-queue-headroom.mjs';
 export const auth='Bearer '+'d'.repeat(40),sid='10000000-0000-4000-8000-000000000011',contentType='multipart/form-data; boundary=docx-fixture';
 export function template(){
- const t=JSON.parse(readFileSync('examples/area-document-template.json','utf8'));t.templateId=t.docKey='docx-small';t.nodeModelVersion=19;t.examples=[];t.globalSchema={type:'object',fields:{}};
+ const t=JSON.parse(readFileSync('examples/area-document-template.json','utf8'));t.templateId=t.docKey='docx-small';t.nodeModelVersion=20;t.examples=[];t.globalSchema={type:'object',fields:{}};
  const text={id:'text',type:'text-block',role:{role:'paragraph'},props:{textStyleId:'body'},children:[{id:'leaf',type:'field-ref',scope:'local',key:'text'}]},photo={id:'photo',type:'image',props:{width:{value:100,unit:'pt'},height:{value:50,unit:'pt'},source:{scope:'local',key:'photo'}}};
  t.areaFormats={item:{key:'item',ownerAreaId:'parts',inputSchema:{type:'object',fields:{text:{type:'string',required:true},photo:{type:'image'}}},repeats:[],fragment:{rootIds:['text','photo'],nodes:{text,photo}}}};
- t.sections=[{id:sid,label:'Small1',nameBase:'Small',inputSchema:{type:'object',fields:{parts:{type:'area',areaId:'parts'}}},source:{kind:'authored',repeats:[],fragment:{rootIds:['parts'],nodes:{parts:{id:'parts',type:'area',props:{areaId:'parts'}}}}}}];return t;
+ t.sections=[{id:sid,sectionKey:'task-section',label:'Small1',nameBase:'Small',inputSchema:{type:'object',fields:{parts:{type:'area',areaId:'parts'}}},source:{kind:'authored',repeats:[],fragment:{rootIds:['parts'],nodes:{parts:{id:'parts',type:'area',props:{areaId:'parts'}}}}}}];return t;
 }
 const part=(name,b,type)=>Buffer.concat([Buffer.from('--docx-fixture\r\nContent-Disposition: form-data; name="'+name+'"\r\nContent-Type: '+type+'\r\n\r\n'),Buffer.from(b),Buffer.from('\r\n')]);
 export async function body(images=0,text='ไทย EN'){
- const rows=Array.from({length:Math.max(1,images)},(_,i)=>({format:'item',data:{text:text+' '+i,...(images?{photo:{image:{upload:true}}}:{})}})),parts=[part('payload',JSON.stringify({data:{},sections:[{id:sid,data:{parts:rows}}]}),'application/json')];
+ const rows=Array.from({length:Math.max(1,images)},(_,i)=>({format:'item',data:{text:text+' '+i,...(images?{photo:{image:{upload:true}}}:{})}})),parts=[part('payload',JSON.stringify({data:{},sections:[{sectionKey:'task-section',instanceKey:'first',data:{parts:rows}}]}),'application/json')];
  for(let i=0;i<images;i++){const png=i%2===1,b=await sharp({create:{width:20,height:10,channels:4,background:{r:120,g:80,b:160,alpha:png?0.4:1}}})[png?'png':'jpeg']().toBuffer();parts.push(part('/sections/0/data/parts/'+i+'/data/photo/image',b,png?'image/png':'image/jpeg'));}
  return Buffer.concat([...parts,Buffer.from('--docx-fixture--\r\n')]);
 }
@@ -32,7 +33,7 @@ export function fixture(definition=template()){
  async function close(){await app?.close();await manager?.stop();await processor?.stop();await intake?.stop();app=manager=processor=intake=undefined;}
  return {pool,db,get intake(){return intake;},get manager(){return manager;},get root(){return root;},
   async setup(){await db.setup();const m=await migrate(pool);if(!m.ok)throw Error(JSON.stringify(m));const t=await registerTemplate(pool,JSON.stringify(definition));if(!t.ok)throw Error(JSON.stringify(t));},
-  async reset({processing={},...overrides}={}){await close();root=await mkdtemp(join(tmpdir(),'service-docx-'));intake=await createTaskIntake({pool,root,resolveCredential:identity,freeBytes:async()=>20_000_000_000,...overrides});manager=await createTaskProcessing({pool,intake,workerReady:()=>processor?.isReady()??false,...processing});processor=await startProcessor({pool,tasks:manager,files:{writePdf:async()=>{throw Error('legacy forbidden');}},policy:{retain:false,ttlHours:1,tempHours:1},pollMs:5});},
+  async reset({processing={},...overrides}={}){await close();root=await mkdtemp(join(tmpdir(),'service-docx-'));intake=await createTaskIntake({pool,root,resolveCredential:identity,queueResources:unitQueueResources,freeBytes:async()=>20_000_000_000,...overrides});manager=await createTaskProcessing({pool,intake,workerReady:()=>processor?.isReady()??false,...processing});processor=await startProcessor({pool,tasks:manager,files:{writePdf:async()=>{throw Error('legacy forbidden');}},policy:{retain:false,ttlHours:1,tempHours:1},pollMs:5});},
   async task(format='docx',images=1,queueMode=false,text){const t=await intake.open({authorization:auth,docKey:'docx-small',contentType,outputFormat:format,queueMode});await intake.receive({authorization:auth,taskId:t.taskId,contentType,body:Readable.from([await body(images,text)])});await intake.normalize({authorization:auth,taskId:t.taskId});return t.taskId;},
   async server(){app=createServer({pool,outputs:{},isReady:()=>true,tasks:{intake,processing:manager}});return app.listen({host:'127.0.0.1',port:0});},
   async save(name,b){if(process.env.FLOWDOC_TASK_PROOF_DIR)await writeFile(join(process.env.FLOWDOC_TASK_PROOF_DIR,name),b);},

@@ -1,5 +1,12 @@
-import type {TemplateDefinition,Format} from '@flowdoc/core';
+import type {TemplateDefinition} from '@flowdoc/core';
 import {OperationError} from '../errors.js';
 import {buildAreaContract} from './areaContract.js';
-const formats=(values:Record<string,Format>)=>Object.fromEntries(Object.entries(values).map(([key,f])=>[key,{label:f.label,description:f.description,inputSchema:f.inputSchema}]));
-export function templateContract(t:TemplateDefinition){if(t.nodeModelVersion===19)return {nodeModelVersion:19,docKey:t.docKey,version:t.version,globalSchema:t.globalSchema,sections:t.sections.map(s=>({id:s.id,label:s.label,inputSchema:s.inputSchema,...(s.header?{header:s.header.inputSchema}:{}),...(s.footer?{footer:s.footer.inputSchema}:{})})),examples:t.examples,areaFormats:buildAreaContract(t)};if(t.nodeModelVersion!==18)throw new OperationError('INVALID_TEMPLATE','nodeModelVersion','Only Area model 18 is supported');return {docKey:t.docKey,version:t.version,globalSchema:t.globalSchema,sections:Object.fromEntries(t.sections.map(s=>[s.key,{id:s.id,label:s.label,inputSchema:s.inputSchema,...(s.header?{header:s.header.inputSchema}:{}),...(s.footer?{footer:s.footer.inputSchema}:{}),formats:formats(s.formats)}])),examples:t.examples,areaFormats:buildAreaContract(t)};}
+export function templateContract(t:TemplateDefinition){
+ if(t.nodeModelVersion!==20)throw new OperationError('INVALID_TEMPLATE','nodeModelVersion','Only model20 documents are supported');
+ return {
+  nodeModelVersion:20,docKey:t.docKey,version:t.version,globalSchema:t.globalSchema,
+  sections:t.sections.map(s=>({id:s.id,sectionKey:s.sectionKey,label:s.label,inputSchema:s.inputSchema,...(s.header?{header:s.header.inputSchema}:{}),...(s.footer?{footer:s.footer.inputSchema}:{})})),
+  assembly:{input:'array-by-section-key',instanceKey:'required-unique-per-request',order:'request',reuseDefinitions:true},
+  examples:t.examples,areaFormats:buildAreaContract(t)
+ };
+}

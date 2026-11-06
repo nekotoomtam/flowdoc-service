@@ -4,8 +4,23 @@
     "projectName": "รายงานผลการทดสอบระบบงาน",
     "photo": "22222222-2222-4222-8222-222222222222"
   },
-  "sections": {
-    "merged": {
+  "sections": [
+    {
+      "sectionKey": "S0001",
+      "instanceKey": "I0001",
+      "data": {}
+    },
+    {
+      "sectionKey": "S0002",
+      "instanceKey": "I0002",
+      "data": {}
+    },
+    {
+      "sectionKey": "S0003",
+      "instanceKey": "I0003",
+      "data": {}
+    },
+    {
       "data": {
         "details": [
           {
@@ -20,10 +35,24 @@
             }
           }
         ]
-      }
+      },
+      "sectionKey": "S0004",
+      "instanceKey": "I0004"
     },
-    "summary": {
+    {
+      "data": {},
+      "sectionKey": "S0005",
+      "instanceKey": "I0005"
+    },
+    {
+      "sectionKey": "S0006",
+      "instanceKey": "I0006",
+      "data": {}
+    },
+    {
+      "sectionKey": "S0007",
+      "instanceKey": "I0007",
       "data": {}
     }
-  }
+  ]
 }
