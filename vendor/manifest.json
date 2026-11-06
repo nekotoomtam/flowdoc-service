@@ -1,12 +1,12 @@
 {
   "name": "@flowdoc/core",
-  "version": "0.6.0",
-  "file": "flowdoc-core-0.6.0-release-c284498.tgz",
-  "sha256": "5e3e3ada2bfd5e65dd6774ff165756f198b217d466dea1b5d1a97291e973bc50",
-  "sourceCommit": "c284498d33cd59f876037895d193828dbdc51163",
-  "sourceArtifact": "C:\\Users\\nekot\\Documents\\FlowDoc-recovery\\release-060-20261105\\core\\oracle\\build\\flowdoc-core-0.6.0.tgz",
+  "version": "0.5.5",
+  "file": "flowdoc-core-0.5.5-candidate-ff0d18d.tgz",
+  "sha256": "bdfd86aabf8f1806ee5b533ca2bc977ead80505b79b01f8266f2db96ca7317dc",
+  "sourceCommit": "ff0d18d2d9c77cfa7cc1847d81628496ef0f40f1",
+  "sourceArtifact": "C:\\Users\\nekot\\Documents\\FlowDoc-recovery\\git-055-flowdocmake-20261106\\core\\oracle\\build\\flowdoc-core-0.5.5.tgz",
   "runtime": "linux-x64 glibc, Node24, Python3.11, fontTools4.58.2",
-  "delivery": "Core/Service0.6.0 Git release preparation; matching annotated snapshot/tag establishes publication; no installation",
+  "delivery": "Local0.5.5 candidate from committed Core source; no push, release or installation",
   "capabilities": {
     "imageOmissions": "docx-image-omissions/1",
     "nodeModelVersions": [
