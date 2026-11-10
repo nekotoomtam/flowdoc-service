@@ -36,6 +36,40 @@ it('protects model20 principal, identity, receipts and concurrent revisions with
  expect(await counts(d.id.templateId)).toEqual(before);const input={...d,t:{...d.t,name:'Changed'}};expect((await save(input,1,'same')).statusCode).toBe(200);expect((await save(d,2,'same')).statusCode).toBe(409);
  const both=await Promise.all(['left','right'].map(name=>save({...d,t:{...d.t,name}},2,name)));expect(both.map(x=>x.statusCode).sort()).toEqual([200,409]);expect((await call('GET',d.url)).json().value.revision).toBe(3);
 });
+it('updates only existing content rows, retaining full validation, ownership and revision checks',async()=>{
+ const d=await draft();
+ const section=d.t.sections[1],format=d.t.areaFormats.meeting;
+ section.source.fragment.nodes.text.children.unshift({id:'label',type:'text',text:'Before'});
+ const literal=Object.values(format.fragment.nodes).flatMap(node=>node.children??[]).find(child=>child.type==='text');
+ expect(literal).toBeDefined();
+ expect((await save(d)).statusCode).toBe(200);
+ const stamp=async()=>Object.fromEntries(await Promise.all(['sections','formats','variable_schemas','variables'].map(async table=>{
+  const where=table==='variables'?'schema_id IN (SELECT id FROM variable_schemas WHERE template_id=$1)':'template_id=$1';
+  return [table,(await db.pool.query('SELECT id,xmin::text AS stamp FROM '+table+' WHERE '+where+' ORDER BY id',[d.id.templateId])).rows];
+ })));
+ const before=await stamp();
+ section.source.fragment.nodes.text.children[0].text='After';
+ literal.text+=' updated';
+ const saved=await save(d,1,'targeted');expect(saved.statusCode,saved.body).toBe(200);
+ expect(saved.json().value.revision).toBe(2);
+ expect((await call('GET',d.url)).json().value.definition).toEqual(d.t);
+ expect((await save(d,1,'targeted')).json().value).toEqual(saved.json().value);
+ const after=await stamp();
+ for(const table of Object.keys(before)){
+  expect(after[table].map(row=>row.id)).toEqual(before[table].map(row=>row.id));
+  expect(after[table].filter((row,index)=>row.stamp!==before[table][index].stamp)).toHaveLength(['sections','formats'].includes(table)?1:0);
+ }
+ expect((await save(d,1,'stale-targeted')).statusCode).toBe(409);
+ const invalid=structuredClone(d.t);invalid.areaFormats.meeting.ownerAreaId=randomUUID();
+ expect((await save({...d,t:invalid},2,'wrong-owner')).statusCode).toBe(422);
+ expect(await stamp()).toEqual(after);
+ expect((await call('GET',d.url)).json().value.revision).toBe(2);
+ section.source.fragment.nodes.text.children.push({id:'extra',type:'text',text:'New element'});
+ const structural=await save(d,2,'structural-fallback');
+ expect(structural.statusCode,structural.body).toBe(200);
+ expect((await stamp()).variable_schemas).not.toEqual(after.variable_schemas);
+ expect((await call('GET',d.url)).json().value.definition).toEqual(d.t);
+});
 it('rejects valid client-forged model20 origin and preserves server-retained origin metadata',async()=>{
  const d=await seeded(),origin={templateId:randomUUID(),revision:1,sectionId:randomUUID()},forged=structuredClone(d.t);forged.sections[0].origin=origin;expect(validateTemplate(forged).ok).toBe(true);
  const before=await counts(d.id.templateId),bad=await save({...d,t:forged},1);expect(bad.statusCode).toBe(422);expect(bad.json().issues[0].path).toBe('origin');expect(await counts(d.id.templateId)).toEqual(before);

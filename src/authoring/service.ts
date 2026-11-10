@@ -8,7 +8,7 @@ import type {Pool,PoolClient} from 'pg';
 import {validateTemplate,prepareGeneration,composeDocument} from '@flowdoc/core';
 import {transaction} from '../db/connection.js';
 import {assemble} from '../templates/assembly.js';
-import {readRecord,writeCurrent} from '../templates/storage.js';
+import {readRecord,writeDraftCurrent} from '../templates/storage.js';
 import {reconcileDefinition} from './adapter.js';
 import {failure,OperationError} from '../errors.js';
 import {imageNodes} from '../images/nodes.js';
@@ -44,7 +44,7 @@ const audit=(c:PoolClient,id:string,p:string,r:number,op:string,summary:unknown)
 async function writeDraft(c:PoolClient,id:string,principal:string,definition:any,before:any){
  const v=validateTemplate(definition);if(!v.ok)throw new AuthoringIssues(v);
  const previous=before.revision?await readRecord(c,id):undefined;
- await writeCurrent(c,reconcileDefinition(v.value.definition,previous));
+ await writeDraftCurrent(c,reconcileDefinition(v.value.definition,previous),previous);
  await c.query('UPDATE templates SET name=$2,updated_at=now() WHERE id=$1',[id,v.value.definition.name]);
  const after=await view(c,id),difference=definitionDiff(before.definition,after.definition);await audit(c,id,principal,after.revision,'save',difference);return {...after,...difference};
 }
