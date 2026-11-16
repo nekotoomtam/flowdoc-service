@@ -30,7 +30,8 @@ export function taskWire(response:TaskResponse,taskId:string,download=false){
    const fileName=meta.fileName??'document',disposition=outputDisposition(fileName,meta.outputFormat);
    if(download){
      response.start(spec.mediaType,{'Content-Disposition':disposition,'Content-Length':size,'X-FlowDoc-SHA256':meta.sha256,
-       'X-FlowDoc-Task-Id':taskId,'X-FlowDoc-Completeness':meta.completeness,'X-FlowDoc-Field-Refresh':'required'});
+       'X-FlowDoc-Task-Id':taskId,'X-FlowDoc-Completeness':meta.completeness,
+       ...(meta.outputFormat==='docx'?{'X-FlowDoc-Field-Refresh':'required'}:{})});
      started=true;pdfStarted=true;
    }else{
      await event('artifact','sending',{...meta,fileName,mediaType:spec.mediaType});pdfStarted=true;
