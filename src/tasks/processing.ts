@@ -17,7 +17,7 @@ import { resolveFontReadiness } from '../fonts/readiness.js';
 import { makeFontSnapshot, persistJobFonts, validateFontSnapshot, rendererIdentity } from '../fonts/snapshot.js';
 import { renderTask, fontWorkspaceBound, type TaskRenderReceipt } from './render.js';
 export interface TaskResponse {
-    start(contentType: string): void;
+    start(contentType: string, headers?: Record<string,string|number>): void;
     write(chunk: Uint8Array): Promise<void>;
     /** Resolve only on transport finish. abort settles outstanding writes. */
     end(): Promise<void>;
@@ -242,7 +242,7 @@ export async function createTaskProcessing(deps: Dependencies) {
             clearInterval(poll);
             request.signal?.removeEventListener('abort', disconnect);
             try {
-                if(started&&!wire.ended)await request.response.abort().catch(()=>{});
+                if(started&&!wire.ended&&(wire.started||request.signal?.aborted))await request.response.abort().catch(()=>{});
                 await pool.query("UPDATE tasks SET writer_pid=NULL,writer_host=NULL,writer_start_identity=NULL,lease_expires_at=clock_timestamp() WHERE id=$1 AND terminal_at IS NULL AND stop_requested_at IS NOT NULL", [id]).catch(()=>{});
                 executing.delete(id);
                 active.delete(id);

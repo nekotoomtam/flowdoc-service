@@ -1,6 +1,8 @@
 import type {FastifyInstance} from 'fastify';import type {Pool} from 'pg';
 import type {createTaskIntake} from '../tasks/intake.js';import type {createTaskProcessing,TaskResponse} from '../tasks/processing.js';
 import {taskSnapshot,publicCode} from '../tasks/public.js';import {taskError} from '../tasks/quota.js';import {taskWire} from '../tasks/wire.js';
+import {artifactSpec} from '../tasks/artifact.js';
+import {parseOutputFormat} from '../tasks/output-format.js';
 export interface Documents {intake:Awaited<ReturnType<typeof createTaskIntake>>;processing:Awaited<ReturnType<typeof createTaskProcessing>>;lookupIdleMs?:number;lookupTotalMs?:number}
 export async function registerDocuments(app:FastifyInstance,pool:Pool,tasks:Documents,isReady:()=>boolean){
  const lookupIdle=tasks.lookupIdleMs??60000,lookupTotal=tasks.lookupTotalMs??15000;if(!Number.isInteger(lookupIdle)||lookupIdle<1||lookupIdle>60000||!Number.isInteger(lookupTotal)||lookupTotal<1||lookupTotal>15000)throw Error('Invalid lookup timeout');
@@ -19,7 +21,7 @@ export async function registerDocuments(app:FastifyInstance,pool:Pool,tasks:Docu
    reply.raw.once('close',closed);if(finish)reply.raw.once('finish',finished);
    if(reply.raw.destroyed)return done(taskError('CONNECTION_LOST'));operation(finish?()=>{}:done);
   });
-  const response:TaskResponse={start(contentType){reply.hijack();reply.raw.writeHead(200,{'Content-Type':contentType,'Cache-Control':'no-store','X-Accel-Buffering':'no'});reply.raw.flushHeaders();},
+  const response:TaskResponse={start(contentType,headers){reply.hijack();reply.raw.writeHead(200,{'Content-Type':contentType,'Cache-Control':'no-store','X-Accel-Buffering':'no',...headers});reply.raw.flushHeaders();},
    write:chunk=>waitFor(done=>{reply.raw.write(chunk,done);}),end:()=>waitFor(()=>{reply.raw.end();},true),async abort(){reply.raw.destroy();}};
   try{
    if(req.headers['content-encoding']&&req.headers['content-encoding']!=='identity')throw taskError('UNSUPPORTED_MEDIA');
@@ -27,7 +29,11 @@ export async function registerDocuments(app:FastifyInstance,pool:Pool,tasks:Docu
    if(modes.length>1||modes.length===1&&modes[0]!=='queue-v1')throw taskError('INVALID_REQUEST');
    const queueMode=modes.length===1;
    const lookup=type.split(';')[0]?.trim().toLowerCase()==='application/json';
-   const accept=req.headers.accept;if(accept&&!accept.split(',').some(v=>new RegExp('^('+ (lookup?'application/json':'multipart/mixed') +'|\\*\\/\\*)(?:\\s*;|\\s*$)','i').test(v.trim())&&!/;\s*q=0(?:\.0*)?(?:;|$)/.test(v)))throw Object.assign(taskError('NOT_ACCEPTABLE'),{statusCode:406});
+   const accept=req.headers.accept;
+   const accepted=(accept??'').split(',').filter(v=>!/;\s*q=0(?:\.0*)?\s*(?:;|$)/i.test(v)).map(v=>v.split(';')[0]!.trim().toLowerCase());
+   const download=!lookup&&accepted.includes(artifactSpec('docx').mediaType);
+   if((download&&parseOutputFormat(formats)!=='docx')||(!download&&accept&&!accepted.includes('*/*')&&!accepted.includes(lookup?'application/json':'multipart/mixed')))
+    throw Object.assign(taskError('NOT_ACCEPTABLE'),{statusCode:406});
    if(type.split(';')[0]?.trim().toLowerCase()==='application/json'){
     if(queueMode)throw taskError('TASK_REQUEST_CONFLICT');
     await tasks.intake.authenticate(auth);
@@ -40,7 +46,7 @@ export async function registerDocuments(app:FastifyInstance,pool:Pool,tasks:Docu
    if(!isReady())throw taskError('UNAVAILABLE');
    if(keys.length!==1)throw taskError('INVALID_REQUEST');
    const opened=await tasks.intake.open({authorization:auth,docKey:keys[0],outputFormat:formats,contentType:type,queueMode,...(req.headers['content-encoding']?{contentEncoding:req.headers['content-encoding']}:{})});const taskId=opened.taskId;id=taskId;outputFormat=opened.outputFormat;
-   const first=async(status:string)=>{wire=taskWire(response,taskId);await wire.event('task',status,{createdAt:opened.createdAt,expiresAt:opened.expiresAt,template:opened.template,outputFormat:opened.outputFormat,...(queueMode&&tasks.intake.queueSnapshot().intakes>=2?{waitReason:'receive_slot'}:{})});};
+   const first=async(status:string)=>{wire=taskWire(response,taskId,download);await wire.event('task',status,{createdAt:opened.createdAt,expiresAt:opened.expiresAt,template:opened.template,outputFormat:opened.outputFormat,...(queueMode&&tasks.intake.queueSnapshot().intakes>=2?{waitReason:'receive_slot'}:{})});};
    if(queueMode)await first('awaiting_input');
    if(queueMode||tasks.intake.sharedQueueEnabled()){
     normalizing=tasks.intake.receiveQueued({authorization:auth,taskId,contentType:type,body:req.body as any,signal:abort.signal,legacyPipeline:!queueMode,...(!queueMode?{onReceived:()=>first('validating')}:{})}).then(()=>({done:true as const}),error=>({done:true as const,error}));

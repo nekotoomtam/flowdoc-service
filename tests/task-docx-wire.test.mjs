@@ -26,3 +26,24 @@ it('rejects corrupt or mismatched DOCX metadata before artifact headers',async()
  await expect(wire.artifact(path,{outputFormat:'docx',bytes:5,sha256:'b'.repeat(64),pageCount:null,fieldRefresh:'required',wordVerified:false,buffered:true},new AbortController().signal)).rejects.toHaveProperty('code','STORAGE_IO');
  expect(Buffer.concat(chunks).length).toBe(0);
 });
+it('downloads only the Word artifact after validation with a safe name and bounded writes',async()=>{
+ const bytes=Buffer.alloc(150000,7);bytes.write('PK\x03\x04');
+ const path=join(await mkdtemp(join(tmpdir(),'docx-download-')),'owned.bin');await writeFile(path,bytes);
+ const chunks=[];
+ const starts=[];
+ const wire=taskWire({start(...args){starts.push(args);},async write(b){expect(b.length).toBeLessThanOrEqual(65536);chunks.push(Buffer.from(b));},async end(){},async abort(){throw Error('Unexpected abort');}},'task',true);
+ await wire.event('task','processing',{});
+ expect(starts).toHaveLength(0);
+ await wire.artifact(path,{...api.docxDisclosure,outputFormat:'docx',fileName:'ทดสอบ',bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex'),pageCount:null,completeness:'complete'},new AbortController().signal);
+ expect(starts).toEqual([[mime,expect.objectContaining({'Content-Length':bytes.length,'Content-Disposition':'attachment; filename="document.docx"; filename*=UTF-8\'\'%E0%B8%97%E0%B8%94%E0%B8%AA%E0%B8%AD%E0%B8%9A.docx'})]]);
+ expect(Buffer.concat(chunks)).toEqual(bytes);
+ expect(wire.ended).toBe(true);
+});
+it('leaves early Word errors unwritten so HTTP can send the JSON status',async()=>{
+ const unexpected=()=>{throw Error('Unexpected transport use');};
+ const wire=taskWire({start:unexpected,write:unexpected,end:unexpected,abort:unexpected},'task',true);
+ await wire.event('progress','processing',{});
+ await wire.error('RENDER_FAILED','composing','failed');
+ expect(wire.started).toBe(false);
+ expect(wire.ended).toBe(true);
+});
