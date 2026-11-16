@@ -47,3 +47,24 @@ it('leaves early Word errors unwritten so HTTP can send the JSON status',async()
  expect(wire.started).toBe(false);
  expect(wire.ended).toBe(true);
 });
+it('downloads PDF bytes directly with PDF headers and no Word disclosure',async()=>{
+ const bytes=Buffer.from('%PDF-1.7\nfixture\n%%EOF\n');
+ const path=join(await mkdtemp(join(tmpdir(),'pdf-download-')),'owned.bin');
+ await writeFile(path,bytes);
+ const chunks=[],starts=[];
+ const digest=createHash('sha256').update(bytes).digest('hex');
+ const wire=taskWire({
+  start(...args){starts.push(args);},
+  async write(chunk){chunks.push(Buffer.from(chunk));},
+  async end(){},
+  async abort(){throw Error('Unexpected abort');},
+ },'task',true);
+ await wire.event('task','processing',{});
+ await wire.artifact(path,{outputFormat:'pdf',bytes:bytes.length,sha256:digest,pageCount:1,completeness:'complete'},new AbortController().signal);
+ expect(starts).toEqual([['application/pdf',{
+  'Content-Disposition':'attachment; filename="document.pdf"','Content-Length':bytes.length,
+  'X-FlowDoc-SHA256':digest,'X-FlowDoc-Task-Id':'task','X-FlowDoc-Completeness':'complete',
+ }]]);
+ expect(Buffer.concat(chunks)).toEqual(bytes);
+ expect(wire.ended).toBe(true);
+});

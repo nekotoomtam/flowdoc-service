@@ -31,8 +31,9 @@ export async function registerDocuments(app:FastifyInstance,pool:Pool,tasks:Docu
    const lookup=type.split(';')[0]?.trim().toLowerCase()==='application/json';
    const accept=req.headers.accept;
    const accepted=(accept??'').split(',').filter(v=>!/;\s*q=0(?:\.0*)?\s*(?:;|$)/i.test(v)).map(v=>v.split(';')[0]!.trim().toLowerCase());
-   const download=!lookup&&accepted.includes(artifactSpec('docx').mediaType);
-   if((download&&parseOutputFormat(formats)!=='docx')||(!download&&accept&&!accepted.includes('*/*')&&!accepted.includes(lookup?'application/json':'multipart/mixed')))
+   const download=!lookup&&(['docx','pdf'] as const).some(format=>accepted.includes(artifactSpec(format).mediaType));
+   if((download&&!accepted.includes(artifactSpec(parseOutputFormat(formats)).mediaType))||
+     (!download&&accept&&!accepted.includes('*/*')&&!accepted.includes(lookup?'application/json':'multipart/mixed')))
     throw Object.assign(taskError('NOT_ACCEPTABLE'),{statusCode:406});
    if(type.split(';')[0]?.trim().toLowerCase()==='application/json'){
     if(queueMode)throw taskError('TASK_REQUEST_CONFLICT');
