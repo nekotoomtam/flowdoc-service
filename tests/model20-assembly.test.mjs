@@ -45,3 +45,14 @@ it('uses two saved definitions for three real Core request instances in A-B-A or
 it.each(['examples/area-document-template.json','tests/fixtures/format-sizing/template.json'])('roundtrips explicitly converted20 fixture metadata and fingerprint: %s',path=>{
  const t=JSON.parse(readFileSync(path,'utf8')),v=valid(t),restored=assemble(decompose(t,randomUUID),t.version);expect(restored).toEqual(t);expect(valid(restored).fingerprint).toBe(v.fingerprint);
 });
+
+it('roundtrips numeric field payloads and structured Formula with existing variable records',()=>{
+ const template=model20Fixture();
+ const fields=template.sections[0].inputSchema.fields;
+ fields.rows={type:'array',items:{type:'object',fields:{amount:{type:'number',default:12.5}}}};
+ fields.total={type:'number',formula:{operation:'sum',source:{areaId:'cargo',formatKey:'rows',arrayField:'items',valueField:'amount'}}};
+ const record=decompose(template,randomUUID);
+ expect(record.variables.find(v=>v.key==='amount')).toMatchObject({typeId:110007,payload:{default:12.5}});
+ expect(record.variables.find(v=>v.key==='total')).toMatchObject({typeId:110007,payload:{formula:fields.total.formula}});
+ expect(assemble(record,template.version)).toEqual(template);
+});

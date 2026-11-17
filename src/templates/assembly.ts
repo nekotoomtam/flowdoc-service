@@ -7,8 +7,8 @@ export interface SchemaRow {sectionId?:string|null;id:string;formatId:string|nul
 export const schemaScope=(s:SchemaRow)=>s.scope??(s.formatId===null?'global':'format');
 export interface VariableRow {id:string;schemaId:string;parentId:string|null;key:string;typeId:number;position:number;payload:Json}
 export interface CurrentRecord {sections?:SectionRow[];templateId:string;revision:number;payload:Json;formats:FormatRow[];schemas:SchemaRow[];variables:VariableRow[]}
-const codes:Record<number,string>={110001:'string',110002:'object',110003:'array',110004:'image',110005:'link',110006:'area'};
-const typeIds:Record<string,number>={string:110001,array:110003,image:110004,link:110005,area:110006};
+const codes:Record<number,string>={110001:'string',110002:'object',110003:'array',110004:'image',110005:'link',110006:'area',110007:'number'};
+const typeIds:Record<string,number>={string:110001,array:110003,image:110004,link:110005,area:110006,number:110007};
 const invalid=(path:string):never=>{throw new OperationError('INVALID_DATA',path,'Invalid current record structure');};
 export function decompose(input:TemplateDefinition,id:()=>string):CurrentRecord {
  if(input.nodeModelVersion!==20)invalid('nodeModelVersion');
@@ -55,7 +55,7 @@ export function checkRecord(r:CurrentRecord):void {
   {
    let parent=v.parentId,depth=0;
    while(parent!==null){const p=vars.get(parent);if(!p||p.schemaId!==v.schemaId||p.typeId!==110003||++depth>2)invalid('parent');parent=p!.parentId;}
-   if(depth>0&&![110001,110004,110005,110003].includes(v.typeId)||v.typeId===110003&&depth>=2)invalid('parent');
+   if(depth>0&&![110001,110004,110005,110003,110007].includes(v.typeId)||v.typeId===110003&&depth>=2)invalid('parent');
   }
   const seen=new Set([v.id]);let p=v.parentId;while(p!==null){if(seen.has(p))invalid('cycle');seen.add(p);p=vars.get(p)?.parentId??null;}
   for(const reserved of ['id','key','type','items','fields','schemaId','parentId'])if(Object.hasOwn(v.payload,reserved))invalid('payload');
