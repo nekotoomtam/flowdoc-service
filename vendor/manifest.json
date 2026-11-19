@@ -1,12 +1,12 @@
 {
   "name": "@flowdoc/core",
   "version": "0.5.5",
-  "file": "flowdoc-core-0.5.5-candidate-1438832.tgz",
-  "sha256": "eb246527cc7e3e2e2a81c8f3d6598fd03a337e6bc0f41479d5921ae823a7c2a6",
-  "sourceCommit": "1438832f968a800060aa7e2b686984d46e843bec",
-  "sourceArtifact": "vendor/flowdoc-core-0.5.5-candidate-1438832.tgz",
+  "file": "flowdoc-core-0.5.5-candidate-0dd25d3.tgz",
+  "sha256": "0ba36a06f932a244aeab7533ab30f881d8e41ca14159e15442b704f4016f3b08",
+  "sourceCommit": "0dd25d34653e179f1b8b0bdc79a87ca2722cc6d6",
+  "sourceArtifact": "C:\\Users\\nekot\\Documents\\FlowDoc-recovery\\git-055-flowdocmake-20261106\\core\\oracle\\build\\flowdoc-core-0.5.5.tgz",
   "runtime": "linux-x64 glibc, Node24, Python3.11, fontTools4.58.2",
-  "delivery": "Number Formula candidate built from committed Core and existing unchanged Linux resources",
+  "delivery": "Oracle Lab candidate",
   "capabilities": {
     "imageOmissions": "docx-image-omissions/1",
     "nodeModelVersions": [

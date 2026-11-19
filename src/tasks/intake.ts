@@ -15,7 +15,7 @@ import {createQueueResources,type QueueResourceOptions} from './queue-resources.
 import {queuePolicy} from './policy.js';
 import {DEFAULT_QUEUE_PROFILE,isQueuePolicyVersion,usesInputWaitBudget} from './queue-profile.js';
 interface Dependencies{workerLauncher?:WorkerLauncher;ownership?:TaskOwnership;deferRecovery?:boolean;pool:Pool;root:string;resolveCredential:(header:string)=>TaskIdentity|null|Promise<TaskIdentity|null>;policy?:Partial<TaskPolicy>;queueResources?:QueueResourceOptions;freeBytes?:()=>Promise<number>;removeFile?:(path:string)=>Promise<void>;writeChunk?:(handle:FileHandle,chunk:Buffer)=>Promise<void>}
-interface Opening{outputFormat?:unknown;authorization:string;docKey:unknown;contentType:string;contentEncoding?:string;queueMode?:boolean}
+interface Opening{outputFormat?:unknown;authorization:string;docKey:unknown;version?:number|undefined;contentType:string;contentEncoding?:string;queueMode?:boolean}
 interface Receiving{authorization:string;taskId:string;contentType:string;body:Readable;signal?:AbortSignal}
 export async function createTaskIntake(deps:Dependencies){
  if(process.env.FLOWDOC_WORKER_ISOLATION==='required'&&!deps.workerLauncher)throw workerError('WORKER_TASK_LAUNCHER_REQUIRED');
@@ -72,7 +72,7 @@ export async function createTaskIntake(deps:Dependencies){
   if(!isReady())throw taskError('UNAVAILABLE');const identity=await authenticate(request.authorization);const outputFormat=parseOutputFormat(request.outputFormat);
   if(typeof request.docKey!=='string'||!request.docKey.trim()||request.docKey.includes(',')||request.docKey.length>200)throw taskError('INVALID_REQUEST');
   if(request.contentEncoding&&request.contentEncoding!=='identity')throw taskError('UNSUPPORTED_MEDIA');taskBoundary(request.contentType);
-  if(!identity.docKeys.includes(request.docKey))throw taskError('TEMPLATE_NOT_FOUND');const selected=await loadTemplate(pool,request.docKey);if(!selected.ok)throw taskError('TEMPLATE_NOT_FOUND');
+  if(!identity.docKeys.includes(request.docKey))throw taskError('TEMPLATE_NOT_FOUND');const selected=await loadTemplate(pool,request.docKey,request.version);if(!selected.ok)throw taskError('TEMPLATE_NOT_FOUND');
   if((request.queueMode||resources.enabled())&&!resources.ready())throw taskError('UNAVAILABLE');
   const v=selected.value,r=await repo.create(identity,v.versionId,{docKey:request.docKey,version:v.template.definition.version,fingerprint:v.template.fingerprint},request.queueMode,outputFormat,v.template.definition.defaultFileName??'document');opened.add(r.id);return safeTask(r);
  }

@@ -11,10 +11,14 @@ Project Control governs those claims.
 
 ## ชุดพัฒนา 0.5.5
 
-รอบ model20-only นี้ใช้ Core sourceff0d18d และ archive/hash ใน vendor/manifest.json.
-ต้องมี migration029 ก่อนเริ่มแอป; Service/plugin คนละ pin ไม่ถือว่าเข้ากันเพียงเพราะ
+รอบ model20-only นี้ใช้ Core source0dd25d3 และ archive/hash ใน vendor/manifest.json.
+ต้องมี migration030 ก่อนเริ่มแอป; Service/plugin คนละ pin ไม่ถือว่าเข้ากันเพียงเพราะ
 เลขรุ่น0.5.5เท่ากัน. หลักฐานรับรองข้าม repo อยู่ใน Project Control แผนเปลี่ยนเป็น20เท่านั้น.
 ไม่มีการติดตั้งหรือ release จากการแก้คู่มือนี้.
+
+ส่ง `Document-Version` เป็นเลขเวอร์ชันในคำขอสร้างเอกสารแบบ multipart
+เพื่อเลือกเวอร์ชันที่เผยแพร่แล้ว หากไม่ส่ง Service ใช้เวอร์ชันล่าสุด
+การอ่านสถานะงานด้วย JSON ใช้ task ID ตามเดิม
 
 ## อัปเดตจาก0.5.2 เป็น0.5.5: เตรียมก่อนติดตั้ง
 
@@ -912,7 +916,7 @@ until their original expiry. A minimal credential entry has token (at least32
 characters), ownerKey, principalId, docKeys array and taskRead boolean; supply
 trusted server identities, never caller-claimed identities. Do not commit secrets.
 Use the same override file for migration/start/stop. Check actual Init=true,
-Service/Core versions and archive SHA, migrations through029, authenticated
+Service/Core versions and archive SHA, migrations through030, authenticated
 feedback/PDF/hash/closing boundary, denied-owner lookup and interruption cleanup
 in an isolated instance before enabling real requests. Backup task storage and
 credentials consistently with the DB. Roll back using a matching DB/files/image
@@ -1058,7 +1062,7 @@ Control ไม่ใช่คำสั่งติดตั้ง release. ใ�
 DOCX มี pageCount:null และต้องอัปเดตฟิลด์/สารบัญใน Word; ห้ามอนุมานว่าตรวจ Word แล้ว
 จากการสร้างไฟล์สำเร็จ. ตัวเขียนเก็บข้อมูลระหว่างสร้างและจำกัดไฟล์32MiB.
 บางความสัมพันธ์ข้อความ/ภาพที่เกินกรอบยังเป็นข้อจำกัดชัดเจน. Candidate ที่ตรึง
-`flowdoc-core-0.5.5-candidate-ff0d18d.tgz` รองรับภาพใน body ที่ระบบตรวจว่า
+`flowdoc-core-0.5.5-candidate-0dd25d3.tgz` รองรับภาพใน body ที่ระบบตรวจว่า
 ใช้ไม่ได้แล้ว: บันทึก diagnostics ก่อนส่งตำแหน่งภาพให้ Core ผ่านสัญญา
 `docx-image-omissions/1` แล้วสร้าง DOCX ที่ส่งสำเร็จแต่ completeness เป็น partial.
 คงกรอบภาพเดิม ข้อความและภาพตำแหน่งอื่น ไม่มีภาพสมมติหรือ PDF fallback.
@@ -1085,7 +1089,7 @@ mount client0.2.7 เดิมที่ /legacy-plugin สำหรับกร�
 ### Candidate task recovery after container replacement
 
 Runtime ownership was introduced in migration027; this model20-only candidate
-requires migration029 before task credentials can be enabled. It pins each new task to an immutable runtime UUID and persistent
+requires migration030 before task credentials can be enabled. It pins each new task to an immutable runtime UUID and persistent
 storage UUID. Keep the entire task root, including its hidden identity/lock
 files, on the same local Linux filesystem across container recreation. The
 runtime requires working POSIX flock semantics; remote/distributed filesystem
