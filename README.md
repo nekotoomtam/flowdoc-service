@@ -1,6 +1,6 @@
 # FlowDoc Service
 
-> **Candidate 0.5.5 — 2026-11-06:** Owner selected Core/Service 0.5.5 for the retained model20-only runtime. This is local Git/package preparation; no publication or installation. The withdrawn v0.6.0 history and the existing v0.5.2 release remain unchanged.
+Service package `0.0.1` uses the vendored Core `0.5.5` archive from commit `0dd25d3`.
 
 Development version0.5.5 uses the exact Core0.5.5 archive in vendor/manifest.json.
 It accepts model20 only and requires migrations through 031. Models18/19 need
