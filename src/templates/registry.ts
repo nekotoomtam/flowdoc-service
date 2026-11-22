@@ -1,3 +1,4 @@
+import type {DocumentConsumer} from './baseline.js';
 import type {Pool} from 'pg';
 import {validateTemplate} from '@flowdoc/core';
 import type {Result,ValidatedTemplate} from '@flowdoc/core';
@@ -24,11 +25,14 @@ export async function registerTemplate(pool:Pool,rawJson:string):Promise<Result<
   });return {ok:true,value,warnings:[]};
  }catch(error){return failure(error);}
 }
-export async function loadTemplate(pool:Pool,docKey:string,version?:number):Promise<Result<SelectedTemplate>>{
+export async function loadTemplate(pool:Pool,docKey:string,version?:number,consumer?:DocumentConsumer):Promise<Result<SelectedTemplate>>{
  if(typeof docKey!=='string'||!docKey.trim()||(version!==undefined&&(!Number.isSafeInteger(version)||version<1||version>2147483647)))return failure(new OperationError('INVALID_DATA','template','Invalid template key or version'));
  try{
   const found=await pool.query<{id:string|null;definition_json:unknown;fingerprint:string}>(`SELECT v.id,v.definition_json,v.fingerprint FROM templates t LEFT JOIN LATERAL
-   (SELECT id,definition_json,fingerprint FROM template_versions WHERE template_id=t.id AND ($2::integer IS NULL OR version=$2) ORDER BY version DESC LIMIT 1) v ON true WHERE t.doc_key=$1`,[docKey,version??null]);
+   (SELECT v0.id,v0.definition_json,v0.fingerprint FROM template_versions v0
+    WHERE v0.template_id=t.id AND v0.version=COALESCE($2::integer,
+      (SELECT b.version FROM document_baselines b WHERE b.template_id=t.id AND b.owner_key=$3 AND b.principal_id=$4),v0.version)
+    ORDER BY v0.version DESC LIMIT 1) v ON true WHERE t.doc_key=$1`,[docKey,version??null,consumer?.ownerKey??null,consumer?.principalId??null]);
   if(!found.rows.length)throw new OperationError('TEMPLATE_NOT_FOUND','docKey','Template not found');
   const row=found.rows[0]!;if(!row.id)throw new OperationError('VERSION_NOT_FOUND','version','Template version not found');
   const valid=validateTemplate(row.definition_json);if(!valid.ok||valid.value.fingerprint!==row.fingerprint)throw new OperationError('STORAGE_FAILED','template','Stored template failed validation');

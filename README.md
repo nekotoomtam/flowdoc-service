@@ -3,7 +3,7 @@
 > **Candidate 0.5.5 — 2026-11-06:** Owner selected Core/Service 0.5.5 for the retained model20-only runtime. This is local Git/package preparation; no publication or installation. The withdrawn v0.6.0 history and the existing v0.5.2 release remain unchanged.
 
 Development version0.5.5 uses the exact Core0.5.5 archive in vendor/manifest.json.
-It accepts model20 only and requires migrations through030. Models18/19 need
+It accepts model20 only and requires migrations through 031. Models18/19 need
 explicit offline conversion into a new namespace; no automatic rewrite or
 deletion is performed. M1 preserves Menu textboxes while correcting eligible
 merged Module label insets. Native DOCX continuation labels are still not
@@ -36,7 +36,7 @@ current candidate package/archive identity is always `vendor/manifest.json`.
 For a locally built private candidate use `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.5.5`.
 Set `FLOWDOC_REGISTRY_IMAGE` to the explicitly recorded integration image tag
 or digest. The generic `:0.5.5` tag alone does not identify this candidate.
-Apply migrations through 030 before starting this development candidate.
+Apply migrations through 031 before starting this development candidate. Migration 031 adds per-consumer document version pins. For multipart document requests, an explicit Document-Version takes precedence over the consumer pin. With neither, the Service selects the latest published version.
 Migration029 is candidate-only. It refuses legacy data without rewriting/deleting it; use a newly named model20 namespace for testing. Historical001–028 checksums remain unchanged.
 
 ### Manual/runtime boundaries before release
@@ -103,7 +103,7 @@ Attachment headers include the extension; Unicode names use `filename*` with an
 ASCII `document` fallback. Clients must support `filename*` to display Thai names.
 Internal UUID storage paths and Core business data/rendering stay unchanged.
 
-Naming was introduced in migration026; this candidate requires migrations through030. Historical sealed
+Naming was introduced in migration026; this candidate requires migrations through 031. Historical sealed
 tasks keep the old `document` base name. Existing authoring save/read and
 immutable template registration retain the default. Authoring publication and
 installation remain separately authorized operations. This candidate accepts20 only;18/19 require explicit offline conversion into a new namespace.
@@ -234,7 +234,7 @@ create isolated schemas and temporarily alter constraints; never use shared data
 For a persistent local registry, copy .env.example to .env and choose a random
 URL-safe password. Set `FLOWDOC_REGISTRY_IMAGE=flowdoc-service:0.5.0` explicitly
 to identify the image built from this candidate; verify its image ID separately.
-Apply migrations through 030 before
+Apply migrations through 031 before
 starting this package. For fonts/authoring, add the environment override in the
 usage guide; base Compose does not pass those secrets to the API. Run:
 
@@ -285,7 +285,7 @@ checks, queue persistence across DB restart and legacy rendering fixtures. Optio
 Results and local test credentials are separate under `artifacts/<run>`; share only
 the result/PDF files. Shared stage acceptance remains in Project Control.
 
-The administrator HTTP candidate requires migrations through 030 and both
+The administrator HTTP candidate requires migrations through 031 and both
 `FONT_ADMIN_TOKEN` (32–512 characters) and `FONT_ADMIN_PRINCIPAL`. Without them
 admin routes stay disabled; a partial configuration or a token equal to
 `AUTHORING_TOKEN` rejects startup. The authoring token receives 403 on admin
@@ -629,7 +629,7 @@ for its one/two/six-request flow and failed-job handling.
 
 Prepared jobs send only the document and required image input to the child.
 Core validation and immutable snapshot integrity checks remain in place.
-Apply migrations through 030 using the matching CLI before starting the API.
+Apply migrations through 031 using the matching CLI before starting the API.
 
 ## Candidate model20 authoring tools
 
@@ -637,7 +637,7 @@ This local setup section describes the candidate implementation only. Shared
 scope and acceptance: ../flowdoc-project-control/docs/domains/flowdoc-template-authoring-tools-plan.md.
 It does not establish a connected AI host or release readiness.
 
-After building and applying migrations through 030 to the intended development
+After building and applying migrations through 031 to the intended development
 database, start the Service with its existing database/output configuration plus
 AUTHORING_TOKEN (a secret of at least 32 characters) and AUTHORING_PRINCIPAL
 (a stable owner name; default local-owner). Authoring stays disabled without a
@@ -773,7 +773,7 @@ installation authorization. The original0.5.0 integration used Core SHA256
 that is historical evidence, not the current0.5.5 pin. Current version/hash/source
 are in `vendor/manifest.json`. Retain old archives and run
 `node scripts/verifyVendor.mjs` before building. Current0.5.5 requires all
-migrations through030; the DOCX format addition itself was migration025.
+migrations through 031; the DOCX format addition itself was migration025.
 
 For `POST /documents`, `Output-Format: DOCX` selects DOCX in both normal and
 `Task-Mode: queue-v1` requests. Explicit `PDF` and an omitted header keep PDF.
