@@ -8,7 +8,7 @@ import {importCurrent,loadCurrent,saveCurrent} from '../dist/templates/current.j
 import {publishCurrent} from '../dist/templates/publish.js';
 import {loadTemplate} from '../dist/templates/registry.js';
 const ok=r=>{expect(r.ok,JSON.stringify(r)).toBe(true);return r.value;};
-it('upgrades populated012, preserves locked versions and remaps every nested parent on publication',async()=>{
+it('preserves locked model4 versions from 012 through 028 and refuses the model20 cutover',async()=>{
  const db=isolatedDatabase();await db.setup();try{
   await db.pool.query('CREATE TABLE schema_migrations(name text PRIMARY KEY,checksum text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now())');
   for(const name of readdirSync('migrations').filter(n=>/^(00[1-9]|01[012])_/.test(n)).sort()){const sql=readFileSync('migrations/'+name,'utf8');await db.pool.query(sql);await db.pool.query('INSERT INTO schema_migrations(name,checksum) VALUES($1,$2)',[name,createHash('sha256').update(sql).digest('hex')]);}
@@ -16,7 +16,16 @@ it('upgrades populated012, preserves locked versions and remaps every nested par
   await db.pool.query('INSERT INTO templates(id,doc_key,name) VALUES($1,$2,$3)',[old.templateId,old.docKey,old.name]);await db.pool.query('INSERT INTO template_current(template_id,payload) VALUES($1,$2)',[old.templateId,JSON.stringify(old)]);await db.pool.query('INSERT INTO template_versions(id,template_id,version,definition_json,fingerprint) VALUES($1,$2,1,$3,$4)',[versionId,old.templateId,JSON.stringify(old),'a'.repeat(64)]);await db.pool.query('INSERT INTO template_snapshots(version_id,payload) VALUES($1,$2)',[versionId,JSON.stringify(old)]);
   const before=(await db.pool.query('SELECT * FROM template_current')).rows,locked=(await db.pool.query('SELECT * FROM template_versions')).rows;
   expect(ok(await migrateThrough028(db.pool)).applied).toEqual(['013_row_groups.sql','014_area_document.sql','015_authoring_previews.sql','016_font_library_staging.sql','017_font_references_jobs.sql','018_font_lifecycle.sql','019_font_height_profiles.sql','020_font_height_proposals.sql','021_section_instances.sql','022_task_intake.sql','023_task_normalization.sql','024_task_processing.sql','025_task_output_format.sql','026_task_file_names.sql','027_task_runtime_ownership.sql','028_model20_section_definitions.sql']);expect(ok(await migrateThrough028(db.pool)).applied).toEqual([]);
-  expect((await db.pool.query('SELECT * FROM template_current')).rows).toEqual(before);expect((await db.pool.query('SELECT * FROM template_versions')).rows).toEqual(locked);expect((await loadTemplate(db.pool,old.docKey,1)).ok).toBe(false);
+  expect((await db.pool.query('SELECT * FROM template_current')).rows).toEqual(before);expect((await db.pool.query('SELECT * FROM template_versions')).rows).toEqual(locked);
+  expect(await migrate(db.pool)).toMatchObject({
+   ok:false, issues:[{code:'LEGACY_MODEL_DATA',path:'migration'}],
+  });
+ }finally{await db.close();}
+});
+
+it('preserves published model20 row groups and remaps nested parents on the current schema',async()=>{
+ const db=isolatedDatabase();await db.setup();try{
+  expect(ok(await migrate(db.pool)).applied).toContain('031_document_baselines.sql');
   const t=JSON.parse(readFileSync('examples/row-groups-template.json','utf8'));let current=ok(await importCurrent(db.pool,JSON.stringify(t)));
   const v1=ok(await publishCurrent(db.pool,{templateId:t.templateId,requestId:'first'})),original=ok(await loadTemplate(db.pool,t.docKey,1));
   current.formats[0].payload.label='Changed';current.variables.find(v=>v.key==='name'&&current.variables.find(p=>p.id===v.parentId)?.key==='members').payload.description='Member name';
