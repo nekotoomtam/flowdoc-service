@@ -12,12 +12,12 @@ Project Control governs those claims.
 ## ชุดพัฒนา 0.5.5
 
 รอบ model20-only นี้ใช้ Core source0dd25d3 และ archive/hash ใน vendor/manifest.json.
-ต้องมี migration030 ก่อนเริ่มแอป; Service/plugin คนละ pin ไม่ถือว่าเข้ากันเพียงเพราะ
+ต้องมี migration 031 ก่อนเริ่มแอป; Service/plugin คนละ pin ไม่ถือว่าเข้ากันเพียงเพราะ
 เลขรุ่น0.5.5เท่ากัน. หลักฐานรับรองข้าม repo อยู่ใน Project Control แผนเปลี่ยนเป็น20เท่านั้น.
 ไม่มีการติดตั้งหรือ release จากการแก้คู่มือนี้.
 
 ส่ง `Document-Version` เป็นเลขเวอร์ชันในคำขอสร้างเอกสารแบบ multipart
-เพื่อเลือกเวอร์ชันที่เผยแพร่แล้ว หากไม่ส่ง Service ใช้เวอร์ชันล่าสุด
+เพื่อเลือกเวอร์ชันที่เผยแพร่แล้ว หากไม่ส่ง Service ใช้รุ่นที่ตั้งไว้สำหรับแม่แบบและผู้เรียกตาม ownerKey กับ principalId หากยังไม่ได้ตั้งจะใช้รุ่นเผยแพร่ล่าสุด
 การอ่านสถานะงานด้วย JSON ใช้ task ID ตามเดิม
 
 ## อัปเดตจาก0.5.2 เป็น0.5.5: เตรียมก่อนติดตั้ง
@@ -916,7 +916,7 @@ until their original expiry. A minimal credential entry has token (at least32
 characters), ownerKey, principalId, docKeys array and taskRead boolean; supply
 trusted server identities, never caller-claimed identities. Do not commit secrets.
 Use the same override file for migration/start/stop. Check actual Init=true,
-Service/Core versions and archive SHA, migrations through030, authenticated
+Service/Core versions and archive SHA, migrations through 031, authenticated
 feedback/PDF/hash/closing boundary, denied-owner lookup and interruption cleanup
 in an isolated instance before enabling real requests. Backup task storage and
 credentials consistently with the DB. Roll back using a matching DB/files/image
@@ -1089,7 +1089,7 @@ mount client0.2.7 เดิมที่ /legacy-plugin สำหรับกร�
 ### Candidate task recovery after container replacement
 
 Runtime ownership was introduced in migration027; this model20-only candidate
-requires migration030 before task credentials can be enabled. It pins each new task to an immutable runtime UUID and persistent
+requires migration 031 before task credentials can be enabled. It pins each new task to an immutable runtime UUID and persistent
 storage UUID. Keep the entire task root, including its hidden identity/lock
 files, on the same local Linux filesystem across container recreation. The
 runtime requires working POSIX flock semantics; remote/distributed filesystem

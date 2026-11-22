@@ -5,3 +5,6 @@ migrations/014_area_document.sql -text
 
 # Executable Python helpers must retain a Unix shebang in Docker.
 runtime/python/*.py text eol=lf
+
+# Preserve the bytes registered in the receipt baseline trial database.
+migrations/031_document_baselines.sql -text
