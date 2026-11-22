@@ -1,8 +1,9 @@
 import {readReferences,writeReferences,verifyReferences,type ReferenceSet} from '../fonts/retention.js';
+import {isDeepStrictEqual} from 'node:util';
 import type {PoolClient} from 'pg';
 import {validateTemplate} from '@flowdoc/core';
 import {assemble,decompose,checkRecord,schemaScope} from './assembly.js';
-import type {CurrentRecord} from './assembly.js';
+import type {CurrentRecord,Json} from './assembly.js';
 import {OperationError} from '../errors.js';
 export async function freshRecord(c:PoolClient,t:any):Promise<CurrentRecord>{
  let count=1;const probe=decompose(t,()=>String(count++));
@@ -36,6 +37,66 @@ export async function writeCurrent(c:PoolClient,r:CurrentRecord,inherited:Refere
  const after=validateTemplate(assemble(r,1));if(!after.ok)throw new OperationError('INVALID_DATA','definition','Invalid definition');
  const revision=(await c.query('SELECT revision FROM template_current WHERE template_id=$1',[r.templateId])).rows[0].revision;
  await writeReferences(c,after.value.definition,after.value.fingerprint,revision,previous,undefined,additionalInherited);
+}
+
+const same=(a:unknown,b:unknown)=>isDeepStrictEqual(a,b,{skipPrototype:true});
+function sameRows<T extends {id:string}>(before:T[],after:T[],project:(row:T)=>unknown){
+ if(before.length!==after.length)return false;
+ const prior=new Map(before.map(row=>[row.id,project(row)]));
+ return after.every(row=>prior.has(row.id)&&same(prior.get(row.id),project(row)));
+}
+function contentShape(payload:Json){
+ const maskFragment=(host:Json)=>{
+  if(!host.fragment)return host;
+  const nodes=Object.entries(host.fragment.nodes as Record<string,Json>).map(([id,node])=>{
+   if(node.type!=='text-block')return [id,node];
+   const children=(node.children as Json[]).map(inline=>{
+    if(inline.type==='text'){const {text,...shape}=inline;return shape;}
+    if(inline.type==='field-ref'){const {scope,key,...shape}=inline;return shape;}
+    return inline;
+   });
+   return [id,{...node,children}];
+  });
+  return {...host,fragment:{...host.fragment,nodes:Object.fromEntries(nodes)}};
+ };
+ const shape={...maskFragment(payload)};
+ for(const key of ['source','header','footer'])if(shape[key])shape[key]=maskFragment(shape[key]);
+ return shape;
+}
+function changedContentRows<T extends {id:string;payload:Json}>(before:T[],after:T[]){
+ if(!sameRows(before,after,({payload,...identity})=>identity))return;
+ const prior=new Map(before.map(row=>[row.id,row.payload]));
+ const changed=after.filter(row=>!same(prior.get(row.id),row.payload));
+ if(changed.every(row=>same(contentShape(prior.get(row.id)!),contentShape(row.payload))))return changed;
+}
+
+/** Save text and bindings on the existing normalized graph under the draft lock. */
+export async function writeDraftCurrent(c:PoolClient,next:CurrentRecord,prior?:CurrentRecord){
+ if(!prior||prior.payload.nodeModelVersion!==20||prior.templateId!==next.templateId||
+    !same(prior.payload,next.payload)||
+    !sameRows(prior.schemas,next.schemas,s=>({...s,sectionId:s.sectionId??null,scope:schemaScope(s)}))||
+    !sameRows(prior.variables,next.variables,v=>v))return writeCurrent(c,next);
+ const sections=changedContentRows(prior.sections??[],next.sections??[]);
+ const formats=changedContentRows(prior.formats,next.formats);
+ if(!sections||!formats||(!sections.length&&!formats.length))return writeCurrent(c,next);
+
+ const old=validateTemplate(assemble(prior,1));
+ if(!old.ok)throw new OperationError('STORAGE_FAILED','draft','Stored draft failed validation');
+ const previous=await readReferences(c,prior.templateId,prior.revision);
+ verifyReferences(old.value.definition,old.value.fingerprint,previous);
+ const after=validateTemplate(assemble(next,1));
+ if(!after.ok)throw new OperationError('INVALID_DATA','definition','Invalid definition');
+ const head=await c.query('UPDATE template_current SET revision=revision+1,updated_at=now() WHERE template_id=$1 AND revision=$2 RETURNING revision',
+  [prior.templateId,prior.revision]);
+ if(!head.rowCount)throw new OperationError('STALE_CURRENT','expectedRevision','Reload draft before saving or previewing');
+ for(const [table,rows] of [['sections',sections],['formats',formats]] as const){
+  for(const row of rows){
+   const updated=await c.query('UPDATE '+table+' SET payload=$1,updated_at=now() WHERE template_id=$2 AND id=$3',
+    [JSON.stringify(row.payload),prior.templateId,row.id]);
+   if(updated.rowCount!==1)throw new OperationError('STORAGE_FAILED','draft','Current content row was not found');
+  }
+ }
+ await writeReferences(c,after.value.definition,after.value.fingerprint,head.rows[0].revision,previous);
 }
 export async function writeSnapshot(c:PoolClient,r:CurrentRecord,versionId:string,detachedSource=false):Promise<void>{
  checkRecord(r);
