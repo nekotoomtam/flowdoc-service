@@ -1,6 +1,6 @@
-# คู่มือใช้งาน FlowDoc Service 0.0.1
+# คู่มือใช้งาน FlowDoc Service 0.5.6
 
-Service package `0.0.1` uses the vendored Core `0.5.5` archive from commit `0dd25d3`.
+Service package `0.5.6` uses the vendored Core `0.5.5` archive from commit `0dd25d3`.
 
 ## Authority Boundary
 
@@ -9,7 +9,7 @@ experimental resource-profile configuration. This guide does not promote a
 release, installation, shared FlowDoc readiness or cross-repository status;
 Project Control governs those claims.
 
-## ชุดพัฒนา Service 0.0.1
+## ชุดพัฒนา Service 0.5.6
 
 รอบ model20-only นี้ใช้ Core source0dd25d3 และ archive/hash ใน vendor/manifest.json.
 ต้องมี migration 031 ก่อนเริ่มแอป; Service/plugin คนละ pin ไม่ถือว่าเข้ากันเพียงเพราะ
