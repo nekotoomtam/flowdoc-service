@@ -10,6 +10,8 @@ import xml.etree.ElementTree as ElementTree
 from pathlib import Path
 
 import pdfplumber
+import pymupdf
+from cell_geometry import page_tables
 from PIL import Image, ImageDraw
 
 MAX_BYTES = 20 * 1024 * 1024
@@ -141,7 +143,7 @@ def evidence_for(selected, original_pages, assets, scratch):
     shapes = ElementTree.parse(geometry).getroot().findall("page")
     canvases = sorted(scratch.glob("page-*.pgm"), key=lambda path: int(path.stem.rsplit("-", 1)[1]))
     result = []
-    with pdfplumber.open(selected) as pdf:
+    with pdfplumber.open(selected) as pdf, pymupdf.open(selected) as native:
         for page, shape, raster, original in zip(pdf.pages, shapes, canvases, original_pages, strict=True):
             text = text_observations(page)
             with Image.open(raster) as bitmap:
@@ -149,6 +151,7 @@ def evidence_for(selected, original_pages, assets, scratch):
             result.append({
                 "file_page": page.page_number, "originalPage": original, "page_size_pt": [page.width, page.height],
                 "typography_observations": text,
+                "table_observations": page_tables(native[page.page_number - 1]),
                 "vector_lines": [drawing(line) for line in page.lines],
                 "vector_rectangles": [
                     {**drawing(rect), "fill": bool(rect.get("fill")), "stroke": bool(rect.get("stroke"))}
