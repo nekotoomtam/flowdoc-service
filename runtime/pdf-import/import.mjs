@@ -10,7 +10,7 @@ export function buildRequest(model,identity,pdf,evidence,instructions){
     model, store:false, max_output_tokens:19000,
     instructions,
     input:[{role:'user',content:[
-      {type:'input_text',text:JSON.stringify({identity,sourceMeasurements:evidence})},
+      {type:'input_text',text:'Return JSON. '+JSON.stringify({identity,sourceMeasurements:evidence})},
       {type:'input_file',filename:'selected-pages.pdf',file_data:'data:application/pdf;base64,'+pdf.toString('base64'),detail:'high'},
     ]}],
     text:{format:{type:'json_object'}},
@@ -37,9 +37,13 @@ export function importResult(raw,identity){
      Object.entries(assetBindings).some(([key,marker])=>!Object.hasOwn(identity.assets,key)||marker!==identity.assets[key])){
     throw new Error('Model output references an unexpected import asset');
   }
-  if(!Array.isArray(limitations)||limitations.some(item=>typeof item!=='string'))throw new Error('Model output is missing its limitations');
+  // Preserve categorized model notes in the string list consumed by Service.
+  const notes=limitations&&typeof limitations==='object'&&!Array.isArray(limitations)
+    ? Object.entries(limitations).map(([topic,note])=>topic+': '+(typeof note==='string'?note:JSON.stringify(note)))
+    : limitations;
+  if(!Array.isArray(notes)||notes.some(item=>typeof item!=='string'))throw new Error('Model output is missing its limitations');
   inspectStrings(raw);
-  return raw;
+  return notes===limitations?raw:{...raw,limitations:notes};
 }
 
 export function openAiResult(answer,identity){
